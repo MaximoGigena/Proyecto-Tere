@@ -1,14 +1,83 @@
 <template>
-  <div>
+  <div class="h-screen">
     <!-- Hero Section -->
-    <div class="hero relative h-screen text-white" :style="{ backgroundImage: `url(${Imagenfinal})`, backgroundSize: 'cover', backgroundPosition: 'center' }">
-      <header class="fixed w-full top-0 z-50 flex justify-between items-center px-16 py-4 h-24 bg-black/30">
-        <div class="flex items-center">
-          <img :src="logo" alt="Logo de Tere" class="h-16 object-contain scale-350" />
+    <div class="hero h-screen text-white" :style="{ backgroundImage: `url(${Imagenfinal})`, backgroundSize: 'cover', backgroundPosition: 'center' }">
+      <header class="absolute w-full top-0  flex justify-between items-center px-16 py-4 h-24 bg-black/10">
+        <div class="flex items-center mr-10">
+          <img :src="logo" alt="Logo de Tere" class="h-16 object-contain scale-300 mt-2" />
         </div>
-        <nav class="flex space-x-5 text-white font-medium">
-          <a href="#" class="hover:text-gray-300 transition">Información</a>
-          <a href="#" class="hover:text-gray-300 transition">Seguridad</a>
+        <nav class="flex items-center space-x-5 text-white font-medium flex-grow ml-10">
+          <div class="relative group">
+           <!-- MENU Sobre Nosotros -->
+              <button class="hover:text-green-300 transition">
+                Sobre Nosotros
+               </button>
+              <!-- MENU oculto -->
+              <div class="absolute left-0 hidden group-hover:block bg-black/10 text-white mt-0 rounded shadow-md py-2 w-48 z-10">
+                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+                  <svg xmlns="http://www.w3.org/2000/svg"
+                      class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
+                      fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
+                  </svg>
+                  <span>Consejos</span>
+                </a>
+
+                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+                  <svg xmlns="http://www.w3.org/2000/svg"
+                      class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
+                      fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
+                  </svg>
+                  <span>Protección de datos</span>
+                </a>
+
+                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+                  <svg xmlns="http://www.w3.org/2000/svg"
+                      class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
+                      fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
+                  </svg>
+                  <span>Denuncias</span>
+                </a>
+              </div>
+          </div>
+           <!-- MENU DE SEGURIDAD -->
+            <div class="relative group">
+              <button class="hover:text-green-300 transition">
+                Seguridad
+              </button>
+              <!-- MENU OCULTO -->
+              <div class="absolute left-0 hidden group-hover:block bg-black/10 text-white mt-0 rounded shadow-md py-2 w-48 z-10">
+                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+                  <svg xmlns="http://www.w3.org/2000/svg"
+                      class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
+                      fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
+                  </svg>
+                  <span>Consejos</span>
+                </a>
+
+                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+                  <svg xmlns="http://www.w3.org/2000/svg"
+                      class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
+                      fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
+                  </svg>
+                  <span>Protección de datos</span>
+                </a>
+
+                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+                  <svg xmlns="http://www.w3.org/2000/svg"
+                      class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
+                      fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
+                  </svg>
+                  <span>Denuncias</span>
+                </a>
+              </div>
+            </div>
+
           <router-link to="/encuentros" class="text-blue-500 hover:underline">
             Ir a Encuentros
           </router-link>
@@ -151,8 +220,8 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import logo from '@/assets/Logo_Pagina_Oscura.png'
+import { onMounted, ref, onBeforeUnmount} from 'vue'
+import logo from '@/assets/logo tere.png'
 import fondo from '@/assets/fondodecadapagina.png'
 import telefono from '@/assets/684853.png'
 import correo from '@/assets/95645.png'
@@ -180,8 +249,51 @@ onMounted(() => {
     }
   })
 })
+
+onMounted(() => {
+  const handleScroll = () => {
+    const scrollY = window.scrollY;
+    // Ajustá el valor según el tamaño de tu pantalla o del hero
+    if (scrollY > window.innerHeight * 0.5) {
+      seVeInfo.value = true;
+    } else {
+      seVeInfo.value = false;
+    }
+  };
+
+  window.addEventListener('scroll', handleScroll);
+  handleScroll(); // Llamar una vez al cargar por si ya está abajo
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('scroll', handleScroll);
+  });
+});
 </script>
 
-<style scoped>
-/* convertido todo a tailwind en el template */
+<style>
+/* Elimina la barra de desplazamiento pero mantiene el scroll */
+body {
+  overflow-y: scroll; /* Permite el desplazamiento sin mostrar la barra */
+  scrollbar-width: thin; /* Hacer la scrollbar fina en Firefox */
+  scrollbar-color: transparent transparent; /* Fondo de la scrollbar transparente */
+}
+
+/* Ocultar la scrollbar en Webkit (Chrome, Safari) */
+::-webkit-scrollbar {
+  display: none; /* Oculta la barra de desplazamiento */
+}
+
+/* Si deseas que la scrollbar siga siendo visible al pasar el cursor, puedes usar esto */
+body:hover::-webkit-scrollbar {
+  display: block;
+}
+
+/* Si quieres modificar el estilo de la scrollbar en casos específicos */
+::-webkit-scrollbar-thumb {
+  background-color: transparent; /* Barra de desplazamiento invisible */
+}
+
+::-webkit-scrollbar-track {
+  background: transparent; /* Fondo de la track de la barra de desplazamiento también invisible */
+}
 </style>

@@ -6,12 +6,12 @@
           Mascotas cerca de ti
         </div>
         <button class="text-gray-700 hover:text-black transition mr-8">
-          <i class="fa-solid fa-filter text-2xl"></i>
+          <font-awesome-icon :icon="['fas', 'filter']" class="text-2xl" />
         </button>
       </div>
       <div
         ref="scrollContainer"
-        class="relative w-full mt-12 flex-1 overflow-y-auto custom-scrollbar px-2"
+        class="relative w-full mt-12 flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
           <div class="bg-white-100 flex items-center justify-center min-h-screen">
             <div class="p-3 border-2 border-transparent">
@@ -20,6 +20,7 @@
                   <img :src="mascota.img" alt="Mascota" class="w-[180px] h-[220px] object-cover rounded-lg" />
                   <p class="text-sm text-gray-800 mt-1">{{ mascota.info }}</p>
                 </div>
+                 <div class="h-28"></div>
               </div>
             </div>
         </div>

@@ -1,10 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { homeRoutes } from './routes/homeRoutes.js'
 import { encuentrosRoutes } from './routes/encuentroRoutes.js'
+import { historialesMascotas } from './routes/historialesMascotas.js'
 
 const routes = [
   ...homeRoutes,
   ...encuentrosRoutes,
+  ...historialesMascotas,
 ]
 
 const router = createRouter({

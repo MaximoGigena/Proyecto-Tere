@@ -1,20 +1,22 @@
-<template> 
+<template>
   <div class="flex items-center justify-center min-h-screen bg-green-200">
-    <div class="w-11/12 max-w-2xl bg-white h-screen shadow-lg  relative flex flex-col items-center">
-      <!-- Contenido a Navegar -->
-       <!-- Contenido a Navegar -->
-          <!-- Contenido dinámico -->
-              <div class="flex-1 overflow-y-auto w-full">
-                <router-view v-slot="{ Component, route }">
-                  <transition name="fade" mode="out-in">
-                    <component :is="Component" :key="route.fullPath" />
-                  </transition>
-                </router-view>
-              </div>
+    <div class="w-11/12 max-w-2xl bg-white h-screen shadow-lg relative flex flex-col items-center">
+      <link
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+        rel="stylesheet"
+      />
+      
+      <!-- Contenido dinámico -->
+      <div class="flex-1 overflow-y-auto w-full">
+        <router-view v-slot="{ Component, route }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" :key="route.fullPath" />
+          </transition>
+        </router-view>
+      </div>
 
       <!-- Navegación inferior -->
       <div class="absolute bottom-0 w-full bg-white border-t py-3 text-gray-600 flex justify-around">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
         <router-link
           v-for="item in navItems"
           :key="item.id"
@@ -22,7 +24,7 @@
           class="flex flex-col items-center px-4 py-1 rounded-md transition relative"
           :class="isActive(item.path) ? 'bg-white text-black' : 'text-gray-600 hover:text-black'"
         >
-          <i :class="item.icon + ' text-xl'"></i>
+          <font-awesome-icon :icon="['fas', item.icon]" class="text-xl" />
           <span class="text-xs">{{ item.label }}</span>
           <span
             v-if="item.id === 'chats'"
@@ -45,10 +47,10 @@ const router = useRouter()
 const scrollContainer = ref(null)
 
 const navItems = [
-  { id: 'cerca', label: 'Cerca', icon: 'fa-solid fa-location-dot', path: '/explorar/cerca' },
-  { id: 'encuentros', label: 'Encuentros', icon: 'fa-solid fa-paw', path: '/explorar/encuentros' },
-  { id: 'chats', label: 'Chats', icon: 'fa-solid fa-comment', path: '/explorar/chats' },
-  { id: 'perfil', label: 'Perfil', icon: 'fa-solid fa-user', path: '/explorar/perfil' },
+  { id: 'cerca', label: 'Cerca', icon: 'fa-location-dot', path: '/explorar/cerca' },
+  { id: 'encuentros', label: 'Encuentros', icon: 'fa-paw', path: '/explorar/encuentros' },
+  { id: 'chats', label: 'Chats', icon: 'fa-comment', path: '/explorar/chats' },
+  { id: 'perfil', label: 'Perfil', icon: 'fa-user', path: '/explorar/perfil' },
 ]
 
 const isActive = (path) => route.path === path

@@ -30,43 +30,45 @@
 
     <div
       ref="scrollContainer"
-      class="relative w-full mt-12 flex-1 overflow-y-auto custom-scrollbar px-2"
-    ></div>
-        
-  
-        <!-- Filtro -->
-        <div class="flex items-center gap-2 mb-3 ml-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 019 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-          </svg>
-          <span>Hola, soy un filtro, y este es tu filtro actual</span>
-        </div>
-  
-        <!-- Notificación de chats -->
-        <div class="flex items-center gap-2 mb-5 ml-4">
-          <img src="https://icons.veryicon.com/png/o/internet--web/billion-square-cloud/mail-213.png"
-            class="w-16 h-16 rounded-full object-cover" alt="Josefina">
-          <span>tienes 3 solicitudes de chat y 2 chat en desarrollo</span>
-        </div>
-  
-        <!-- Lista de chats -->
-        <div v-for="(chat, index) in chats" :key="index" class="flex justify-between items-center gap-3 mb-4 min-h-[72px] ml-4">
-          <div class="flex items-start gap-3">
-            <img :src="chat.img" class="w-16 h-16 rounded-full object-cover" :alt="chat.nombre">
-            <div>
-              <p class="font-semibold text-lg">{{ chat.nombre }}</p>
-              <p class="text-sm text-gray-700">{{ chat.mensaje }}</p>
-            </div>
+      class="relative w-full mt-12 flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+    >
+          
+    
+          <!-- Filtro -->
+          <div class="flex items-center gap-2 mb-3 ml-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 019 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+            <span>Hola, soy un filtro, y este es tu filtro actual</span>
           </div>
-          <button
-            @click="chat.favorito = !chat.favorito; console.log(chat.nombre + ' favorito:', chat.favorito)"
-            class="mt-1 mr-8 transition duration-200"
-            :class="chat.favorito ? 'text-green-400' : 'text-gray-400 hover:text-gray-500'"
-          >
-            <i :class="chat.favorito ? 'fa-solid fa-star text-2xl' : 'fa-regular fa-star text-2xl'"></i>
-          </button>
-        </div>
+    
+          <!-- Notificación de chats -->
+          <div class="flex items-center gap-2 mb-5 ml-4">
+            <img src="https://icons.veryicon.com/png/o/internet--web/billion-square-cloud/mail-213.png"
+              class="w-16 h-16 rounded-full object-cover" alt="Josefina">
+            <span>tienes 3 solicitudes de chat y 2 chat en desarrollo</span>
+          </div>
+    
+          <!-- Lista de chats -->
+          <div v-for="(chat, index) in chats" :key="index" class="flex justify-between items-center gap-3 mb-4 min-h-[72px] ml-4 transition duration-200 hover:bg-blue-100 cursor-pointer">
+            <div class="flex items-start gap-3">
+              <img :src="chat.img" class="w-16 h-16 rounded-full object-cover" :alt="chat.nombre">
+              <div>
+                <p class="font-semibold text-lg">{{ chat.nombre }}</p>
+                <p class="text-sm text-gray-700">{{ chat.mensaje }}</p>
+              </div>
+            </div>
+            <button
+              @click="chat.favorito = !chat.favorito; console.log(chat.nombre + ' favorito:', chat.favorito)"
+              class="mt-1 mr-8 transition duration-200"
+              :class="chat.favorito ? 'text-green-400' : 'text-gray-400 hover:text-gray-500'"
+            >
+              <i :class="chat.favorito ? 'fa-solid fa-star text-2xl' : 'fa-regular fa-star text-2xl'"></i>
+            </button>
+          </div>
+        <div class="h-28"></div>
+      </div>  
   </div>
 </template>
   
@@ -105,9 +107,9 @@ import { reactive } from 'vue';
       img: 'https://cdn.pixabay.com/photo/2025/04/15/15/06/woman-9535611_1280.jpg',
     },
     {
-      nombre: 'Pepita, juana',
+      nombre: 'Doña, juana',
       mensaje: 'Hola, estoy interesado en adoptar a tu perro',
-      img: 'https://cdn.pixabay.com/photo/2020/01/27/17/04/cigar-4797760_960_720.jpg',
+      img: 'https://cdn.pixabay.com/photo/2025/04/15/19/41/woman-9536174_960_720.jpg',
     },
   ])
   </script>
