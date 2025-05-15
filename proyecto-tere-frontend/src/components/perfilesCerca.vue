@@ -1,34 +1,35 @@
 <template>
   <div class="flex flex-col h-screen bg-white-100 relative">
-    <!-- Header sticky dentro del scroll -->
     <div class="sticky top-0 z-30 bg-white px-4 py-1 flex items-center justify-between">
-        <div class="text-2xl font-bold text-gray-800 pointer-events-none">
-          Mascotas cerca de ti
-        </div>
-        <button class="text-gray-700 hover:text-black transition mr-8">
-          <font-awesome-icon :icon="['fas', 'filter']" class="text-2xl" />
-        </button>
+      <div class="text-2xl font-bold text-gray-800 pointer-events-none">
+        Mascotas cerca de ti
       </div>
-      <div
-        ref="scrollContainer"
-        class="relative w-full mt-12 flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-      >
-          <div class="bg-white-100 flex items-center justify-center min-h-screen">
-            <div class="p-3 border-2 border-transparent">
-              <div class="grid grid-cols-3 gap-5">
-                <div v-for="(mascota, index) in mascotas" :key="index" class="text-center">
-                  <img :src="mascota.img" alt="Mascota" class="w-[180px] h-[220px] object-cover rounded-lg" />
-                  <p class="text-sm text-gray-800 mt-1">{{ mascota.info }}</p>
-                </div>
-                 <div class="h-28"></div>
-              </div>
+      <button class="text-gray-700 hover:text-black transition mr-8">
+        <font-awesome-icon :icon="['fas', 'filter']" class="text-2xl" />
+      </button>
+    </div>
+    <div ref="scrollContainer" class="relative w-full mt-12 flex-1 overflow-y-auto">
+      <div class="bg-white-100 flex items-center justify-center min-h-screen">
+        <div class="p-3 border-2 border-transparent">
+          <div class="grid grid-cols-3 gap-5">
+            <div v-for="(mascota, index) in mascotas" :key="index" class="text-center flex-1 overflow-y-auto w-full">
+              <router-link :to="{ path: '/mascota/' + index, query: { from: 'cerca' } }">
+                <img :src="mascota.img" alt="Mascota" class="w-[180px] h-[220px] object-cover rounded-lg" />
+                <p class="text-sm text-gray-800 mt-1">{{ mascota.info }}</p>
+              </router-link>
             </div>
+            <div class="h-28"></div>
+          </div>
         </div>
+      </div>
     </div>
   </div>
 </template>
+
   
   <script setup>
+  import { RouterLink } from 'vue-router'
+
   const mascotas = [
     { img: 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg', info: '2 años / Hembra' },
     { img: 'https://cdn.pixabay.com/photo/2021/08/10/18/32/cat-6536684_1280.jpg', info: '1 año / Macho' },

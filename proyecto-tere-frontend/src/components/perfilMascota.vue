@@ -11,6 +11,14 @@
       </button>
     </div>
 
+    <button
+      v-if="mostrarBotonVolver"
+      @click="router.push('/explorar/cerca')"
+      class="mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+    >
+      Cerrar perfil
+    </button>
+
     <!-- Contenido scrollable -->
     <div
       ref="scrollContainer"
@@ -144,9 +152,11 @@
   import burro from '@/assets/burro.png'
   import PasoAlgo from '../components/reportarMascota.vue'
   import { useRouter } from 'vue-router'
+  import { useRoute } from 'vue-router';
 
   const scrollContainer = ref(null)
   const mostrar = ref(false)
+  const route = useRoute()
   
   onMounted(() => {
     document.body.style.overflow = 'hidden'
@@ -164,9 +174,11 @@
   const router = useRouter()
 
   const goToHistorial = () => {
-    router.push('/revisar/dueños')
+    router.push('/revisar/propietarios')
   }
 
+  // mostrar el boton de cerrar por cercania
+  const mostrarBotonVolver = route.query.from === 'cerca'
   </script>
   
 <style>
