@@ -1,5 +1,7 @@
 <template>
-  <div class="flex flex-col h-screen bg-green-200 relative">
+  <div 
+  ref="animatedBg"
+  class="bg-cover bg-repeat bg-center flex flex-col h-screen relative">
     <div class="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden">
       
       <!-- Header -->
@@ -47,7 +49,18 @@ const tabs = [
 ]
 
 import { useRouter, useRoute } from 'vue-router'
-import { computed } from 'vue'
+import { ref,computed, onMounted } from 'vue'
+import huellas from '@/assets/huellas.png';
+
+const animatedBg = ref(null)
+
+onMounted(() => {
+  if (animatedBg.value) {
+    animatedBg.value.style.backgroundImage = `url(${huellas})`
+    animatedBg.value.style.animation = 'moverHuellas 120s linear infinite'
+    animatedBg.value.style.backgroundPosition = '0 0'
+  }
+})
 
 
 const route = useRoute()
@@ -68,3 +81,17 @@ const tituloCabecera = computed(() => {
 })
 
 </script>
+<style>  
+  @keyframes moverHuellas {
+      0% {
+        background-position: 0 0;
+      }
+      100% {
+        background-position: 0 1024px;
+      }
+    }
+
+    .animate-huellas {
+      animation: moverHuellas 120s linear infinite;
+    }
+</style>

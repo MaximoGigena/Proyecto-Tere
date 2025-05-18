@@ -1,19 +1,31 @@
 <template>
-  <div class="flex items-center justify-center min-h-screen bg-green-200">
-    <div class="w-11/12 max-w-2xl bg-white h-screen shadow-lg relative flex flex-col items-center">
-      <link
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
-        rel="stylesheet"
-      />
-      
-      <!-- Contenido dinámico -->
-      <div class="flex-1 overflow-y-auto w-full">
-        <router-view v-slot="{ Component, route }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" :key="route.fullPath" />
-          </transition>
-        </router-view>
-      </div>
+  <div
+  ref="animatedBg"
+  class="bg-cover bg-repeat bg-center min-h-screen flex items-center justify-center">
+
+   <div class="w-11/12 max-w-2xl bg-white h-screen shadow-lg relative flex flex-col">
+      <!-- Contenido principal (siempre visible) -->
+      <div class="relative w-full h-full">
+    <!-- Contenido principal (siempre visible) -->
+    <router-view v-slot="{ Component }">
+      <component :is="Component" />
+    </router-view>
+
+    <!-- Overlay para perfiles -->
+    <router-view 
+      v-slot="{ Component, route }"
+      name="overlay"
+    >
+      <transition name="fade">
+        <div 
+          v-if="route.params.id" 
+          class="absolute inset-0 z-40 bg-white overflow-y-auto"
+        >
+          <component :is="Component" />
+        </div>
+      </transition>
+    </router-view>
+  </div>
 
       <!-- Navegación inferior -->
       <div class="absolute bottom-0 w-full bg-white border-t py-3 text-gray-600 flex justify-around">
@@ -39,6 +51,21 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { RouterLink } from 'vue-router'
+import huellas from '@/assets/huellas.png'
+
+
+const animatedBg = ref(null)
+
+onMounted(() => {
+  if (animatedBg.value) {
+    animatedBg.value.style.backgroundImage = `url(${huellas})`
+    animatedBg.value.style.animation = 'moverHuellas 120s linear infinite'
+    animatedBg.value.style.backgroundPosition = '0 0'
+  }
+})
+
+
 
 
 const route = useRoute()
@@ -98,5 +125,17 @@ onMounted(() => {
 
 
 <style>
+  @keyframes moverHuellas {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 0 1024px;
+    }
+  }
+
+  .animate-huellas {
+    animation: moverHuellas 120s linear infinite;
+  }
 
 </style>

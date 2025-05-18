@@ -1,6 +1,6 @@
 <!-- perfil mascota-->
 <template>
-  <div class="w-full h-full flex flex-col relative">
+  <div class="w-full h-full flex flex-col relative overflow-auto">
     <!-- Header sticky dentro del scroll -->
     <div class="sticky top-0 z-30 bg-white px-4 py-1 flex items-center justify-between">
       <div class="text-2xl font-bold text-gray-800 pointer-events-none">
@@ -11,13 +11,7 @@
       </button>
     </div>
 
-    <button
-      v-if="mostrarBotonVolver"
-      @click="router.push('/explorar/cerca')"
-      class="mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-    >
-      Cerrar perfil
-    </button>
+    
 
     <!-- Contenido scrollable -->
     <div
@@ -37,6 +31,14 @@
         <div class="absolute top-13 left-4 bg-blue-500 text-white text-xs px-2 py-1 rounded-md w-fit">
           Edad: 2 años
         </div>
+
+        <button
+          v-if="mostrarBotonVolver"
+          @click="router.push('/explorar/cerca')"
+          class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+        >
+          Cerrar perfil
+        </button>
 
         <button
           @click="mostrar = true"
@@ -63,52 +65,47 @@
             <!-- Personalidad -->
             <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Personalidad">
                 <div class=" mr-2">
-                    <i class="fas fa-heart text-pink-500 text-sm"></i>
+                    <font-awesome-icon :icon="['fas', 'heart']" class="text-pink-500 text-sm"/>
                 </div>
                 <span class="text-gray-700">Amigable</span>
             </div>
             
             <!-- nivel de energía -->
             <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Energia">
-                <i class="fa-solid fa-bolt text-gray-500 mr-2"></i>
+                <font-awesome-icon :icon="['fas', 'bolt']" class="text-gray-500 mr-2" />
                 <span class="text-gray-700">Alto</span>
             </div>
             
             <!-- Tamaño -->
             <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Tamaño">
-                <i class="fa-solid fa-ruler-combined text-gray-500 mr-2"></i>
+                <font-awesome-icon :icon="['fas', 'ruler-combined']" class="text-gray-500 mr-2"/>
                 <span class="text-gray-700">Grande</span>
             </div>
             
             <!-- Alimentación -->
             <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Alimentación">
-                <i class="fa-solid fa-utensils text-gray-500 mr-2"></i>
+               <font-awesome-icon :icon="['fas', 'bowl-food']" class="text-gray-500 mr-2"/>
                 <span class="text-gray-700">saludable</span>
             </div>
             
             <!-- Ejercicio -->
             <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Ejercicio">
-                <i class="fa-solid fa-dumbbell text-gray-500 mr-2"></i>
+                <font-awesome-icon :icon="['fas', 'dumbbell']" class="fa-solid fa-dumbbell text-gray-500 mr-2"/>
                 <span class="text-gray-700">Regularmente</span>
             </div>
             
-            <!-- fecundación -->
-            <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Capacidad Reproductiva">
-                <i class="fa-solid fa-seedling text-gray-500 mr-2"></i>
+            <!-- fertilidad -->
+            <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Fertilidad">
+                <svg-icon type="mdi" :path="path" class="fa-solid fa-seedling text-gray-500 mr-2"></svg-icon>
                 <span class="text-gray-700">Esteril</span>
             </div>
             
             <!-- Afinidad a niños -->
             <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="interacción con niños">
-                <i class="fa-solid fa-baby-carriage text-gray-500 mr-2"></i>
+                <font-awesome-icon :icon="['fas', 'baby-carriage']" class="fa-solid fa-baby-carriage text-gray-500 mr-2"/>
                 <span class="text-gray-700">Compañera</span>
             </div>
             
-            <!-- Frecuencia de visita veterinaria -->
-            <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Frecuencia médica">
-                <i class="fa-solid fa-star-of-life text-gray-500 mr-2"></i>
-                <span class="text-gray-700">Baja</span>
-            </div>
         </div>
         <div class="relative w-full min-h-[80vh] rounded-4xl overflow-hidden mt-4">
         <img :src="'https://cdn.pixabay.com/photo/2024/09/09/17/22/donkey-9035452_1280.jpg'" alt="Burro" class="w-full h-130 object-cover rounded-4xl" />
@@ -136,10 +133,10 @@
     <!-- Botones flotantes fijos abajo -->
     <div class="sticky bottom-24 flex justify-center gap-14 z-20">
       <button class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
-        <i class="fa-solid fa-xmark text-black text-3xl  hover:text-red-400"></i>
+        <font-awesome-icon :icon="['fas', 'xmark']"  class="text-black text-5xl  hover:text-red-400"/>
       </button>
       <button class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
-        <i class="fa-solid fa-heart text-black text-3xl hover:text-green-400 "></i>
+        <font-awesome-icon :icon="['fas', 'heart']" class=" text-black text-4xl hover:text-green-400 "/>
       </button>
     </div>
   </div>
@@ -161,14 +158,7 @@
   onMounted(() => {
     document.body.style.overflow = 'hidden'
   })
-  onUnmounted(() => {
-    document.body.style.overflow = 'auto'
-  })
-  console.log('🚀 perfilMascota.vue se está montando')
-
-  onMounted(() => {
-    console.log('🔧 perfilMascota.vue onMounted ejecutado')
-  })
+ 
   
 
   const router = useRouter()
@@ -179,7 +169,14 @@
 
   // mostrar el boton de cerrar por cercania
   const mostrarBotonVolver = route.query.from === 'cerca'
-  </script>
+
+import SvgIcon from '@jamescoyle/vue-icon';
+import { mdiReproduction } from '@mdi/js';
+
+const path = mdiReproduction;
+
+
+</script>
   
 <style>
   .custom-scrollbar {

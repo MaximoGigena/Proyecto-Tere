@@ -19,23 +19,23 @@
       </h2>
 
       <!-- Tercera fila: perfiles -->
-      <div class="flex items-center gap-4 mt-3 px-2 overflow-x-auto">
+      <div class="flex items-center gap-4 mt-1 px-2 overflow-x-auto">
         <div v-for="(perfil, index) in perfiles" :key="index" class="flex flex-col items-center">
           <img :src="perfil.img" class="w-16 h-16 rounded-full object-cover" :alt="perfil.nombre" />
           <span class="text-sm mt-1">{{ perfil.nombre }}</span>
         </div>
       </div>
     </div>
-
+    <div class="sticky z-30 bg-white px4 py-2 border-b border-gray-600"></div>
 
     <div
       ref="scrollContainer"
-      class="relative w-full mt-12 flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      class="relative w-full  flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
     >
           
     
           <!-- Filtro -->
-          <div class="flex items-center gap-2 mb-3 ml-2">
+          <div class="flex items-center mt-2 gap-2 mb-3 ml-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 019 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
@@ -51,7 +51,7 @@
           </div>
     
           <!-- Lista de chats -->
-          <div v-for="(chat, index) in chats" :key="index" class="flex justify-between items-center gap-3 mb-4 min-h-[72px] ml-4 transition duration-200 hover:bg-blue-100 cursor-pointer">
+          <div v-for="(chat, index) in chats" :key="index" class="flex justify-between items-center gap-3 mb-2 min-h-[72px] ml-4 transition duration-200 hover:bg-blue-100 cursor-pointer">
             <div class="flex items-start gap-3">
               <img :src="chat.img" class="w-16 h-16 rounded-full object-cover" :alt="chat.nombre">
               <div>
