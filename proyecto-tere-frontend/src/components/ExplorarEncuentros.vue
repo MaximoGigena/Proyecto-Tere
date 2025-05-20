@@ -19,9 +19,16 @@
       <transition name="fade">
         <div 
           v-if="route.params.id" 
-          class="absolute inset-0 z-40 bg-white overflow-y-auto"
+           class="fixed inset-0 z-50 bg-black/55 flex justify-center items-center"
         >
-          <component :is="Component" />
+          <div 
+              class="bg-white backdrop-blur-md border border-gray-200 rounded-2xl overflow-y-auto max-h-[83vh] w-full max-w-xl shadow-2xl transition-all duration-300 relative 
+                    [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            >
+
+
+            <component :is="Component" />
+          </div>
         </div>
       </transition>
     </router-view>
@@ -138,4 +145,10 @@ onMounted(() => {
     animation: moverHuellas 120s linear infinite;
   }
 
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
 </style>

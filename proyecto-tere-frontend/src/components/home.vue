@@ -14,23 +14,23 @@
                </button>
               <!-- MENU oculto -->
               <div class="absolute left-0 hidden group-hover:block bg-black/10 text-white mt-0 rounded shadow-md py-2 w-48 z-10">
-                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+                 <router-link to="/ProyectoTere" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">  
                   <svg xmlns="http://www.w3.org/2000/svg"
                       class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
                       fill="currentColor" viewBox="0 0 20 20">
                     <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
                   </svg>
-                  <span>Consejos</span>
-                </a>
+                  <span>Proyecto tere</span>
+                </router-link>
 
-                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+                <router-link to="/Contactanos" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">  
                   <svg xmlns="http://www.w3.org/2000/svg"
                       class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
                       fill="currentColor" viewBox="0 0 20 20">
                     <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
                   </svg>
-                  <span>Protección de datos</span>
-                </a>
+                  <span>Contactanos</span>
+                </router-link>
 
                 <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
                   <svg xmlns="http://www.w3.org/2000/svg"
@@ -49,23 +49,24 @@
               </button>
               <!-- MENU OCULTO -->
               <div class="absolute left-0 hidden group-hover:block bg-black/10 text-white mt-0 rounded shadow-md py-2 w-48 z-10">
-                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+                <router-link to="/Politicas" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">  
                   <svg xmlns="http://www.w3.org/2000/svg"
                       class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
                       fill="currentColor" viewBox="0 0 20 20">
                     <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
                   </svg>
-                  <span>Consejos</span>
-                </a>
+                  <span>Politicas</span>
+                </router-link>
 
-                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+
+                <router-link to="/ProtecciónDatos" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">  
                   <svg xmlns="http://www.w3.org/2000/svg"
                       class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
                       fill="currentColor" viewBox="0 0 20 20">
                     <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
                   </svg>
-                  <span>Protección de datos</span>
-                </a>
+                  <span>Protección de Datos</span>
+                </router-link>
 
                 <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
                   <svg xmlns="http://www.w3.org/2000/svg"
@@ -128,55 +129,21 @@
 
     <footer class="bg-[#f8f8f8] px-16 py-10">
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-8 text-sm">
-        
-        <!-- Columna Legal -->
-        <div>
-          <h4 class="font-bold mb-3">Legal</h4>
-          <ul class="space-y-2">
-            <li><a href="#">Privacy</a></li>
-            <li><a href="#">Consumer Health Data</a></li>
-            <li><a href="#">Privacy Policy</a></li>
-            <li><a href="#">Terms</a></li>
-            <li><a href="#">Cookie Policy</a></li>
-            <li><a href="#">Intellectual Property</a></li>
-          </ul>
-        </div>
 
-        <!-- Columna Careers -->
-        <div>
-          <h4 class="font-bold mb-3">Careers</h4>
-          <ul class="space-y-2">
-            <li><a href="#">Careers Portal</a></li>
-            <li><a href="#">Tech Blog</a></li>
-          </ul>
-        </div>
-
-        <!-- Columna Social -->
-        <div>
-          <h4 class="font-bold mb-3">Social</h4>
-          <div class="flex gap-3 text-xl">
-            <!-- Iconos de ejemplo con HeroIcons, FontAwesome o similares -->
-            <a href="https://www.instagram.com/proyecto_tere_2025/"><i class="fab fa-instagram-square hover:text-emerald-800 transition"></i></a>
-            <a href="#"><i class="fab fa-tiktok hover:text-emerald-800 transition"></i></a>
-            <a href="#"><i class="fab fa-youtube hover:text-emerald-800 transition"></i></a>
-            <a href="https://x.com/Tere_Project"><i class="fab fa-x-twitter hover:text-emerald-800 transition"></i></a>
-            <a href="#"><i class="fab fa-facebook hover:text-emerald-800 transition"></i></a>
-            <a href="https://www.reddit.com/r/ProyectoTere/"><i class="fab fa-reddit-alien hover:text-emerald-800 transition"></i></a>
+        <div class="flex justify-center">
+          <!-- Columna Social centrada -->
+          <div class="flex flex-col items-center text-center text-2xl">
+            <h4 class="font-bold mb-3">Social</h4>
+            <div class="flex gap-4 justify-center">
+              <!-- Iconos de FontAwesome -->
+              <a href="https://www.instagram.com/proyecto_tere_2025/"><i class="fab fa-instagram-square hover:text-emerald-800 transition"></i></a>
+              <a href="#"><i class="fab fa-tiktok hover:text-emerald-800 transition"></i></a>
+              <a href="#"><i class="fab fa-youtube hover:text-emerald-800 transition"></i></a>
+              <a href="https://x.com/Tere_Project"><i class="fab fa-x-twitter hover:text-emerald-800 transition"></i></a>
+              <a href="#"><i class="fab fa-facebook hover:text-emerald-800 transition"></i></a>
+              <a href="https://www.reddit.com/r/ProyectoTere/"><i class="fab fa-reddit-alien hover:text-emerald-800 transition"></i></a>
+            </div>
           </div>
-        </div>
-
-        <!-- Columna Extra -->
-        <div>
-          <h4 class="font-bold mb-3">FAQ</h4>
-          <ul class="space-y-2">
-            <li><a href="#">Destinations</a></li>
-            <li><a href="#">Press Room</a></li>
-            <li><a href="#">Contact</a></li>
-            <li><a href="#">Promo Code</a></li>
-          </ul>
-        </div>
-        
       </div>
 
       <!-- Línea inferior -->

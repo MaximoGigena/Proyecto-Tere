@@ -9,7 +9,7 @@
           Chats
         </div>
         <button class="text-gray-700 hover:text-black transition">
-          <i class="fa-solid fa-bell text-2xl"></i>
+        <font-awesome-icon :icon="['fas', 'bell']" class="text-2xl"/>
         </button>
       </div>
 
@@ -64,7 +64,7 @@
               class="mt-1 mr-8 transition duration-200"
               :class="chat.favorito ? 'text-green-400' : 'text-gray-400 hover:text-gray-500'"
             >
-              <i :class="chat.favorito ? 'fa-solid fa-star text-2xl' : 'fa-regular fa-star text-2xl'"></i>
+              <font-awesome-icon :icon="['fas', 'star']" :class="chat.favorito ? 'text-2xl' : 'text-2xl'"/>
             </button>
           </div>
         <div class="h-28"></div>

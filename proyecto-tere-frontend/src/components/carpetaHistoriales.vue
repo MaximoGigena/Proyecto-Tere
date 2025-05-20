@@ -24,9 +24,10 @@
           :to="tab.to"
           class="flex items-center justify-center gap-2 flex-1 py-2 text-sm font-medium text-center transition-colors"
           :class="{
-            'border-b-2 border-blue-500 bg-white text-blue-600': $route.path === tab.to,  // Tab activo
-            'text-gray-600 hover:bg-gray-200 hover:text-gray-800': $route.path !== tab.to   // Hover solo para tabs inactivos
+            'border-b-2 border-blue-500 bg-white text-blue-600': isTabActive(tab),
+            'text-gray-600 hover:bg-gray-200 hover:text-gray-800': !isTabActive(tab)
           }"
+
         >
           <font-awesome-icon :icon="['fas', tab.icon]" class="text-xl" />
           <span>{{ tab.nombre }}</span>
@@ -45,7 +46,7 @@
 const tabs = [
   { nombre: 'Dueños', icon: 'shield-dog', to: '/revisar/propietarios' },
   { nombre: 'Vacunas', icon: 'syringe', to: '/revisar/vacunas' },
-  { nombre: 'Médico', icon: 'stethoscope', to: '/revisar/historialMedico' },
+  { nombre: 'Médico', icon: 'stethoscope',to: '/revisar/historialMedico', activeNames: ['historialMedico', 'procedimientos', 'diagnosticos', 'medicamentos', 'terapias'] },
 ]
 
 import { useRouter, useRoute } from 'vue-router'
@@ -68,7 +69,7 @@ const route = useRoute()
 const router = useRouter()
 
 function cerrarVista() {
-  router.push('/explorar/encuentros') 
+  router.back()
 }
 
 const titulosPorRuta = {
@@ -79,6 +80,10 @@ const titulosPorRuta = {
 const tituloCabecera = computed(() => {
   return titulosPorRuta[route.name] || 'Historial de la Mascota'
 })
+
+const isTabActive = (tab) => {
+  return tab.activeNames?.includes(route.name) || tab.to === route.path
+}
 
 </script>
 <style>  

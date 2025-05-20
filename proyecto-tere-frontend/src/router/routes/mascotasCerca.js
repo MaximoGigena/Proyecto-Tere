@@ -1,6 +1,6 @@
-import PerfilMascota from '@/components/perfilMascota.vue'
+import contenidoMascota from '@/components/contenidoMascota.vue'
 import PerfilesCerca from '@/components/perfilesCerca.vue'
-import ContenedorPrincipal from '@/components/ExplorarEncuentros.vue' // Asegúrate de importarlo
+import ContenedorPrincipal from '@/components/ExplorarEncuentros.vue' 
 
 export const mascotasCerca = [
   {
@@ -17,7 +17,8 @@ export const mascotasCerca = [
         name: 'perfil-mascota',
         components: {
           default: PerfilesCerca, // Se mantiene visible debajo
-          overlay: PerfilMascota  // Se muestra encima
+          overlay: contenidoMascota  // Se muestra encima
+          
         },
         props: {
           overlay: true // Pasa el :id como prop al overlay

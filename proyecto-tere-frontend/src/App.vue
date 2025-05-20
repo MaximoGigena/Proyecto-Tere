@@ -5,9 +5,8 @@ import './assets/styles.css'
 </script>
 
 <template>
-  
-
-  <RouterView />
+  <router-view />
+  <router-view name="overlay" />
 </template>
 
 <style scoped>
