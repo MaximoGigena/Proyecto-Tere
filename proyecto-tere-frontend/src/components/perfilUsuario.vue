@@ -60,10 +60,14 @@ const router = useRouter()
 
 const abrirDetalleMascota = (id) => {
   router.push({
-  path: `/explorar/perfil/mascota/${id}`,
-  query: { from: 'perfil' }
+    path: `/explorar/perfil/mascota/${id}`,
+    query: {
+      from: 'perfil',
+      originalParams: JSON.stringify({})  // Agregamos aunque sea vacío
+    }
   })
 }
+
 
 const mascotas = [
   {

@@ -26,7 +26,8 @@
                 class="bg-white backdrop-blur-md border border-gray-200 rounded-2xl overflow-y-auto max-h-[83vh] w-full max-w-xl shadow-2xl transition-all duration-300 relative 
                 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               >
-                <component :is="Component" />
+                <!-- 🔑 Agregá esta key para forzar remount -->
+                 <component :is="Component" :key="route.fullPath" />
               </div>
             </div>
           </transition>

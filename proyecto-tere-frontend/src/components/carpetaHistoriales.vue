@@ -1,3 +1,4 @@
+<!-- carpetaHistoriales.vue -->
 <template>
   <div 
   ref="animatedBg"
@@ -23,24 +24,23 @@
           :key="index"
           :to="{
             path: tab.to,
-            query: { ...$route.query, from:'historia' } // Mantiene todos los queries actuales
+            query: {
+              ...$route.query,
+              currentTab: tab.nombre,
+              tabFrom: route.name
+            }
           }"
           class="flex items-center justify-center gap-2 flex-1 py-2 text-sm font-medium text-center transition-colors"
           :class="{
             'border-b-2 border-blue-500 bg-white text-blue-600': isTabActive(tab),
             'text-gray-600 hover:bg-gray-200 hover:text-gray-800': !isTabActive(tab)
           }"
-
         >
           <font-awesome-icon :icon="['fas', tab.icon]" class="text-xl" />
           <span>{{ tab.nombre }}</span>
         </router-link>
       </div>
-  
-      <!-- Aquí se cargan los componentes hijos -->
-      <div class="p-4">
-        <router-view />
-      </div>
+      <router-view />
     </div>
   </div>
 </template>
@@ -71,39 +71,34 @@ const route = useRoute()
 
 const router = useRouter()
 
-function cerrarVista() {
-  // Si tenemos un origen definido
-  if (route.query.from) {
-    try {
-      // Reconstruimos la ruta original
-      const returnTo = {
-        path: route.query.from,
-        query: {...route.query}
-      };
-      
-      // Eliminamos metadatos de navegación
-      delete returnTo.query.from;
-      delete returnTo.query.originalParams;
-      
-      // Parseamos parámetros originales si existen
-      if (route.query.originalParams) {
-        returnTo.params = JSON.parse(route.query.originalParams);
-      }
-      
-      // Reemplazamos la ruta actual
-      return router.replace(returnTo);
-    } catch (error) {
-      console.error('Error al parsear ruta de retorno:', error);
+// Cierra la vista restaurando los valores originales
+async function cerrarVista() {
+  // Obtiene los valores ORIGINALES (no los de la navegación interna)
+  const from = route.query.from; // Ej: 'mascota-cerca'
+  const originalParams = route.query.originalParams 
+    ? JSON.parse(route.query.originalParams)
+    : {};
+
+  try {
+    if (from === 'perfil-Mascota' || from === 'mascota-cerca') {
+      // Regresa al overlay original
+      await router.push({
+        name: from, // 'perfil-Mascota' o 'mascota-cerca'
+        params: originalParams, // Ej: { id: '0' }
+        query: { from: from.split('-')[0] } // 'perfil' o 'cerca'
+      });
+    } else {
+      // Fallback para rutas sin 'from' válido
+      await router.push('/explorar/encuentros');
     }
-  }
-  
-  // Fallback controlado
-  if (window.history.length > 1) {
-    router.go(-1); // Retroceder una página
-  } else {
-    router.replace('/explorar'); // Ruta por defecto
+  } catch (e) {
+    console.error('Error al cerrar:', e);
+    await router.push('/explorar/encuentros');
   }
 }
+
+
+
 
 
 const titulosPorRuta = {

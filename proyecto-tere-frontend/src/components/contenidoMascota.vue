@@ -21,27 +21,37 @@
 
                 <button
                 v-if="mostrarBotonVolver"
-                @click="router.push('/explorar/cerca')"
+                @click="router.back()"
                 class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                 >
-                Cerrar perfil
+                <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
                 </button>
 
-                  <button 
+                  <button  
                     v-if="$route.query.from === 'perfil'"
-                    @click="$router.push('/explorar/perfil')"
+                    @click="router.back()"
                     class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                   >
                     <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
                   </button>
 
-                  <button 
-                    v-if="$route.query.from === 'historia'"
-                    @click="$router.push('/explorar/perfil')"
-                    class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                  >
-                    <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
-                  </button>
+                  <button  
+                      v-if="$route.fullPath.includes('/perfil/mascota/')"
+                      @click="router.push('/explorar/perfil/')"
+                      class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    >
+                      <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
+                    </button>
+
+                    <button  
+                      v-if="$route.path.startsWith('/explorar/cerca/') && $route.params.id"
+                      @click="router.push('/explorar/cerca')"
+                      class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    >
+                      <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
+                    </button>
+
+
 
                 <button
                 @click="mostrar = true"
@@ -141,6 +151,8 @@ import { useRouter, useRoute } from 'vue-router'
 import burro from '@/assets/burro.png'
 import PasoAlgo from '../components/reportarMascota.vue'
 
+
+
 const route = useRoute()
 const router = useRouter()
 const scrollContainer = ref(null)
@@ -175,10 +187,9 @@ onUnmounted(() => {
 
 function goToHistorial() {
   const query = {
-    ...route.query,  // Mantiene queries existentes
-    id: 123,
-    from: route.path,
-    originalParams: JSON.stringify(route.params)
+    ...route.query,
+    from: route.name, // 'perfil-Mascota' o 'mascota-cerca'
+    originalParams: JSON.stringify(route.params) 
   };
   
   router.replace({

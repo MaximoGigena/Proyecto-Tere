@@ -1,6 +1,8 @@
 import contenidoMascota from '@/components/contenidoMascota.vue'
 import PerfilesCerca from '@/components/perfilesCerca.vue'
 import ContenedorPrincipal from '@/components/ExplorarEncuentros.vue' 
+import historialMedico from '@/components/historialMedico.vue'
+
 
 export const mascotasCerca = [
   {
@@ -14,7 +16,7 @@ export const mascotasCerca = [
       },
       {
         path: ':id', // Ruta con parámetro
-        name: 'perfil-mascota',
+        name: 'mascota-cerca', // Nombre de la ruta
         components: {
           default: PerfilesCerca, // Se mantiene visible debajo
           overlay: contenidoMascota  // Se muestra encima
@@ -22,7 +24,16 @@ export const mascotasCerca = [
         },
         props: {
           overlay: true // Pasa el :id como prop al overlay
-        }
+        },
+        children: [
+                  {
+                    path: 'historial',
+                    component: historialMedico,
+                    props: true
+                  },
+                  // Podés agregar más subvistas si querés:
+                  // { path: 'galeria', component: galeriaFotos, props: true }
+                ]
       }
     ]
   }

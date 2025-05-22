@@ -14,19 +14,50 @@ export const historialesMascotas = [
     component: historialLayout,
     children: [
       { path: '', redirect: { name: 'propietarios' } },
-      { path: 'propietarios', name: 'propietarios', component: propietarios },
-      { path: 'vacunas', name: 'vacunas', component: vacunas },
       { 
-        path: 'historialMedico', // Usar siempre guiones
+        path: 'propietarios', 
+        name: 'propietarios', 
+        component: propietarios 
+      },
+      { 
+        path: 'vacunas', 
+        name: 'vacunas', 
+        component: vacunas 
+      },
+      { 
+        path: 'historialMedico',
         component: HistorialMedicoLayout,
         children: [
-          { path: '', redirect: { name: 'procedimientos' } },
-          { path: 'procedimientos', name: 'procedimientos', component: Procedimientos },
-          { path: 'diagnosticos', name: 'diagnosticos', component: Diagnosticos },
-          { path: 'medicamentos', name: 'medicamentos', component: Medicamentos },
-          { path: 'terapias', name: 'terapias', component: Terapias }
+          { 
+            path: '', 
+            redirect: { name: 'procedimientos' } 
+          },
+          { 
+            path: 'procedimientos',
+            name: 'procedimientos',
+            component: Procedimientos,
+            props: (route) => ({ ...route.query })
+          },
+          { 
+            path: 'diagnosticos',
+            name: 'diagnosticos',
+            component: Diagnosticos,
+            props: (route) => ({ ...route.query })
+          },
+          { 
+            path: 'medicamentos',
+            name: 'medicamentos',
+            component: Medicamentos,
+            props: (route) => ({ ...route.query })
+          },
+          { 
+            path: 'terapias',
+            name: 'terapias',
+            component: Terapias,
+            props: (route) => ({ ...route.query })
+          }
         ]
       }
     ]
   }
-]
+];
