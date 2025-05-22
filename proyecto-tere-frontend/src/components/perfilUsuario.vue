@@ -48,7 +48,6 @@
             />
           </div>
         </div>
-          <router-view name="overlay" />
       </div>
   </div>
 </template>

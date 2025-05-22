@@ -1,3 +1,4 @@
+<!-- views/ExplorarEncuentros.vue -->
 <template>
   <div
   ref="animatedBg"
@@ -8,30 +9,28 @@
       <div class="relative w-full h-full">
     <!-- Contenido principal (siempre visible) -->
     <router-view v-slot="{ Component }">
-      <component :is="Component" />
-    </router-view>
+          <component :is="Component" />
+        </router-view>
 
-    <!-- Overlay para perfiles -->
-    <router-view 
-      v-slot="{ Component, route }"
-      name="overlay"
-    >
-      <transition name="fade">
-        <div 
-          v-if="route.params.id" 
-           class="fixed inset-0 z-50 bg-black/55 flex justify-center items-center"
+        <!-- Vista overlay -->
+        <router-view 
+          v-slot="{ Component, route }"
+          name="overlay"
         >
-          <div 
-              class="bg-white backdrop-blur-md border border-gray-200 rounded-2xl overflow-y-auto max-h-[83vh] w-full max-w-xl shadow-2xl transition-all duration-300 relative 
-                    [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          <transition name="fade">
+            <div 
+              v-if="Component" 
+              class="fixed inset-0 z-50 bg-black/55 flex justify-center items-center"
             >
-
-
-            <component :is="Component" />
-          </div>
-        </div>
-      </transition>
-    </router-view>
+              <div 
+                class="bg-white backdrop-blur-md border border-gray-200 rounded-2xl overflow-y-auto max-h-[83vh] w-full max-w-xl shadow-2xl transition-all duration-300 relative 
+                [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <component :is="Component" />
+              </div>
+            </div>
+          </transition>
+        </router-view>
   </div>
 
       <!-- Navegación inferior -->

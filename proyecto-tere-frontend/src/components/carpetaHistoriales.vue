@@ -21,7 +21,10 @@
         <router-link
           v-for="(tab, index) in tabs"
           :key="index"
-          :to="tab.to"
+          :to="{
+            path: tab.to,
+            query: { ...$route.query, from:'historia' } // Mantiene todos los queries actuales
+          }"
           class="flex items-center justify-center gap-2 flex-1 py-2 text-sm font-medium text-center transition-colors"
           :class="{
             'border-b-2 border-blue-500 bg-white text-blue-600': isTabActive(tab),
@@ -69,8 +72,39 @@ const route = useRoute()
 const router = useRouter()
 
 function cerrarVista() {
-  router.back()
+  // Si tenemos un origen definido
+  if (route.query.from) {
+    try {
+      // Reconstruimos la ruta original
+      const returnTo = {
+        path: route.query.from,
+        query: {...route.query}
+      };
+      
+      // Eliminamos metadatos de navegación
+      delete returnTo.query.from;
+      delete returnTo.query.originalParams;
+      
+      // Parseamos parámetros originales si existen
+      if (route.query.originalParams) {
+        returnTo.params = JSON.parse(route.query.originalParams);
+      }
+      
+      // Reemplazamos la ruta actual
+      return router.replace(returnTo);
+    } catch (error) {
+      console.error('Error al parsear ruta de retorno:', error);
+    }
+  }
+  
+  // Fallback controlado
+  if (window.history.length > 1) {
+    router.go(-1); // Retroceder una página
+  } else {
+    router.replace('/explorar'); // Ruta por defecto
+  }
 }
+
 
 const titulosPorRuta = {
   propietarios: 'Dueños de la Mascota',

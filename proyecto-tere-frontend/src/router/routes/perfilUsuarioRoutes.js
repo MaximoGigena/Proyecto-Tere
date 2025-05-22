@@ -1,39 +1,27 @@
-import { createRouter, createWebHistory } from 'vue-router'
+// Importa las rutas
 import PerfilUsuario from '@/components/perfilUsuario.vue'
-import ContenidoMascota from '@/components/contenidoMascota.vue'
-import ContenedorPrincipal from '@/components/ExplorarEncuentros.vue' 
+import contenidoMascota from '@/components/contenidoMascota.vue'
+import ExplorarEncuentros from '@/components/ExplorarEncuentros.vue' 
 
-const routes = [
+export const perfilUsuario = [
   {
-    path: '/explorar/perfil',
-  name: 'perfil',
-  component: ContenedorPrincipal,
-  children: [
+    path: '/explorar',
+    component: ExplorarEncuentros,
+    children: [
       {
-        path: '', // ruta base: /explorar/perfil
+        path: 'perfil',
         component: PerfilUsuario
       },
       {
-        path: 'mascota/:id', // 👈 hijo: /explorar/perfil/mascota/:id
-        name: 'mascota-detalle',
+        path: 'perfil/mascota/:id',
         components: {
           default: PerfilUsuario,
-          overlay: ContenidoMascota
+          overlay: contenidoMascota
         },
         props: {
-          default: false,
           overlay: true
         }
       }
     ]
   }
 ]
-
-
-
-const router = createRouter({
-  history: createWebHistory(),
-  routes
-})
-
-export default router

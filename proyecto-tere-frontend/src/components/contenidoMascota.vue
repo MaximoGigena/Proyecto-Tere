@@ -1,5 +1,5 @@
-<template>
-    
+<!-- contenidoMascota -->
+<template>    
         <div
             ref="scrollContainer"
             class="flex-1 overflow-y-auto overflow-x-overlay [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-2"
@@ -29,8 +29,16 @@
 
                   <button 
                     v-if="$route.query.from === 'perfil'"
-                    @click="$router.push('/perfil')"
-                    class="absolute right-4 top-4 z-50 bg-white rounded-full p-2 shadow-lg"
+                    @click="$router.push('/explorar/perfil')"
+                    class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  >
+                    <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
+                  </button>
+
+                  <button 
+                    v-if="$route.query.from === 'historia'"
+                    @click="$router.push('/explorar/perfil')"
+                    class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                   >
                     <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
                   </button>
@@ -91,7 +99,7 @@
                     
                     <!-- fertilidad -->
                     <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Fertilidad">
-                        <svg-icon type="mdi" :path="path" class="fa-solid fa-seedling text-gray-500 mr-2"></svg-icon>
+                        <font-awesome-icon :icon="['fas', 'seedling']" class="text-gray-500 mr-2"/>
                         <span class="text-gray-700">Esteril</span>
                     </div>
                     
@@ -137,6 +145,7 @@ const route = useRoute()
 const router = useRouter()
 const scrollContainer = ref(null)
 const mostrar = ref(false)
+const path = ref('')
 
 // Accede a los parámetros de la ruta
 const id = computed(() => route.params.id)
@@ -153,9 +162,7 @@ const mascota = computed(() => {
   }
 })
 
-const cerrarOverlay = () => {
-  router.push('/perfil')
-}
+
 
 // Manejo del scroll
 onMounted(() => {
@@ -166,8 +173,18 @@ onUnmounted(() => {
   document.body.style.overflow = ''
 })
 
-const goToHistorial = () => {
-  router.push('/revisar/propietarios')
+function goToHistorial() {
+  const query = {
+    ...route.query,  // Mantiene queries existentes
+    id: 123,
+    from: route.path,
+    originalParams: JSON.stringify(route.params)
+  };
+  
+  router.replace({
+    path: '/revisar/propietarios',
+    query: query
+  });
 }
 
 const mostrarBotonVolver = computed(() => from.value === 'cerca')
