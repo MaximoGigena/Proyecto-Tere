@@ -5,7 +5,13 @@
       <router-link 
         v-for="nav in navItems"
         :key="nav.name"
-        :to="{ name: nav.name }"
+        :to="{
+          name: nav.name,
+          query: {
+            ...$route.query, // Mantiene from/originalParams
+            tab: nav.name // Opcional: para tracking
+          }
+        }"
         class="flex flex-col items-center p-2 rounded-full text-gray-500 hover:text-blue-500 transition-all duration-200"
         :class="{ 'text-blue-600 bg-blue-50': $route.name === nav.name }"
         style="width: 60px;"

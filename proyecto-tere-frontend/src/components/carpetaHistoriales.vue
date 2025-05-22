@@ -23,13 +23,12 @@
           v-for="(tab, index) in tabs"
           :key="index"
           :to="{
-            path: tab.to,
-            query: {
-              ...$route.query,
-              currentTab: tab.nombre,
-              tabFrom: route.name
-            }
-          }"
+              path: tab.to,
+              query: {
+                ...$route.query, // Mantiene from/originalParams
+                currentTab: tab.nombre
+              }
+            }"
           class="flex items-center justify-center gap-2 flex-1 py-2 text-sm font-medium text-center transition-colors"
           :class="{
             'border-b-2 border-blue-500 bg-white text-blue-600': isTabActive(tab),
@@ -73,30 +72,33 @@ const router = useRouter()
 
 // Cierra la vista restaurando los valores originales
 async function cerrarVista() {
-  // Obtiene los valores ORIGINALES (no los de la navegación interna)
-  const from = route.query.from; // Ej: 'mascota-cerca'
+  // Obtiene valores del primer nivel O del query actual
+  const from = route.query.from || route.matched[0]?.meta?.from;
   const originalParams = route.query.originalParams 
     ? JSON.parse(route.query.originalParams)
-    : {};
+    : route.matched[0]?.meta?.originalParams || {};
+
+  if (!from) {
+    console.error('No se encontró origen para redirección');
+    return router.push('/explorar/encuentros');
+  }
 
   try {
-    if (from === 'perfil-Mascota' || from === 'mascota-cerca') {
-      // Regresa al overlay original
-      await router.push({
-        name: from, // 'perfil-Mascota' o 'mascota-cerca'
-        params: originalParams, // Ej: { id: '0' }
-        query: { from: from.split('-')[0] } // 'perfil' o 'cerca'
-      });
-    } else {
-      // Fallback para rutas sin 'from' válido
-      await router.push('/explorar/encuentros');
-    }
-  } catch (e) {
-    console.error('Error al cerrar:', e);
-    await router.push('/explorar/encuentros');
+    const targetRoute = {
+      name: from, // 'perfil-Mascota' o 'mascota-cerca'
+      params: originalParams,
+      query: { 
+        from: from.split('-')[0],
+        ts: Date.now() // Evita caché
+      }
+    };
+    
+    await router.push(targetRoute);
+  } catch (error) {
+    console.error('Error al cerrar:', error);
+    router.push('/explorar/encuentros');
   }
 }
-
 
 
 

@@ -6,7 +6,7 @@
             >
 
             <!-- Imagen principal -->
-            <div class="relative w-full min-h-[75vh] rounded-4xl overflow-hidden mt-1">
+            <div class="relative w-full min-h-[75vh] rounded-4xl overflow-hidden">
                 <img :src="burro" alt="Burro" class="w-full h-130 object-cover rounded-4xl" />
             
 
