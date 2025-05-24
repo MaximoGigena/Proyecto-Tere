@@ -31,15 +31,6 @@
                   </svg>
                   <span>Contactanos</span>
                 </router-link>
-
-                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
-                  <svg xmlns="http://www.w3.org/2000/svg"
-                      class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
-                      fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
-                  </svg>
-                  <span>Denuncias</span>
-                </a>
               </div>
           </div>
            <!-- MENU DE SEGURIDAD -->
@@ -67,17 +58,38 @@
                   </svg>
                   <span>Protección de Datos</span>
                 </router-link>
+              </div>
+            </div> 
 
-                <a href="#" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">
+            <!-- MENU DE APOYO -->
+            <div class="relative group">
+              <button class="hover:text-green-300 transition">
+                Apoyanos
+              </button>
+              <!-- MENU OCULTO -->
+              <div class="absolute left-0 hidden group-hover:block bg-black/10 text-white mt-0 rounded shadow-md py-2 w-48 z-10">
+                <router-link to="/Donaciones" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">  
                   <svg xmlns="http://www.w3.org/2000/svg"
                       class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
                       fill="currentColor" viewBox="0 0 20 20">
                     <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
                   </svg>
-                  <span>Denuncias</span>
-                </a>
+                  <span>Donaciones</span>
+                </router-link>
+
+
+                <router-link to="/Colaboradores" class="group relative flex items-center px-4 py-2 pl-8 hover:text-green-300 hover:underline">  
+                  <svg xmlns="http://www.w3.org/2000/svg"
+                      class="w-4 h-4 text-green-400 absolute left-2 top-1/2 -translate-y-1/2 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
+                      fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 18.657l-6.828-6.829a4 4 0 010-5.656z" />
+                  </svg>
+                  <span>Colaboradores</span>
+                </router-link>
               </div>
-            </div>
+            </div> 
+            
+
 
           <router-link to="/encuentros" class="text-blue-500 hover:underline">
             Ir a Encuentros
@@ -132,7 +144,7 @@
 
         <div class="flex justify-center">
           <!-- Columna Social centrada -->
-          <div class="flex flex-col items-center text-center text-2xl">
+          <div class="flex flex-col items-center text-center text-3xl">
             <h4 class="font-bold mb-3">Social</h4>
             <div class="flex gap-4 justify-center">
               <!-- Iconos de FontAwesome -->

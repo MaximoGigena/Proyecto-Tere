@@ -1,15 +1,14 @@
 <template>
   <div class="w-full h-full flex flex-col relative">
     <!-- Header sticky dentro del scroll -->
-     <div class="sticky top-0 z-30 bg-white px-4 py-2">
-
+    <div class="sticky top-0 z-30 bg-white px-4 py-2">
       <!-- Primera fila: título y botón -->
       <div class="flex items-center justify-between px-2">
         <div class="text-2xl font-bold text-gray-800 pointer-events-none">
           Chats
         </div>
         <button class="text-gray-700 hover:text-black transition">
-        <font-awesome-icon :icon="['fas', 'bell']" class="text-2xl"/>
+          <font-awesome-icon :icon="['fas', 'bell']" class="text-2xl"/>
         </button>
       </div>
 
@@ -20,21 +19,29 @@
 
       <!-- Tercera fila: perfiles -->
       <div class="flex items-center gap-4 mt-1 px-2 overflow-x-auto">
-        <div v-for="(perfil, index) in perfiles" :key="index" class="flex flex-col items-center">
+        <router-link 
+          v-for="(perfil, index) in perfiles" 
+          :key="index" 
+          :to="{
+            name: 'user-profile',  // Nombre corregido
+            params: { userId: perfil.id },
+            query: { from: 'chats-list' } 
+          }"
+          class="flex flex-col items-center hover:opacity-80 transition-opacity"
+        >
           <img :src="perfil.img" class="w-16 h-16 rounded-full object-cover" :alt="perfil.nombre" />
           <span class="text-sm mt-1">{{ perfil.nombre }}</span>
-        </div>
+        </router-link>
       </div>
     </div>
+    
     <div class="sticky z-30 bg-white px4 py-2 border-b border-gray-600"></div>
 
     <div
       ref="scrollContainer"
-      class="relative w-full  flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      class="relative w-full flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
     >
-          
-    
-          <!-- Filtro -->
+        <!-- Filtro -->
           <div class="flex items-center mt-2 gap-2 mb-3 ml-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -49,48 +56,67 @@
               class="w-16 h-16 rounded-full object-cover" alt="Josefina">
             <span>tienes 3 solicitudes de chat y 2 chat en desarrollo</span>
           </div>
-    
-          <!-- Lista de chats -->
-          <div v-for="(chat, index) in chats" :key="index" class="flex justify-between items-center gap-3 mb-2 min-h-[72px] ml-4 transition duration-200 hover:bg-blue-100 cursor-pointer">
-            <div class="flex items-start gap-3">
-              <img :src="chat.img" class="w-16 h-16 rounded-full object-cover" :alt="chat.nombre">
-              <div>
-                <p class="font-semibold text-lg">{{ chat.nombre }}</p>
-                <p class="text-sm text-gray-700">{{ chat.mensaje }}</p>
-              </div>
-            </div>
-            <button
-              @click="chat.favorito = !chat.favorito; console.log(chat.nombre + ' favorito:', chat.favorito)"
-              class="mt-1 mr-8 transition duration-200"
-              :class="chat.favorito ? 'text-green-400' : 'text-gray-400 hover:text-gray-500'"
-            >
-              <font-awesome-icon :icon="['fas', 'star']" :class="chat.favorito ? 'text-2xl' : 'text-2xl'"/>
-            </button>
+      
+      <!-- Lista de chats -->
+      <router-link
+        v-for="(chat, index) in chats"
+        :key="index"
+        :to="{
+          path: `/explorar/chats/${chat.id}`,
+          query: {
+            nombre: chat.nombre,
+            img: chat.img,
+            from: 'chats'
+          }
+        }"
+        class="flex justify-between items-center gap-3 mb-2 min-h-[72px] ml-4 transition duration-200 hover:bg-blue-100"
+      >
+        <div class="flex items-start gap-3">
+          <img :src="chat.img" class="w-16 h-16 rounded-full object-cover" :alt="chat.nombre">
+          <div>
+            <p class="font-semibold text-lg">{{ chat.nombre }}</p>
+            <p class="text-sm text-gray-700">{{ chat.mensaje }}</p>
           </div>
-        <div class="h-28"></div>
-      </div>  
+        </div>
+        <button
+          @click.stop="toggleFavorite(chat)"
+          class="mt-1 mr-8 transition duration-200"
+          :class="chat.favorito ? 'text-green-400' : 'text-gray-400 hover:text-gray-500'"
+        >
+          <font-awesome-icon :icon="['fas', 'star']" class="text-2xl"/>
+        </button>
+      </router-link>
+      
+      <div class="h-28"></div>
+    </div>  
   </div>
 </template>
   
-  <script setup>
+<script setup>
 import { reactive } from 'vue';
+import { useRouter } from 'vue-router';
 
-  const perfiles = [
-    {
-      nombre: 'La Abu',
-      img: 'https://cdn.pixabay.com/photo/2020/01/15/19/45/witch-4768770_1280.jpg',
-    },
-    {
-      nombre: 'Mohamed',
-      img: 'https://cdn.pixabay.com/photo/2020/07/16/07/36/man-5410019_960_720.jpg',
-    },
-    {
-      nombre: 'Mauricio',
-      img: 'https://cdn.pixabay.com/photo/2020/05/16/16/41/man-5178199_1280.jpg',
-    },
-  ]
-  
-  const chats = reactive([
+const router = useRouter();
+
+const perfiles = reactive([ // Cambiado a reactive para poder modificar
+  {
+    id: 1, // Añade ID
+    nombre: 'La Abu',
+    img: 'https://cdn.pixabay.com/photo/2020/01/15/19/45/witch-4768770_1280.jpg',
+  },
+  {
+    id: 2,
+    nombre: 'Mohamed',
+    img: 'https://cdn.pixabay.com/photo/2020/07/16/07/36/man-5410019_960_720.jpg',
+  },
+  {
+    id: 3,
+    nombre: 'Mauricio',
+    img: 'https://cdn.pixabay.com/photo/2020/05/16/16/41/man-5178199_1280.jpg',
+  },
+]);
+
+const chats = reactive([
     {
       nombre: 'Josefina, dolores del mes',
       mensaje: 'Te molesta si me como a tu perro?',
@@ -112,5 +138,34 @@ import { reactive } from 'vue';
       img: 'https://cdn.pixabay.com/photo/2025/04/15/19/41/woman-9536174_960_720.jpg',
     },
   ])
-  </script>
-  
+
+// Función para navegar al chat
+const goToChat = (chatId) => {
+  const chat = chats.find(c => c.id === chatId);
+  router.push({
+    path: `/explorar/chats/${chatId}`,
+    query: {
+      ...route.query,
+      nombre: chat.nombre,
+      img: chat.img
+    }
+  });
+};
+
+// Función para ver perfil (corregida)
+const verPerfil = (userId) => {
+  router.push({
+    name: 'user-profile', // Nombre consistente
+    params: { userId },
+    query: { from: 'chats-list' } // Añade contexto si es necesario
+  });
+};
+
+console.log('Rutas disponibles:', router.getRoutes());
+
+// Función para manejar favoritos
+const toggleFavorite = (chat) => {
+  chat.favorito = !chat.favorito;
+  console.log(`${chat.nombre} favorito:`, chat.favorito);
+};
+</script>
