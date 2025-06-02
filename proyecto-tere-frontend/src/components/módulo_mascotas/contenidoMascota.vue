@@ -19,26 +19,13 @@
                 Edad: {{ mascota.edad }}
               </div>
 
-                <button
-                v-if="mostrarBotonVolver"
-                @click="router.back()"
-                class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                >
-                <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
-                </button>
 
-                  <button  
-                    v-if="$route.query.from === 'perfil'"
-                    @click="router.back()"
-                    class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                  >
-                    <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
-                  </button>
+                 
 
                   <button  
                       v-if="$route.fullPath.includes('/perfil/mascota/')"
                       @click="router.push('/explorar/perfil/')"
-                      class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                      class="absolute right-3 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                     >
                       <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
                     </button>
@@ -46,18 +33,35 @@
                     <button  
                       v-if="$route.path.startsWith('/explorar/cerca/') && $route.params.id"
                       @click="router.push('/explorar/cerca')"
-                      class="absolute right-14 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                      class="absolute right-3 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                     >
                       <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>
                     </button>
 
+                    <button
+                      v-if="$route.fullPath.includes('/perfil/mascota/')"
+                      @click="mostrar = true"
+                      class="absolute top-15 right-3 z-30 text-red-700 bg-white bg-opacity-80 rounded-full px-3 pt-0 py-1 text-4xl hover:bg-red-100 hover:text-red-800 hover:shadow-lg hover:scale-110 transition w-10 h-10 font-bold"
+                      >
+                      !
+                    </button>
 
+                    <button
+                    v-if="$route.path.startsWith('/explorar/cerca/') && $route.params.id"
+                    @click="mostrar = true"
+                    class="absolute top-15 right-3 z-30 text-red-700 bg-white bg-opacity-80 rounded-full px-3 pt-0 py-1 text-4xl hover:bg-red-100 hover:text-red-800 hover:shadow-lg hover:scale-110 transition w-10 h-10 font-bold"
+                    >
+                    !
+                    </button>
+
+                    
 
                 <button
+                v-if="$route.path.startsWith('/explorar/encuentros') "
                 @click="mostrar = true"
-                class="absolute top-4 right-4 z-30 text-black bg-white bg-opacity-80 rounded-full px-3 py-1 text-lg shadow hover:bg-opacity-100 transition"
+                class="absolute top-3 right-3 z-30 text-red-700 bg-white bg-opacity-80 rounded-full px-3 pt-0 py-1 text-4xl hover:bg-red-100 hover:text-red-800 hover:shadow-lg hover:scale-110 transition w-10 h-10 font-bold"
                 >
-                ...
+                !
                 </button>
 
                 <PasoAlgo v-if="mostrar" @close="mostrar = false" />

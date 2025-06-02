@@ -46,34 +46,43 @@ export default {
     'font-awesome-icon': FontAwesomeIcon
   },
   data() {
+    // si queres dinamismo en las rutas hijas agregalas aca 
     return {
       navItems: [
-        // Usar solo FontAwesome para consistencia
         { 
-          name: 'cirugias', 
+          name: this.$route.meta.overlay ? 'veterinario-cirugias' : 'cirugias', 
           icon: 'heart-pulse', 
-          label: 'Cirugías',
-          type: 'fa' 
+          label: 'Cirugías'
         },
         { 
-          name: 'tratamientos', 
+          name: this.$route.meta.overlay ? 'veterinario-tratamientos' : 'tratamientos', 
           icon: 'file-waveform', 
-          label: 'Tratamientos',
-          type: 'fa' 
+          label: 'Tratamientos'
         },
         { 
-          name: 'medicamentos', 
+          name: this.$route.meta.overlay ? 'veterinario-medicamentos' : 'medicamentos', 
           icon: 'prescription-bottle-medical', 
-          label: 'Medicamentos',
-          type: 'fa' 
+          label: 'Medicamentos'
         },
-         { 
-          name: 'terapias', 
+        { 
+          name: this.$route.meta.overlay ? 'veterinario-terapias' : 'terapias', 
           icon: 'bandage', 
-          label: 'Terapias',
-          type: 'fa' 
-        },
+          label: 'Terapias'
+        }
       ]
+    }
+  },
+  computed: {
+    currentRouteName() {
+      return this.$route.name;
+    }
+  },
+  watch: {
+    '$route'(to) {
+      // Forzar recarga si cambia el ID de la mascota
+      if (to.params.id !== this.$route.params.id) {
+        this.$router.go(0); // Recarga suave
+      }
     }
   }
 }

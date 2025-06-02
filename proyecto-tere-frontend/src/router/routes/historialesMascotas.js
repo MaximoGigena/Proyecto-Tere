@@ -25,7 +25,12 @@ const baseRoutes = [
     path: 'vacunas', 
     name: 'vacunas', 
     component: vacunas,
-    meta: { overlay: false }
+    meta: { overlay: false },
+    props: (route) => ({
+      id: route.params.id || route.query.id,
+      isOverlay: route.meta?.overlay || false,
+      ...route.query
+    })
   },
   { 
     path: 'historialMedico',
@@ -38,25 +43,41 @@ const baseRoutes = [
         path: 'cirugias',
         name: 'cirugias',
         component: Procedimientos,
-        props: (route) => ({ ...route.query, isOverlay: route.meta?.overlay || false })
+        props: (route) => ({
+        id: route.params.id || route.query.id,
+        isOverlay: route.meta?.overlay || false,
+        ...route.query
+      })
       },
       { 
         path: 'tratamientos',
         name: 'tratamientos',
         component: Tratamientos,
-        props: (route) => ({ ...route.query, isOverlay: route.meta?.overlay || false })
+        props: (route) => ({
+        id: route.params.id || route.query.id,
+        isOverlay: route.meta?.overlay || false,
+        ...route.query
+      })
       },
       { 
         path: 'medicamentos',
         name: 'medicamentos',
         component: Medicamentos,
-        props: (route) => ({ ...route.query, isOverlay: route.meta?.overlay || false })
+        props: (route) => ({
+        id: route.params.id || route.query.id,
+        isOverlay: route.meta?.overlay || false,
+        ...route.query
+      })
       },
       { 
         path: 'terapias',
         name: 'terapias',
         component: Terapias,
-        props: (route) => ({ ...route.query, isOverlay: route.meta?.overlay || false })
+        props: (route) => ({
+        id: route.params.id || route.query.id,
+        isOverlay: route.meta?.overlay || false,
+        ...route.query
+      })
       }
     ]
   }
@@ -101,11 +122,9 @@ export const overlayVeterinario = [
               ...route,
               name: `veterinario-${route.name}`,
               meta: { ...route.meta, overlay: true },
-              // Asegurar que las props se pasen correctamente
               props: (route) => ({
                 id: route.params.id,
                 isOverlay: true,
-                ...(typeof route.props === 'function' ? route.props(route) : route.props),
                 ...route.query
               })
             };
@@ -115,9 +134,12 @@ export const overlayVeterinario = [
                 ...childRoute,
                 name: `veterinario-${childRoute.name}`,
                 meta: { ...childRoute.meta, overlay: true },
-                props: (route) => ({ 
-                  ...(childRoute.props ? (typeof childRoute.props === 'function' ? childRoute.props(route) : childRoute.props) : {}),
-                  isOverlay: true 
+                props: (route) => ({
+                  id: route.params.id,
+                  isOverlay: true,
+                  ...route.query,
+                  // Mantener el ID en todos los niveles
+                  mascotaId: route.params.id 
                 })
               }));
             }

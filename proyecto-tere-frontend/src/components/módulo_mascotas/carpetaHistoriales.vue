@@ -45,15 +45,51 @@
 </template>
   
 <script setup>
-const tabs = [
-  { nombre: 'Dueños', icon: 'shield-dog', to: '/revisar/propietarios' },
-  { nombre: 'Vacunas', icon: 'syringe', to: '/revisar/vacunas' },
-  { nombre: 'Médico', icon: 'stethoscope',to: '/revisar/historialMedico', activeNames: ['historialMedico', 'cirugias', 'tratamientos', 'medicamentos', 'terapias'] },
-]
-
 import { useRouter, useRoute } from 'vue-router'
 import { ref,computed, onMounted } from 'vue'
 import huellas from '@/assets/huellas.png';
+
+const route = useRoute()
+const router = useRouter()
+
+const tabs = computed(() => {
+  const id = route.params.id || route.query.id;
+  const isOverlay = route.meta.overlay;
+  
+  return [
+    { 
+      nombre: 'Dueños', 
+      icon: 'shield-dog', 
+      to: isOverlay 
+        ? `/veterinarios/mascota/${id}/propietarios` 
+        : '/revisar/propietarios',
+      activeNames: ['propietarios', 'veterinario-propietarios']  
+    },
+    { 
+      nombre: 'Vacunas', 
+      icon: 'syringe', 
+      to: isOverlay 
+        ? `/veterinarios/mascota/${id}/vacunas` 
+        : '/revisar/vacunas',
+      activeNames: ['vacunas', 'veterinario-vacunas']  
+    },
+    { 
+      nombre: 'Médico', 
+      icon: 'stethoscope', 
+      to: isOverlay 
+        ? `/veterinarios/mascota/${id}/historialMedico/cirugias` 
+        : '/revisar/historialMedico/cirugias',
+      activeNames: [
+        'historialMedico', 'cirugias', 'tratamientos', 'medicamentos', 'terapias',
+        'veterinario-historialMedico', 'veterinario-cirugias', 
+        'veterinario-tratamientos', 'veterinario-medicamentos', 'veterinario-terapias'
+      ]
+    }
+  ];
+});
+
+
+
 
 const animatedBg = ref(null)
 const currentTab = ref('general')
@@ -70,9 +106,7 @@ onMounted(() => {
 })
 
 
-const route = useRoute()
 
-const router = useRouter()
 
 // Cierra la vista restaurando los valores originales
 async function cerrarVista() {
@@ -117,8 +151,23 @@ const tituloCabecera = computed(() => {
 })
 
 const isTabActive = (tab) => {
-  return tab.activeNames?.includes(route.name) || tab.to === route.path
-}
+  // Verificación exacta
+  if (tab.activeNames?.includes(route.name)) {
+    return true;
+  }
+  
+  // Verificación para rutas anidadas
+  const matchedNames = route.matched.map(r => r.name);
+  if (matchedNames.some(name => tab.activeNames?.includes(name))) {
+    return true;
+  }
+  
+  // Verificación por path para casos edge
+  const currentPath = route.path.replace(/\/$/, ''); // Remove trailing slash
+  const tabPath = tab.to.replace(/\/$/, '');
+  
+  return currentPath.startsWith(tabPath);
+};
 
 </script>
 <style>  

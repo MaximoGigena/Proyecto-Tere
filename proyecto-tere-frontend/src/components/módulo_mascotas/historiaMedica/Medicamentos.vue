@@ -8,3 +8,4 @@
     <p>Contenido del recetario de farmacos...</p>
   </div>
 </template>
+
