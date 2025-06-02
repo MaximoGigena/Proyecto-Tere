@@ -50,15 +50,15 @@ export default {
       navItems: [
         // Usar solo FontAwesome para consistencia
         { 
-          name: 'procedimientos', 
+          name: 'cirugias', 
           icon: 'heart-pulse', 
-          label: 'Procedimientos',
+          label: 'Cirugías',
           type: 'fa' 
         },
         { 
-          name: 'diagnosticos', 
-          icon: 'microscope', 
-          label: 'Diagnósticos',
+          name: 'tratamientos', 
+          icon: 'file-waveform', 
+          label: 'Tratamientos',
           type: 'fa' 
         },
         { 

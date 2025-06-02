@@ -149,7 +149,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import burro from '@/assets/burro.png'
-import PasoAlgo from '../components/reportarMascota.vue'
+import PasoAlgo from '@/components/módulo_mascotas/reportarMascota.vue'
 
 
 

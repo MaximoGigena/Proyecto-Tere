@@ -55,7 +55,7 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import MascotaCard from '@/components/tarjetaMascota.vue'
+import MascotaCard from '@/components/módulo_mascotas/tarjetaMascota.vue'
 
 const router = useRouter()
 

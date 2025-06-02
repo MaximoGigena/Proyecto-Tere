@@ -53,7 +53,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import OrdenDropdown from '@/components/OrdenDropdown.vue'
+import OrdenDropdown from '@/components/módulo_mascotas/OrdenDropdown.vue'
 
 const ordenAsc = ref(true)
 

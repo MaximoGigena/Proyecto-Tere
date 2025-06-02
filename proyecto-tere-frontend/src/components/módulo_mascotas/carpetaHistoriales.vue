@@ -1,9 +1,9 @@
-<!-- carpetaHistoriales.vue -->
+ <!-- carpetaHistoriales.vue -->
 <template>
   <div 
   ref="animatedBg"
   class="bg-cover bg-repeat bg-center flex flex-col h-screen relative">
-    <div class="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+    <div class="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden mt-4">
       
       <!-- Header -->
       <div class="bg-gray-800 text-white p-4 flex justify-between items-center">
@@ -48,7 +48,7 @@
 const tabs = [
   { nombre: 'Dueños', icon: 'shield-dog', to: '/revisar/propietarios' },
   { nombre: 'Vacunas', icon: 'syringe', to: '/revisar/vacunas' },
-  { nombre: 'Médico', icon: 'stethoscope',to: '/revisar/historialMedico', activeNames: ['historialMedico', 'procedimientos', 'diagnosticos', 'medicamentos', 'terapias'] },
+  { nombre: 'Médico', icon: 'stethoscope',to: '/revisar/historialMedico', activeNames: ['historialMedico', 'cirugias', 'tratamientos', 'medicamentos', 'terapias'] },
 ]
 
 import { useRouter, useRoute } from 'vue-router'
@@ -56,12 +56,16 @@ import { ref,computed, onMounted } from 'vue'
 import huellas from '@/assets/huellas.png';
 
 const animatedBg = ref(null)
+const currentTab = ref('general')
 
 onMounted(() => {
   if (animatedBg.value) {
     animatedBg.value.style.backgroundImage = `url(${huellas})`
     animatedBg.value.style.animation = 'moverHuellas 120s linear infinite'
     animatedBg.value.style.backgroundPosition = '0 0'
+  }
+  if (route.query.currentTab) {
+    currentTab.value = route.query.currentTab.toLowerCase()
   }
 })
 
@@ -100,7 +104,7 @@ async function cerrarVista() {
   }
 }
 
-
+console.log('📁 CarpetaHistoriales montado')
 
 
 const titulosPorRuta = {
@@ -130,4 +134,4 @@ const isTabActive = (tab) => {
     .animate-huellas {
       animation: moverHuellas 120s linear infinite;
     }
-</style>
+</style> 

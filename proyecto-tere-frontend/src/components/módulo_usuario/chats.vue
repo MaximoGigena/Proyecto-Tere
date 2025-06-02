@@ -22,8 +22,9 @@
         <router-link 
           v-for="(perfil, index) in perfiles" 
           :key="index" 
+          @click="abrirPerfilUsuario(perfil.id)"
           :to="{
-            name: 'user-profile',  // Nombre corregido
+            name: 'user-profile-list',  // Nombre corregido
             params: { userId: perfil.id },
             query: { from: 'chats-list' } 
           }"
@@ -61,6 +62,7 @@
       <router-link
         v-for="(chat, index) in chats"
         :key="index"
+        @click="goToChat(chat.id)"
         :to="{
           path: `/explorar/chats/${chat.id}`,
           query: {
@@ -95,6 +97,9 @@
 <script setup>
 import { reactive } from 'vue';
 import { useRouter } from 'vue-router';
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
 
 const router = useRouter();
 
@@ -153,11 +158,11 @@ const goToChat = (chatId) => {
 };
 
 // Función para ver perfil (corregida)
-const verPerfil = (userId) => {
+const abrirPerfilUsuario = (userId) => {
   router.push({
-    name: 'user-profile', // Nombre consistente
+    name: 'user-profile-list',
     params: { userId },
-    query: { from: 'chats-list' } // Añade contexto si es necesario
+    query: { from: 'chats-list' } // <-- Esto mantendrá ChatsLista como default
   });
 };
 

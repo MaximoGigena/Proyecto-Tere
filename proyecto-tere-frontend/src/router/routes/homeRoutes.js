@@ -1,12 +1,13 @@
 // routes/homeRoutes.js
 import Home from '@/components/home.vue'
-import EncuentrosView from '@/components/ExplorarEncuentros.vue'
-import ProyectoTere from '@/components/sobreNosotros/proyectoTere.vue'
-import contacto from '@/components/sobreNosotros/contactanos.vue'
-import politicas from '@/components/Seguridad/politicasTere.vue'
-import protecciónDatos from '@/components/Seguridad/protecciónDatos.vue'
-import donaciones from '@/components/apoyanos/donaciones.vue'
-import colaboradores from '@/components/apoyanos/colaboradores.vue'
+import EncuentrosView from '@/components/módulo_usuario/ExplorarEncuentros.vue'
+import ProyectoTere from '@/components/navBar_Home/sobreNosotros/proyectoTere.vue'
+import contacto from '@/components/navBar_Home/sobreNosotros/contactanos.vue'
+import politicas from '@/components/navBar_Home/Seguridad/politicasTere.vue'
+import protecciónDatos from '@/components/navBar_Home/Seguridad/protecciónDatos.vue'
+import donaciones from '@/components/navBar_Home/apoyanos/donaciones.vue'
+import colaboradores from '@/components/navBar_Home/apoyanos/colaboradores.vue'
+import veterinarios from '@/components/módulo_veterinario/sideBarMascotas.vue'
 //import Denuncias from '@/views/Denuncias.vue'
 
 export const homeRoutes = [
@@ -18,4 +19,5 @@ export const homeRoutes = [
   { path: '/ProtecciónDatos', name: 'protecciónDatos', component: protecciónDatos },
   { path: '/Donaciones', name: 'donaciones', component: donaciones },
   { path: '/Colaboradores', name: 'colaboradores', component: colaboradores },
+  { path: '/veterinarios', name: 'veterinarios', component: veterinarios },
 ]

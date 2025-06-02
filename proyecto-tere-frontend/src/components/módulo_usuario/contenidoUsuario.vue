@@ -108,7 +108,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { RouterLink } from 'vue-router'
-import ReportarUsuario from '@/components/reportarUsuario.vue'
+import ReportarUsuario from '@/components/módulo_usuario/reportarUsuario.vue'
 
 const route = useRoute()
 const router = useRouter()

@@ -112,7 +112,7 @@ const currentChat = computed(() => {
 // Función para abrir perfil - versión simplificada
 const abrirPerfilUsuario = () => {
   router.push({
-    name: 'user-profile',
+    name: 'user-profile-room',
     params: {
       userId: currentChat.value.id
     },

@@ -1,10 +1,10 @@
 // routes/encuentrosRoutes.js
-import explorarLayout from '@/components/ExplorarEncuentros.vue'
-import PerfilMascota from '@/components/perfilMascota.vue'
-import Chats from '@/components/chats.vue'
-import Cerca from '@/components/perfilesCerca.vue'
-import Perfil from '@/components/perfilUsuario.vue'
-import ChatRoom from '@/components/salaDeChat.vue'
+import explorarLayout from '@/components/módulo_usuario/ExplorarEncuentros.vue'
+import PerfilMascota from '@/components/módulo_adopciones/perfilMascota.vue'
+import Chats from '@/components/módulo_usuario/chats.vue'
+import Cerca from '@/components/módulo_adopciones/perfilesMascotasCerca.vue'
+import Perfil from '@/components/módulo_usuario/perfilUsuario.vue'
+import ChatRoom from '@/components/módulo_usuario/salaDeChat.vue'
 
 // routes/encuentrosRoutes.js
 // routes/encuentrosRoutes.js

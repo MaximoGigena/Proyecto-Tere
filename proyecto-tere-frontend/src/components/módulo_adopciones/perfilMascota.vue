@@ -32,8 +32,6 @@
   
   <script setup>
   import { ref, onMounted, onUnmounted } from 'vue'
-  import burro from '@/assets/burro.png'
-  import PasoAlgo from '../components/reportarMascota.vue'
   import { useRouter } from 'vue-router'
   import { useRoute } from 'vue-router';
 
@@ -58,7 +56,7 @@
 
 import SvgIcon from '@jamescoyle/vue-icon';
 import { mdiReproduction } from '@mdi/js';
-import ContenidoMascota from './contenidoMascota.vue';
+import ContenidoMascota from '@/components/módulo_mascotas/contenidoMascota.vue';
 
 const path = mdiReproduction;
 
@@ -81,4 +79,3 @@ const path = mdiReproduction;
   border-radius: 10px;
 }
 </style>
-  

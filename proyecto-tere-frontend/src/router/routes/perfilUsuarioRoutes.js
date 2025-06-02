@@ -1,8 +1,8 @@
 // Importa las rutas
-import PerfilUsuario from '@/components/perfilUsuario.vue'
-import contenidoMascota from '@/components/contenidoMascota.vue'
-import ExplorarEncuentros from '@/components/ExplorarEncuentros.vue' 
-import historialMedico from '@/components/historialMedico.vue'
+import PerfilUsuario from '@/components/módulo_usuario/perfilUsuario.vue'
+import contenidoMascota from '@/components/módulo_mascotas/contenidoMascota.vue'
+import ExplorarEncuentros from '@/components/módulo_usuario/ExplorarEncuentros.vue' 
+import historialMedico from '@/components/módulo_mascotas/historialMedico.vue'
 
 export const perfilUsuario = [
   {

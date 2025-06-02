@@ -94,6 +94,10 @@
           <router-link to="/encuentros" class="text-blue-500 hover:underline">
             Ir a Encuentros
           </router-link>
+
+          <router-link to="/veterinarios" class="text-green-100 hover:underline">
+            veterinarios only 
+          </router-link>
         </nav>
       </header>
 
