@@ -145,6 +145,18 @@ const titulosPorRuta = {
   propietarios: 'Dueños de la Mascota',
   vacunas: 'Vacunas Aplicadas',
   historialMedico: 'Historial Médico',
+  cirugias: 'Cirugías Realizadas',
+  tratamientos: 'Tratamientos Recibidos',
+  medicamentos: 'Medicamentos Administrados',
+  terapias: 'Terapias Realizadas',
+  'veterinario-propietarios': 'Dueños de la Mascota',
+  'veterinario-vacunas': 'Vacunas Aplicadas',
+  'veterinario-historialMedico': 'Historial Médico',
+  'veterinario-cirugias': 'Cirugías Realizadas',
+  'veterinario-tratamientos': 'Tratamientos Recibidos',
+  'veterinario-medicamentos': 'Medicamentos Administrados',
+  'veterinario-terapias': 'Terapias Realizadas'
+
 }
 const tituloCabecera = computed(() => {
   return titulosPorRuta[route.name] || 'Historial de la Mascota'

@@ -8,8 +8,8 @@
     >
       <div class="bg-white w-full max-w-md rounded-lg shadow-lg p-4">
         <div class="flex justify-between items-center mb-4">
-          <h2 class="text-xl font-bold">Filtros</h2>
-          <button @click="cerrar" class="text-gray-600 hover:text-black text-4xl">&times;</button>
+          <h2 class="text-xl font-bold text-center mx-auto">Filtros disponibles</h2>
+          <button @click="cerrar" class="text-gray-600 hover:text-black text-4xl -mt-8">&times;</button>
         </div>
         <VeterinarioFiltros />
       </div>
@@ -84,7 +84,4 @@ onMounted(() => {
   transform: translateY(100%);
   opacity: 0;
 }
-
-
-
 </style>

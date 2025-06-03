@@ -2,10 +2,12 @@
   <div class="fixed left-0 top-0 h-screen w-92 bg-white shadow-lg border-r overflow-y-auto z-50 p-4">
     <div class="flex items-center justify-between mb-4">
       <h1 class="text-2xl font-bold">Buscar Mascotas</h1>
-      <button class="text-gray-700 hover:text-black transition"
-      @click="abrirFiltro"
+      <button
+        @click="abrirFiltro"
+        class="inline-flex whitespace-nowrap items-center gap-2 px-5 py-2.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-700 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
       >
-        <font-awesome-icon :icon="['fas', 'filter']" class="text-2xl" />
+        <span class="font-medium text-sm sm:text-base">Filtrar Mascota</span>
+        <font-awesome-icon :icon="['fas', 'filter']" class="text-lg sm:text-xl" />
       </button>
   </div>
 
@@ -35,7 +37,7 @@
           @click="verHistorial(mascota)"
           class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
         >
-          Ver
+          Ver Historial
         </button>
       </li>
     </ul>
