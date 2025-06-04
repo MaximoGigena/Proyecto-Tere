@@ -39,14 +39,6 @@
                     </button>
 
                     <button
-                      v-if="$route.fullPath.includes('/perfil/mascota/')"
-                      @click="mostrar = true"
-                      class="absolute top-15 right-3 z-30 text-red-700 bg-white bg-opacity-80 rounded-full px-3 pt-0 py-1 text-4xl hover:bg-red-100 hover:text-red-800 hover:shadow-lg hover:scale-110 transition w-10 h-10 font-bold"
-                      >
-                      !
-                    </button>
-
-                    <button
                     v-if="$route.path.startsWith('/explorar/cerca/') && $route.params.id"
                     @click="mostrar = true"
                     class="absolute top-15 right-3 z-30 text-red-700 bg-white bg-opacity-80 rounded-full px-3 pt-0 py-1 text-4xl hover:bg-red-100 hover:text-red-800 hover:shadow-lg hover:scale-110 transition w-10 h-10 font-bold"

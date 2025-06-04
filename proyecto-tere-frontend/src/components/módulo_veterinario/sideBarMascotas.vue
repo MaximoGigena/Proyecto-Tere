@@ -6,7 +6,7 @@
         @click="abrirFiltro"
         class="inline-flex whitespace-nowrap items-center gap-2 px-5 py-2.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-700 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
       >
-        <span class="font-medium text-sm sm:text-base">Filtrar Mascota</span>
+        <span class="font-medium text-sm sm:text-base">Filtrar Mascotas</span>
         <font-awesome-icon :icon="['fas', 'filter']" class="text-lg sm:text-xl" />
       </button>
   </div>

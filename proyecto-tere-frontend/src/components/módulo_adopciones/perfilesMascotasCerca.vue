@@ -3,8 +3,12 @@
     <!-- Header fijo -->
     <div class="sticky top-0 z-30 bg-white px-4 py-1 flex items-center justify-between shadow-sm">
       <h1 class="text-2xl font-bold text-gray-800">Mascotas cerca de ti</h1>
-      <button class="text-gray-700 hover:text-black transition">
-        <font-awesome-icon :icon="['fas', 'filter']" class="text-2xl" />
+       <button
+        @click="mostrarOverlay = !mostrarOverlay"
+        class="inline-flex whitespace-nowrap items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-700 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+      >
+        <span class="font-medium text-sm sm:text-base">Filtrar Mascotas</span>
+        <font-awesome-icon :icon="['fas', 'filter']" class="text-lg sm:text-xl" />
       </button>
     </div>
 
@@ -31,13 +35,37 @@
       </div>
     </div>
 
+    <!-- Overlay de filtros -->
+    <transition name="fade">
+      <div 
+        v-if="mostrarOverlay" 
+        class="fixed inset-0 z-40 bg-black/50  flex items-center justify-center p-4"
+        @click.self="mostrarOverlay = false"
+      >
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div class="p-4 max-w-xl mx-auto">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-bold text-gray-800">Filtrar Mascotas</h2>
+              <button @click="mostrarOverlay = false" class="text-gray-500 hover:text-gray-700">
+                <font-awesome-icon :icon="['fas', 'times']" class="text-3xl" />
+              </button>
+            </div>
+            
+            <!-- Aquí va el contenido de los filtros -->
+            <FiltrosComponente @cerrar="mostrarOverlay = false" />
+          </div>
+        </div>
+      </div>
+    </transition>
     
   </div>
 </template>
 
 <script setup>
-import { RouterLink } from 'vue-router'
+import { ref } from 'vue'
+import FiltrosComponente from './filtrosAdopciones.vue' // Asegúrate de que la ruta sea correcta
 
+const mostrarOverlay = ref(false)
 
 const mascotas = [
   { img: 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg', info: '2 años / Hembra' },
