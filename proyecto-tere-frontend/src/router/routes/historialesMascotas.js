@@ -3,10 +3,11 @@ import historialLayout from '@/components/módulo_mascotas/carpetaHistoriales.vu
 import propietarios from '@/components/módulo_mascotas/historialDueños.vue'
 import vacunas from '@/components/módulo_mascotas/historialVacunas.vue'
 import HistorialMedicoLayout from '@/components/módulo_mascotas/historialMedico.vue'
-import Procedimientos from '@/components/módulo_mascotas/historiaMedica/Procedimientos.vue' 
+import Procedimientos from '@/components/módulo_mascotas/historiaMedica/cirugías.vue' 
 import Tratamientos from '@/components/módulo_mascotas/historiaMedica/Tratamientos.vue'
 import Medicamentos from '@/components/módulo_mascotas/historiaMedica/Medicamentos.vue'
 import Terapias from '@/components/módulo_mascotas/historiaMedica/Terapias.vue'
+import Diagnosticos from '@/components/módulo_mascotas/historiaMedica/Diagnosticos.vue'
 
 // Rutas comunes con nombres base
 const baseRoutes = [
@@ -73,6 +74,16 @@ const baseRoutes = [
         path: 'terapias',
         name: 'terapias',
         component: Terapias,
+        props: (route) => ({
+        id: route.params.id || route.query.id,
+        isOverlay: route.meta?.overlay || false,
+        ...route.query
+      })
+      },
+      { 
+        path: 'diagnosticos',
+        name: 'diagnosticos',
+        component: Diagnosticos,
         props: (route) => ({
         id: route.params.id || route.query.id,
         isOverlay: route.meta?.overlay || false,

@@ -12,9 +12,9 @@
             tab: nav.name // Opcional: para tracking
           }
         }"
-        class="flex flex-col items-center p-2 rounded-full text-gray-500 hover:text-blue-500 transition-all duration-200"
+        class="flex flex-col items-center p-2 rounded-full mx-2 text-gray-500 hover:text-blue-500 transition-all duration-200"
         :class="{ 'text-blue-600 bg-blue-50': $route.name === nav.name }"
-        style="width: 60px;"
+        style="width: 70px;"
       >
         <font-awesome-icon
           :icon="['fas', nav.icon]"
@@ -62,12 +62,17 @@ export default {
         { 
           name: this.$route.meta.overlay ? 'veterinario-medicamentos' : 'medicamentos', 
           icon: 'prescription-bottle-medical', 
-          label: 'Medicamentos'
+          label: 'Fármacos'
         },
         { 
           name: this.$route.meta.overlay ? 'veterinario-terapias' : 'terapias', 
           icon: 'bandage', 
           label: 'Terapias'
+        },
+        { 
+          name: this.$route.meta.overlay ? 'veterinario-diagnosticos' : 'diagnosticos', 
+          icon: 'microscope', 
+          label: 'Diagnosticos'
         }
       ]
     }

@@ -98,6 +98,10 @@
           <router-link to="/veterinarios" class="text-green-100 hover:underline">
             veterinarios only 
           </router-link>
+
+          <router-link to="/administradores" class="text-red-600 hover:underline">
+            admins only 
+          </router-link>
         </nav>
       </header>
 

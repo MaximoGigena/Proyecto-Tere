@@ -80,9 +80,9 @@ const tabs = computed(() => {
         ? `/veterinarios/mascota/${id}/historialMedico/cirugias` 
         : '/revisar/historialMedico/cirugias',
       activeNames: [
-        'historialMedico', 'cirugias', 'tratamientos', 'medicamentos', 'terapias',
+        'historialMedico', 'cirugias', 'tratamientos', 'medicamentos', 'terapias','diagnosticos',
         'veterinario-historialMedico', 'veterinario-cirugias', 
-        'veterinario-tratamientos', 'veterinario-medicamentos', 'veterinario-terapias'
+        'veterinario-tratamientos', 'veterinario-medicamentos', 'veterinario-terapias', 'veterinario-diagnosticos',
       ]
     }
   ];
@@ -149,13 +149,15 @@ const titulosPorRuta = {
   tratamientos: 'Tratamientos Recibidos',
   medicamentos: 'Medicamentos Administrados',
   terapias: 'Terapias Realizadas',
+  diagnosticos: 'Diagnósticos Realizados',
   'veterinario-propietarios': 'Dueños de la Mascota',
   'veterinario-vacunas': 'Vacunas Aplicadas',
   'veterinario-historialMedico': 'Historial Médico',
   'veterinario-cirugias': 'Cirugías Realizadas',
   'veterinario-tratamientos': 'Tratamientos Recibidos',
   'veterinario-medicamentos': 'Medicamentos Administrados',
-  'veterinario-terapias': 'Terapias Realizadas'
+  'veterinario-terapias': 'Terapias Realizadas',
+  'veterinario-diagnosticos': 'Diagnósticos Realizados'
 
 }
 const tituloCabecera = computed(() => {
