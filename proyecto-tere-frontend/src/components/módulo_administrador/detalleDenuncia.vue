@@ -4,6 +4,12 @@
 
     <div class="space-y-4 text-gray-700 text-sm">
       <div>
+        <span class="font-semibold">Denunciante:</span> {{ denuncia.denunciante }}
+      </div>
+      <div>
+        <span class="font-semibold">Denunciado:</span> {{ denuncia.denunciado }}
+      </div>
+      <div>
         <span class="font-semibold">Razón:</span> {{ denuncia.razon }}
       </div>
       <div>
@@ -32,8 +38,26 @@
       </div>
     </div>
 
+    
+
+    <div class="flex justify-start gap-3">
+      <button
+        class="bg-red-400 text-white hover:bg-red-700 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors duration-150"
+      >
+        Rechazar denuncia
+      </button>
+
+      <button
+        class="bg-green-400 text-white hover:bg-green-700 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors duration-150"
+      >
+        Validar denuncia
+      </button>
+    </div>
     <div class="text-right">
-      <button @click="$emit('volver')" class="text-blue-600 hover:underline text-sm">
+      <button
+        @click="$emit('volver')"
+        class="bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors duration-150"
+      >
         ← Volver
       </button>
     </div>

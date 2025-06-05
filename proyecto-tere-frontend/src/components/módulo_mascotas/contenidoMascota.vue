@@ -24,7 +24,7 @@
 
                   <button  
                       v-if="$route.fullPath.includes('/perfil/mascota/')"
-                      @click="router.push('/explorar/perfil/')"
+                      @click="router.push('/explorar/perfil/mascotas')"
                       class="absolute right-3 top-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                     >
                       <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl"/>

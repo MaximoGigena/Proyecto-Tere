@@ -84,7 +84,7 @@ const navItems = [
   { id: 'cerca', label: 'Cerca', icon: 'fa-location-dot', path: '/explorar/cerca' },
   { id: 'encuentros', label: 'Encuentros', icon: 'fa-paw', path: '/explorar/encuentros' },
   { id: 'chats', label: 'Chats', icon: 'fa-comment', path: '/explorar/chats' },
-  { id: 'perfil', label: 'Perfil', icon: 'fa-user', path: '/explorar/perfil' },
+  { id: 'perfil', label: 'Perfil', icon: 'fa-user', path: '/explorar/perfil/mascotas/' },
 ]
 
 const isActive = (path) => route.path === path

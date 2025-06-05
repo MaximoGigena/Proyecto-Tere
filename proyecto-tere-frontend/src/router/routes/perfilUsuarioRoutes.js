@@ -1,5 +1,5 @@
 // Importa las rutas
-import PerfilUsuario from '@/components/módulo_usuario/perfilUsuario.vue'
+import PerfilUsuarioMascota from '@/components/módulo_usuario/mascotasUsuario.vue'
 import contenidoMascota from '@/components/módulo_mascotas/contenidoMascota.vue'
 import ExplorarEncuentros from '@/components/módulo_usuario/ExplorarEncuentros.vue' 
 import historialMedico from '@/components/módulo_mascotas/historialMedico.vue'
@@ -11,13 +11,16 @@ export const perfilUsuario = [
     children: [
       {
         path: 'perfil',
-        component: PerfilUsuario
+        component: PerfilUsuarioMascota
       },
       {
         path: 'perfil/mascota/:id',
         name: 'perfil-Mascota', 
         components: {
-          default: PerfilUsuario,
+          default: {
+            component: PerfilUsuarioMascota,
+            class: 'bg-transparent'
+          },
           overlay: contenidoMascota
         },
         props: {

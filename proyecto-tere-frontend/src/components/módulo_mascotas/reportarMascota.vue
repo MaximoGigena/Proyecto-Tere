@@ -1,41 +1,82 @@
 <template>
-  <div class="fixed inset-0 z-40 bg-black bg-opacity-30 flex items-center justify-center">
-    <!-- Contenedor blanco -->
-    <div class="relative bg-white rounded-2xl shadow-xl p-6 w-80">
-      <!-- Botón cerrar -->
+  <div class="fixed inset-0 z-40 bg-black/70 flex items-center justify-center">
+    <!-- CONTENEDOR 1 -->
+    <div
+      v-if="!mostrarRazones"
+      class="relative bg-white rounded-2xl shadow-xl px-3 py-4 w-80"
+    >
+      <h2 class="text-xl text-center font-extrabold text-gray-800 -mt-4">¿Pasó algo?</h2>
       <button
         @click="cerrar"
-        class="absolute top-2 right-3 text-black text-lg font-bold hover:scale-110 transition"
+        class="absolute top-1 -mt-1 right-3 text-black text-2xl font-bold hover:scale-110 transition"
       >
-        x
+        <font-awesome-icon :icon="['fas', 'xmark']" />
       </button>
 
-      <!-- Contenido -->
-      <div class="text-center">
-        <h2 class="text-2xl font-extrabold">¿Pasó Algo?</h2>
-        <p class="text-red-600 font-bold text-sm mt-1">Reportar Mascota</p>
+      <div
+        @click="mostrarRazones = true"
+        class="group flex items-center justify-between bg-white hover:bg-red-100 transition rounded-xl px-4 py-3 cursor-pointer mt-3 w-full"
+      >
+        <p class="text-red-600 font-bold text-sm tracking-wide">Denunciar mascota</p>
+        <span class="text-black text-2xl font-bold transition-transform duration-150 group-hover:scale-110">
+          &gt;
+        </span>
       </div>
+    </div>
 
-      <!-- Botón flecha -->
+    <!-- CONTENEDOR 2 -->
+    <div
+      v-else
+      class="relative bg-white rounded-2xl shadow-xl px-3 py-4 w-80"
+    >
+      <h2 class="text-xl text-center font-extrabold text-gray-800 -mt-4">Denunciar Mascota</h2>
+      <p class="text-sm text-left text-gray-600 mt-1">
+        Queremos que nuestra comunidad sea un espacio seguro para los usarios y las mascotas. Tus denuncias son anónimas.
+      </p>
       <button
-        @click="accion"
-        class="absolute bottom-2 right-3 text-black text-xl font-bold hover:scale-110 transition"
+        @click="cerrar"
+        class="absolute top-1 -mt-1 right-3 text-black text-2xl font-bold hover:scale-110 transition"
       >
-        &gt;
+        <font-awesome-icon :icon="['fas', 'xmark']" />
       </button>
+
+      <div
+        v-for="razon in razones"
+        :key="razon"
+        class="group flex items-center justify-between bg-white hover:bg-red-100 transition rounded-xl px-4 py-3 cursor-pointer mt-3 w-full"
+        @click="seleccionarRazon(razon)"
+      >
+        <p class="text-gray-800 font-medium text-sm">{{ razon }}</p>
+        <span class="text-black text-xl font-bold transition-transform duration-150 group-hover:scale-110">
+          &gt;
+        </span>
+      </div>
     </div>
   </div>
 </template>
-  
+
 <script setup>
- const emit = defineEmits(['close'])
+import { ref } from 'vue'
 
-  const cerrar = () => {
-    emit('close')
-  }
+const emit = defineEmits(['close'])
 
-  const accion = () => {
-    console.log('Acción siguiente')
-  }
+const cerrar = () => {
+  emit('close')
+}
+
+const mostrarRazones = ref(false)
+
+const razones = [
+  'Maltrato Animal',
+  'Perfil falso',
+  'Contenido inapropiado',
+  'Estafa o uso comercial',
+  'Mascota ilegal',
+]
+
+const seleccionarRazon = (razon) => {
+  console.log('Razón seleccionada:', razon)
+  // Podés mostrar un nuevo paso o guardar la razón
+}
 </script>
-  
+

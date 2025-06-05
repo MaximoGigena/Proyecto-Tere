@@ -8,6 +8,7 @@ import {chatRoutes} from './routes/overlayChats.js'
 import {chatRoom} from './routes/overlaySalas.js'
 import {veterinarioFiltrosOverlay} from './routes/veterinarioFiltrosOverlay.js'
 import {adminRoutes} from './routes/adminRoutes.js'
+import {rutasUsuario} from './routes/usuarioRouter.js'
 
 const routes = [
   ...homeRoutes,
@@ -20,6 +21,7 @@ const routes = [
   ...veterinarioFiltrosOverlay,
   ...chatRoom,
   ...adminRoutes,
+  ...rutasUsuario,
 ]
 
 const router = createRouter({

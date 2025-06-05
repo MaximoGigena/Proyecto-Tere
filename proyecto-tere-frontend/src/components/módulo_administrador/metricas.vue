@@ -20,6 +20,12 @@
         <h2 class="text-sm text-gray-500">Adopciones realizadas</h2>
         <p class="text-3xl font-semibold text-purple-500">312</p>
       </div>
+
+      <!-- Tarjeta: veterinarios registrados -->
+      <div class="bg-white shadow rounded-xl p-6">
+        <h2 class="text-sm text-gray-500">Veterinarios registrados</h2>
+        <p class="text-3xl font-semibold text-red-500">112</p>
+      </div>
     </div>
 
     <!-- Sección de gráfico o evolución (placeholder) -->
