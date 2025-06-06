@@ -136,13 +136,36 @@
                 </p>
                 </div>
             </div>
+              <!-- Contenedor de botones -->
+                <div 
+                  ref="botonesAnimados"
+                  :class="{'opacity-0 translate-y-10': !mostrarBotones, 'opacity-100 translate-y-0': mostrarBotones}"
+                  class="flex justify-center gap-14 z-20 transition-all duration-700 ease-out"
+                >
+                  <button 
+                    v-if="$route.path.startsWith('/explorar/encuentros')"
+                    class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
+                    <font-awesome-icon :icon="['fas', 'xmark']" class="text-black text-5xl hover:text-red-400" />
+                  </button>
+                  <button 
+                    v-if="$route.path.startsWith('/explorar/cerca/')"
+                    class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
+                    <font-awesome-icon :icon="['fas', 'comment']" class="text-black text-4xl hover:text-purple-400" />
+                  </button>
+                  <button 
+                    v-if="$route.path.startsWith('/explorar/encuentros')||$route.path.startsWith('/explorar/cerca/')"
+                    class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
+                    <font-awesome-icon :icon="['fas', 'heart']" class="text-black text-4xl hover:text-green-400" />
+                  </button>
+                </div>
+
                 <div class="h-20"></div>
             </div>
 </template>
 
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import burro from '@/assets/burro.png'
 import PasoAlgo from '@/components/módulo_mascotas/reportarMascota.vue'
@@ -154,6 +177,31 @@ const router = useRouter()
 const scrollContainer = ref(null)
 const mostrar = ref(false)
 const path = ref('')
+
+const mostrarBotones = ref(false)
+const botonesAnimados = ref(null)
+
+let observer = null
+
+onMounted(() => {
+  observer = new IntersectionObserver(
+    ([entry]) => {
+      mostrarBotones.value = entry.isIntersecting
+    },
+    { threshold: 0.5 }
+  )
+  if (botonesAnimados.value) {
+    observer.observe(botonesAnimados.value)
+  }
+})
+
+onUnmounted(() => {
+  if (observer && botonesAnimados.value) {
+    observer.unobserve(botonesAnimados.value)
+    observer.disconnect()
+  }
+})
+
 
 // Accede a los parámetros de la ruta
 const id = computed(() => route.params.id)

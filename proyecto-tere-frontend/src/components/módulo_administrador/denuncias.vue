@@ -114,7 +114,8 @@ const denuncias = ref([
   {
     denunciante: 'Usuario1423',
     denunciado: 'Usuario123',
-    razon: 'Maltrato animal',
+    descripcionDenunciante: 'El usuario está vendiendo mascotas sin licencia.',
+    razon: 'Venta ilegal de mascotas',
     gravedad: 'Alta',
     fecha: '2025-05-10',
     estado: 'En revisión',
@@ -124,6 +125,7 @@ const denuncias = ref([
   {
     denunciante: 'Usuario1424',
     denunciado: 'Usuario124',
+    descripcionDenunciante: 'fgfdhgfhdgdasdhgjg',
     razon: 'Falsedad de datos',
     gravedad: 'Media',
     fecha: '2025-05-21',
@@ -134,6 +136,7 @@ const denuncias = ref([
   {
     denunciante: 'Usuario1429',
     denunciado: 'Usuario125',
+    descripcionDenunciante: 'fffgggrdhethttdh',
     razon: 'Comportamiento inapropiado',
     gravedad: 'Baja',
     fecha: '2025-05-12',
@@ -144,6 +147,7 @@ const denuncias = ref([
   {
     denunciante: 'Usuario1428',
     denunciado: 'Usuario126',
+    descripcionDenunciante: 'El usuario está acosando a otros usuarios.',
     razon: 'Comportamiento inapropiado',
     gravedad: 'Baja',
     fecha: '2025-05-12',
@@ -154,6 +158,7 @@ const denuncias = ref([
   {
     denunciante: 'Usuario1427',
     denunciado: 'Usuario127',
+    descripcionDenunciante: 'El usuario está acosando a otros usuarios.',
     razon: 'Maltrato animal',
     gravedad: 'Alta',
     fecha: '2025-05-14',
@@ -164,6 +169,7 @@ const denuncias = ref([
   {
     denunciante: 'Usuario1426',
     denunciado: 'Usuario128',
+    descripcionDenunciante: 'UWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWUWWUWUWUWUWUWU',
     razon: 'Falsedad de datos',
     gravedad: 'Media',
     fecha: '2025-05-29',
@@ -174,6 +180,7 @@ const denuncias = ref([
   {
     denunciante: 'Usuario1425',
     denunciado: 'Usuario129',
+    descripcionDenunciante: 'El usuario está acosando a otros usuarios.',
     razon: 'Comportamiento inapropiado',
     gravedad: 'Baja',
     fecha: '2025-05-15',

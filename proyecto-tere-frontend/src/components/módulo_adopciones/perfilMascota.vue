@@ -20,16 +20,6 @@
     <!-- Contenido scrollable -->
    <ContenidoMascota/>
 
-    <!-- Botones flotantes fijos abajo -->
-    <div class="sticky bottom-24 flex justify-center gap-14 z-20">
-      <button class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
-        <font-awesome-icon :icon="['fas', 'xmark']"  class="text-black text-5xl  hover:text-red-400"/>
-      </button>
-      <button class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
-        <font-awesome-icon :icon="['fas', 'heart']" class=" text-black text-4xl hover:text-green-400 "/>
-      </button>
-    </div>
-
       <!-- Overlay de filtros -->
     
       <transition name="fade">

@@ -7,6 +7,9 @@
         <span class="font-semibold">Denunciante:</span> {{ denuncia.denunciante }}
       </div>
       <div>
+        <span class="font-semibold">Descripción del denunciante:</span> {{ denuncia.descripcionDenunciante }}
+      </div>
+      <div>
         <span class="font-semibold">Denunciado:</span> {{ denuncia.denunciado }}
       </div>
       <div>
