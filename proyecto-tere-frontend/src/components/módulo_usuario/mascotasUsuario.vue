@@ -8,6 +8,11 @@
       :bgColor="bgColors[index % bgColors.length]"
       @click="abrirDetalleMascota(mascota.id)"
     />
+    <button
+        class="text-white bg-blue-600 rounded-full px-5 py-2 text-base md:text-lg font-bold shadow-md hover:bg-blue-700 hover:scale-105 transition transform duration-200 mx-auto block"
+      >
+        + Mascota
+      </button>
   </div>
 </template>
 

@@ -6,8 +6,8 @@
             >
 
             <!-- Imagen principal -->
-            <div class="relative w-full min-h-[75vh] rounded-4xl overflow-hidden">
-                <img :src="burro" alt="Burro" class="w-full h-130 object-cover rounded-4xl" />
+            <div class="relative w-full min-h-[76vh] rounded-4xl overflow-hidden">
+                <img :src="burro" alt="Mascota" class="w-full h-130 object-cover rounded-4xl" @click="openGallery(0)"/>
             
 
                 <!-- Info mascota -->
@@ -117,7 +117,7 @@
                     
                 </div>
                 <div class="relative w-full min-h-[80vh] rounded-4xl overflow-hidden mt-4">
-                <img :src="'https://cdn.pixabay.com/photo/2024/09/09/17/22/donkey-9035452_1280.jpg'" alt="Burro" class="w-full h-130 object-cover rounded-4xl" />
+                <img :src="'https://cdn.pixabay.com/photo/2024/09/09/17/22/donkey-9035452_1280.jpg'" alt="Burro" class="w-full h-130 object-cover rounded-4xl"  @click="openGallery(1)"/>
                 </div>
                 <!-- Historial Mascota -->
                 <div class="mt-6 flex justify-center">
@@ -126,7 +126,7 @@
                     </button>
                 </div>
                 <div class="relative w-full min-h-[80vh] rounded-4xl overflow-hidden mt-4">
-                <img :src="'https://cdn.pixabay.com/photo/2020/12/29/22/57/donkey-5871800_960_720.jpg'" alt="Burro" class="w-full h-130 object-cover rounded-4xl" />
+                <img :src="'https://cdn.pixabay.com/photo/2020/12/29/22/57/donkey-5871800_960_720.jpg'" alt="Burro" class="w-full h-130 object-cover rounded-4xl"  @click="openGallery(2)"/>
                 </div>
                 <div class="px-4 pt-4 pb-6 bg-white space-y-4">
                 <div class="space-y-2">
@@ -183,6 +183,12 @@ const botonesAnimados = ref(null)
 
 let observer = null
 
+const images = ref([
+  burro,
+  'https://cdn.pixabay.com/photo/2024/09/09/17/22/donkey-9035452_1280.jpg',
+  'https://cdn.pixabay.com/photo/2020/12/29/22/57/donkey-5871800_960_720.jpg'
+]);
+
 onMounted(() => {
   observer = new IntersectionObserver(
     ([entry]) => {
@@ -210,7 +216,7 @@ const from = computed(() => route.query.from)
 // Datos de la mascota (deberías obtenerlos de una API o prop)
 const mascota = computed(() => {
   return {
-    id: id.value,
+    id: id.value || 'default-id',
     nombre: 'Lola',
     edad: '2 años',
     sexo: 'Hembra',
@@ -243,6 +249,30 @@ function goToHistorial() {
 }
 
 const mostrarBotonVolver = computed(() => from.value === 'cerca')
+
+const openGallery = (index) => {
+  const id = route.params.id || mascota.value.id
+  
+  if (!id) {
+    console.error('No se pudo determinar el ID de la mascota')
+    return
+  }
+
+  router.push({ 
+    name: 'galeria-mascota-imagen', 
+    params: { 
+      id: id,
+      imageIndex: index 
+    },
+    query: {
+      images: JSON.stringify(images.value)
+    }
+  }).catch(err => {
+    console.error('Error de navegación:', err)
+    // Opcional: redirigir a una vista de error
+    router.push('/error?from=gallery')
+  })
+}
 </script>
   
 <style>
