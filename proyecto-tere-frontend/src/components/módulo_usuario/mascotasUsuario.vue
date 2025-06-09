@@ -9,10 +9,16 @@
       @click="abrirDetalleMascota(mascota.id)"
     />
     <button
+        @click="abrirRegistroMascota"
         class="text-white bg-blue-600 rounded-full px-5 py-2 text-base md:text-lg font-bold shadow-md hover:bg-blue-700 hover:scale-105 transition transform duration-200 mx-auto block"
       >
         + Mascota
       </button>
+
+       <div class="relative">
+        <router-view />
+        <router-view name="overlay" />
+      </div>
   </div>
 </template>
 
@@ -21,6 +27,16 @@ import { useRouter } from 'vue-router'
 import MascotaCard from '@/components/módulo_mascotas/tarjetaMascota.vue'
 
 const router = useRouter()
+
+const abrirRegistroMascota = () => {
+  router.push({
+    path: '/explorar/perfil/registro',
+    query: {
+      from: '/explorar/perfil/mascotas'
+    }
+  });
+};
+
 
 const abrirDetalleMascota = (id) => {
   router.push({

@@ -10,6 +10,7 @@ import {veterinarioFiltrosOverlay} from './routes/veterinarioFiltrosOverlay.js'
 import {adminRoutes} from './routes/adminRoutes.js'
 import {rutasUsuario} from './routes/usuarioRouter.js'
 import { rutasGaleria } from './routes/galeriaMascota.js'
+import { registroMascota } from './routes/overlayRegistroMascota.js'
 
 const routes = [
   ...homeRoutes,
@@ -24,6 +25,7 @@ const routes = [
   ...adminRoutes,
   ...rutasUsuario,
   ...rutasGaleria,
+  ...registroMascota
 ]
 
 const router = createRouter({
