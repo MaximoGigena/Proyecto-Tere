@@ -8,6 +8,8 @@ import Tratamientos from '@/components/módulo_mascotas/historiaMedica/Tratamien
 import Medicamentos from '@/components/módulo_mascotas/historiaMedica/Medicamentos.vue'
 import Terapias from '@/components/módulo_mascotas/historiaMedica/Terapias.vue'
 import Diagnosticos from '@/components/módulo_mascotas/historiaMedica/Diagnosticos.vue'
+import Obligatorias from '@/components/módulo_mascotas/cartillaVacunación/vacunasObligatorias.vue'
+import Opcionales from '@/components/módulo_mascotas/cartillaVacunación/vacunasOpcionales.vue'
 
 // Rutas comunes con nombres base
 const baseRoutes = [
@@ -23,15 +25,35 @@ const baseRoutes = [
   })
   },
   { 
-    path: 'vacunas', 
-    name: 'vacunas', 
+    path: 'historialVacunas',  
     component: vacunas,
-    meta: { overlay: false },
-    props: (route) => ({
-      id: route.params.id || route.query.id,
-      isOverlay: route.meta?.overlay || false,
-      ...route.query
-    })
+     children: [
+      { 
+        path: '', // Ruta base para historialVacunas
+        name: 'historialVacunas',
+        redirect: { name: 'obligatorias' } 
+      },
+      { 
+        path: 'obligatorias',
+        name: 'obligatorias',
+        component: Obligatorias,
+        props: (route) => ({
+          id: route.params.id || route.query.id,
+          isOverlay: route.meta?.overlay || false,
+          ...route.query
+        })
+      },
+      { 
+        path: 'opcionales',
+        name: 'opcionales',
+        component: Opcionales,
+        props: (route) => ({
+          id: route.params.id || route.query.id,
+          isOverlay: route.meta?.overlay || false,
+          ...route.query
+        })
+      },
+    ]
   },
   { 
     path: 'historialMedico',
@@ -107,6 +129,7 @@ export const historialesMascotas = [
 ];
 
 // Rutas overlay para veterinarios
+// Rutas overlay para veterinarios
 export const overlayVeterinario = [
   {
     path: '/veterinarios',
@@ -128,35 +151,119 @@ export const overlayVeterinario = [
         props: { right: true },
         children: [
           { path: '', redirect: { name: 'veterinario-propietarios' } },
-          ...baseRoutes.map(route => {
-            const newRoute = {
-              ...route,
-              name: `veterinario-${route.name}`,
-              meta: { ...route.meta, overlay: true },
-              props: (route) => ({
-                id: route.params.id,
-                isOverlay: true,
-                ...route.query
-              })
-            };
-            
-            if (route.children) {
-              newRoute.children = route.children.map(childRoute => ({
-                ...childRoute,
-                name: `veterinario-${childRoute.name}`,
-                meta: { ...childRoute.meta, overlay: true },
+          // Propietarios
+          { 
+            path: 'propietarios',
+            name: 'veterinario-propietarios',
+            component: propietarios,
+            meta: { overlay: true },
+            props: (route) => ({
+              id: route.params.id,
+              isOverlay: true,
+              ...route.query
+            })
+          },
+          // Vacunas
+          { 
+            path: 'historialVacunas',
+            component: vacunas,
+            children: [
+              { 
+                path: '',
+                name: 'veterinario-historialVacunas',
+                redirect: { name: 'veterinario-obligatorias' }
+              },
+              { 
+                path: 'obligatorias',
+                name: 'veterinario-obligatorias',
+                component: Obligatorias,
+                meta: { overlay: true },
                 props: (route) => ({
                   id: route.params.id,
                   isOverlay: true,
-                  ...route.query,
-                  // Mantener el ID en todos los niveles
-                  mascotaId: route.params.id 
+                  ...route.query
                 })
-              }));
-            }
-            
-            return newRoute;
-          })
+              },
+              { 
+                path: 'opcionales',
+                name: 'veterinario-opcionales',
+                component: Opcionales,
+                meta: { overlay: true },
+                props: (route) => ({
+                  id: route.params.id,
+                  isOverlay: true,
+                  ...route.query
+                })
+              }
+            ]
+          },
+          // Historial Médico
+          { 
+            path: 'historialMedico',
+            component: HistorialMedicoLayout,
+            children: [
+              { 
+                path: '',
+                name: 'veterinario-historialMedico',
+                redirect: { name: 'veterinario-cirugias' }
+              },
+              { 
+                path: 'cirugias',
+                name: 'veterinario-cirugias',
+                component: Procedimientos,
+                meta: { overlay: true },
+                props: (route) => ({
+                  id: route.params.id,
+                  isOverlay: true,
+                  ...route.query
+                })
+              },
+              { 
+                path: 'tratamientos',
+                name: 'veterinario-tratamientos',
+                component: Tratamientos,
+                meta: { overlay: true },
+                props: (route) => ({
+                  id: route.params.id,
+                  isOverlay: true,
+                  ...route.query
+                })
+              },
+              { 
+                path: 'medicamentos',
+                name: 'veterinario-medicamentos',
+                component: Medicamentos,
+                meta: { overlay: true },
+                props: (route) => ({
+                  id: route.params.id,
+                  isOverlay: true,
+                  ...route.query
+                })
+              },
+              { 
+                path: 'terapias',
+                name: 'veterinario-terapias',
+                component: Terapias,
+                meta: { overlay: true },
+                props: (route) => ({
+                  id: route.params.id,
+                  isOverlay: true,
+                  ...route.query
+                })
+              },
+              { 
+                path: 'diagnosticos',
+                name: 'veterinario-diagnosticos',
+                component: Diagnosticos,
+                meta: { overlay: true },
+                props: (route) => ({
+                  id: route.params.id,
+                  isOverlay: true,
+                  ...route.query
+                })
+              },
+            ]
+          }
         ]
       }
     ]

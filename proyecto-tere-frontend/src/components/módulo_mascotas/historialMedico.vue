@@ -72,7 +72,7 @@ export default {
         { 
           name: this.$route.meta.overlay ? 'veterinario-diagnosticos' : 'diagnosticos', 
           icon: 'microscope', 
-          label: 'Diagnosticos'
+          label: 'Diagnósticos'
         }
       ]
     }

@@ -69,9 +69,9 @@ const tabs = computed(() => {
       nombre: 'Vacunas', 
       icon: 'syringe', 
       to: isOverlay 
-        ? `/veterinarios/mascota/${id}/vacunas` 
-        : '/revisar/vacunas',
-      activeNames: ['vacunas', 'veterinario-vacunas']  
+        ? `/veterinarios/mascota/${id}/historialVacunas/obligatorias` 
+        : '/revisar/historialVacunas',
+      activeNames: ['historialVacunas','obligatorias','opcionales', 'veterinario-historialVacunas', 'veterinario-obligatorias', 'veterinario-opcionales']  
     },
     { 
       nombre: 'Médico', 
@@ -143,11 +143,15 @@ console.log('📁 CarpetaHistoriales montado')
 
 const titulosPorRuta = {
   propietarios: 'Dueños de la Mascota',
-  vacunas: 'Vacunas Aplicadas',
+  historialVacunas: 'Vacunas Aplicadas',
   historialMedico: 'Historial Médico',
+  obligatorias: 'Vacunas Obligatorias',
+  opcionales: 'Vacunas Opcionales',
+  'veterinario-obligatorias': 'Vacunas Obligatorias',
+  'veterinario-opcionales': 'Vacunas Opcionales',
   cirugias: 'Cirugías Realizadas',
   tratamientos: 'Tratamientos Recibidos',
-  medicamentos: 'Medicamentos Administrados',
+  medicamentos: 'Fármacos Administrados',
   terapias: 'Terapias Realizadas',
   diagnosticos: 'Diagnósticos Realizados',
   'veterinario-propietarios': 'Dueños de la Mascota',
@@ -155,7 +159,7 @@ const titulosPorRuta = {
   'veterinario-historialMedico': 'Historial Médico',
   'veterinario-cirugias': 'Cirugías Realizadas',
   'veterinario-tratamientos': 'Tratamientos Recibidos',
-  'veterinario-medicamentos': 'Medicamentos Administrados',
+  'veterinario-medicamentos': 'Fármacos Administrados',
   'veterinario-terapias': 'Terapias Realizadas',
   'veterinario-diagnosticos': 'Diagnósticos Realizados'
 
