@@ -51,14 +51,24 @@ export default {
     return {
       navItems: [
         { 
-          name: this.$route.meta.overlay ? 'veterinario-obligatorias' : 'obligatorias', 
-          icon: 'shield-virus', 
-          label: 'Obligatorias'
+          name: this.$route.meta.overlay ? 'veterinario-vacunas' : 'vacunas', 
+          icon: 'syringe', 
+          label: 'Vacunas'
         },
         { 
-          name: this.$route.meta.overlay ? 'veterinario-opcionales' : 'opcionales', 
-          icon: 'square-plus', 
-          label: 'Opcionales'
+          name: this.$route.meta.overlay ? 'veterinario-desparasitaciones' : 'desparasitaciones', 
+          icon: 'eye-dropper', 
+          label: 'Desparasitaciones'
+        },
+        { 
+          name: this.$route.meta.overlay ? 'veterinario-revisiones' : 'revisiones', 
+          icon: 'file-medical', 
+          label: 'Revisiones'
+        },
+        { 
+          name: this.$route.meta.overlay ? 'veterinario-alergias' : 'alergias', 
+          icon: 'shield-virus', 
+          label: 'Alergias'
         },
       ]
     }

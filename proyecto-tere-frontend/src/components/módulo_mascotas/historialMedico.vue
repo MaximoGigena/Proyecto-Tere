@@ -14,7 +14,7 @@
         }"
         class="flex flex-col items-center p-2 rounded-full mx-2 text-gray-500 hover:text-blue-500 transition-all duration-200"
         :class="{ 'text-blue-600 bg-blue-50': $route.name === nav.name }"
-        style="width: 70px;"
+        style="width: 60px;"
       >
         <font-awesome-icon
           :icon="['fas', nav.icon]"
@@ -41,7 +41,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 
 export default {
-  name: "HistorialMedico",
+  name: "HistorialClinico",
   components: {
     'font-awesome-icon': FontAwesomeIcon
   },
@@ -60,7 +60,7 @@ export default {
           label: 'Tratamientos'
         },
         { 
-          name: this.$route.meta.overlay ? 'veterinario-medicamentos' : 'medicamentos', 
+          name: this.$route.meta.overlay ? 'veterinario-farmacos' : 'farmacos', 
           icon: 'prescription-bottle-medical', 
           label: 'Fármacos'
         },
@@ -73,6 +73,11 @@ export default {
           name: this.$route.meta.overlay ? 'veterinario-diagnosticos' : 'diagnosticos', 
           icon: 'microscope', 
           label: 'Diagnósticos'
+        },
+        { 
+          name: this.$route.meta.overlay ? 'veterinario-paliativos' : 'paliativos', 
+          icon: 'staff-snake', 
+          label: 'Paliativos'
         }
       ]
     }

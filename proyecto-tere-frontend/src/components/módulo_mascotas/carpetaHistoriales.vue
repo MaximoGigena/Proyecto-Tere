@@ -49,6 +49,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ref,computed, onMounted } from 'vue'
 import huellas from '@/assets/huellas.png';
 
+
 const route = useRoute()
 const router = useRouter()
 
@@ -66,23 +67,23 @@ const tabs = computed(() => {
       activeNames: ['propietarios', 'veterinario-propietarios']  
     },
     { 
-      nombre: 'Vacunas', 
-      icon: 'syringe', 
+      nombre: 'Preventivo', 
+      icon: 'house-medical', 
       to: isOverlay 
-        ? `/veterinarios/mascota/${id}/historialVacunas/obligatorias` 
-        : '/revisar/historialVacunas',
-      activeNames: ['historialVacunas','obligatorias','opcionales', 'veterinario-historialVacunas', 'veterinario-obligatorias', 'veterinario-opcionales']  
+        ? `/veterinarios/mascota/${id}/historialPreventivo/vacunas` 
+        : '/revisar/historialPreventivo',
+      activeNames: ['historialPreventivo','vacunas','desparasitaciones','revisiones','alergias', 'veterinario-historialPreventivo', 'veterinario-vacunas', 'veterinario-desparasitaciones', 'veterinario-revisiones', 'veterinario-alergias']   
     },
     { 
-      nombre: 'Médico', 
+      nombre: 'Clínico', 
       icon: 'stethoscope', 
       to: isOverlay 
-        ? `/veterinarios/mascota/${id}/historialMedico/cirugias` 
-        : '/revisar/historialMedico/cirugias',
+        ? `/veterinarios/mascota/${id}/historialClinico/cirugias` 
+        : '/revisar/historialClinico/cirugias',
       activeNames: [
-        'historialMedico', 'cirugias', 'tratamientos', 'medicamentos', 'terapias','diagnosticos',
-        'veterinario-historialMedico', 'veterinario-cirugias', 
-        'veterinario-tratamientos', 'veterinario-medicamentos', 'veterinario-terapias', 'veterinario-diagnosticos',
+        'historialClinico', 'cirugias', 'tratamientos', 'farmacos', 'terapias','diagnosticos', 'paliativos',
+        'veterinario-historialClinico', 'veterinario-cirugias', 
+        'veterinario-tratamientos', 'veterinario-farmacos', 'veterinario-terapias', 'veterinario-diagnosticos', 'veterinario-paliativos'
       ]
     }
   ];
@@ -143,25 +144,31 @@ console.log('📁 CarpetaHistoriales montado')
 
 const titulosPorRuta = {
   propietarios: 'Dueños de la Mascota',
-  historialVacunas: 'Vacunas Aplicadas',
-  historialMedico: 'Historial Médico',
-  obligatorias: 'Vacunas Obligatorias',
-  opcionales: 'Vacunas Opcionales',
-  'veterinario-obligatorias': 'Vacunas Obligatorias',
-  'veterinario-opcionales': 'Vacunas Opcionales',
+  historialPreventivo: 'Procedimientos Preventivos',
+  historialClínico: 'Historial Clínico',
+  vacunas: 'Vacunas Aplicadas',
+  desparacitaciones: 'Desparasitaciones Realizadas',
+  revisiones: 'Revisiones Realizadas',
+  alergias: 'Alergias o Sensibilidades',
+  'veterinario-vacunas': 'Vacunas Aplicadas',
+  'veterinario-desparasitaciones': 'Desparasitaciones Realizadas',
+  'veterinario-revisiones': 'Revisiones Realizadas',
+  'veterinario-alergias': 'Alergias o Sensibilidades ',
   cirugias: 'Cirugías Realizadas',
   tratamientos: 'Tratamientos Recibidos',
-  medicamentos: 'Fármacos Administrados',
+  farmacos: 'Fármacos Administrados',
   terapias: 'Terapias Realizadas',
   diagnosticos: 'Diagnósticos Realizados',
+  paliativos: 'Cuidados Paliativos',
   'veterinario-propietarios': 'Dueños de la Mascota',
   'veterinario-vacunas': 'Vacunas Aplicadas',
-  'veterinario-historialMedico': 'Historial Médico',
+  'veterinario-historialClínico': 'Historial Clínico',
   'veterinario-cirugias': 'Cirugías Realizadas',
   'veterinario-tratamientos': 'Tratamientos Recibidos',
-  'veterinario-medicamentos': 'Fármacos Administrados',
+  'veterinario-fármacos': 'Fármacos Administrados',
   'veterinario-terapias': 'Terapias Realizadas',
-  'veterinario-diagnosticos': 'Diagnósticos Realizados'
+  'veterinario-diagnosticos': 'Diagnósticos Realizados',
+  'veterinario-paliativos': 'Cuidados Paliativos',
 
 }
 const tituloCabecera = computed(() => {
