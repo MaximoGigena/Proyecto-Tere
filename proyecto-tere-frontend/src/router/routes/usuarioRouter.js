@@ -1,8 +1,8 @@
 // router/rutasUsuario.js
 import ExplorarEncuentros from '@/components/módulo_usuario/ExplorarEncuentros.vue'
 import PerfilUsuario from '@/components/módulo_usuario/perfilUsuario.vue'
-import PerfilMascotas from '@/components/módulo_usuario/mascotasUsuario.vue'
-import PerfilAdopciones from '@/components/módulo_usuario/gestionarAdopciones.vue'
+import PerfilMascotas from '@/components/módulo_mascotas/mascotasUsuario.vue'
+import PerfilAdopciones from '@/components/módulo_adopciones/gestionarAdopciones.vue'
 
 export const rutasUsuario = [
   {

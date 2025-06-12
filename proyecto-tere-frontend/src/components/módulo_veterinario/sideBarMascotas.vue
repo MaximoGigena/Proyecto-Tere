@@ -74,12 +74,12 @@ export default {
         from: route.name || 'buscarMascotas',
         originalParams: JSON.stringify(route.params),
         id: mascota.id,
-        currentTab: 'propietarios',
+        currentTab: 'tutores',
         ts: Date.now()
       };
 
       router.replace({
-        name: 'veterinario-propietarios', // Usamos el nombre de la ruta overlay
+        name: 'veterinario-tutores', // Usamos el nombre de la ruta overlay
         params: { id: mascota.id },
         query,
       });

@@ -59,12 +59,12 @@ const tabs = computed(() => {
   
   return [
     { 
-      nombre: 'Dueños', 
+      nombre: 'Tutores', 
       icon: 'shield-dog', 
       to: isOverlay 
-        ? `/veterinarios/mascota/${id}/propietarios` 
-        : '/revisar/propietarios',
-      activeNames: ['propietarios', 'veterinario-propietarios']  
+        ? `/veterinarios/mascota/${id}/tutores` 
+        : '/revisar/tutores',
+      activeNames: ['tutores', 'veterinario-tutores']  
     },
     { 
       nombre: 'Preventivo', 
@@ -143,7 +143,7 @@ console.log('📁 CarpetaHistoriales montado')
 
 
 const titulosPorRuta = {
-  propietarios: 'Dueños de la Mascota',
+  tutores: 'Tutores de la Mascota',
   historialPreventivo: 'Procedimientos Preventivos',
   historialClínico: 'Historial Clínico',
   vacunas: 'Vacunas Aplicadas',
@@ -160,12 +160,12 @@ const titulosPorRuta = {
   terapias: 'Terapias Realizadas',
   diagnosticos: 'Diagnósticos Realizados',
   paliativos: 'Cuidados Paliativos',
-  'veterinario-propietarios': 'Dueños de la Mascota',
+  'veterinario-tutores': 'Tutores de la Mascota',
   'veterinario-vacunas': 'Vacunas Aplicadas',
   'veterinario-historialClínico': 'Historial Clínico',
   'veterinario-cirugias': 'Cirugías Realizadas',
   'veterinario-tratamientos': 'Tratamientos Recibidos',
-  'veterinario-fármacos': 'Fármacos Administrados',
+  'veterinario-farmacos': 'Fármacos Administrados',
   'veterinario-terapias': 'Terapias Realizadas',
   'veterinario-diagnosticos': 'Diagnósticos Realizados',
   'veterinario-paliativos': 'Cuidados Paliativos',

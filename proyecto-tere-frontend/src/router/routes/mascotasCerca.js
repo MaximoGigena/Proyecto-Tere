@@ -1,7 +1,7 @@
 import contenidoMascota from '@/components/módulo_mascotas/contenidoMascota.vue'
 import PerfilesCerca from '@/components/módulo_adopciones/perfilesMascotasCerca.vue'
 import ContenedorPrincipal from '@/components/módulo_usuario/ExplorarEncuentros.vue' 
-import historialMedico from '@/components/módulo_mascotas/historialMedico.vue'
+import historialMedico from '@/components/módulo_mascotas/historialClinico.vue'
 
 
 export const mascotasCerca = [

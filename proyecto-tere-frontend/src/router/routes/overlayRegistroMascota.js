@@ -1,5 +1,5 @@
 // router/overlayRegistroMascota.js
-import RegistrarMascota from '@/components/módulo_usuario/registrarMascota.vue'
+import RegistrarMascota from '@/components/módulo_mascotas/registrarMascota.vue'
 
 export const registroMascota = [
    {

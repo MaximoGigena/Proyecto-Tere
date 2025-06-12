@@ -1,8 +1,8 @@
 // routes/historialesMascotas.js
 import historialLayout from '@/components/módulo_mascotas/carpetaHistoriales.vue'
 import propietarios from '@/components/módulo_mascotas/historialDueños.vue'
-import vacunas from '@/components/módulo_mascotas/historialVacunas.vue'
-import HistorialMedicoLayout from '@/components/módulo_mascotas/historialMedico.vue'
+import vacunas from '@/components/módulo_mascotas/historialPreventivos.vue'
+import HistorialMedicoLayout from '@/components/módulo_mascotas/historialClinico.vue'
 import Procedimientos from '@/components/módulo_mascotas/historiaClinica/cirugías.vue' 
 import Tratamientos from '@/components/módulo_mascotas/historiaClinica/Tratamientos.vue'
 import Fármacos from '@/components/módulo_mascotas/historiaClinica/Medicamentos.vue'
@@ -17,8 +17,8 @@ import Alergias from '@/components/módulo_mascotas/historiaPreventivos/alergias
 // Rutas comunes con nombres base
 const baseRoutes = [
   { 
-    path: 'propietarios', 
-    name: 'propietarios', 
+    path: 'tutores', 
+    name: 'tutores', 
     component: propietarios,
     meta: { overlay: false },
     props: (route) => ({
@@ -157,7 +157,7 @@ export const historialesMascotas = [
     path: '/revisar',
     component: historialLayout,
     children: [
-      { path: '', redirect: { name: 'propietarios' } },
+      { path: '', redirect: { name: 'tutores' } },
       ...baseRoutes
     ]
   }
@@ -185,11 +185,11 @@ export const overlayVeterinario = [
         },
         props: { right: true },
         children: [
-          { path: '', redirect: { name: 'veterinario-propietarios' } },
+          { path: '', redirect: { name: 'veterinario-tutores' } },
           // Propietarios
           { 
-            path: 'propietarios',
-            name: 'veterinario-propietarios',
+            path: 'tutores',
+            name: 'veterinario-tutores',
             component: propietarios,
             meta: { overlay: true },
             props: (route) => ({

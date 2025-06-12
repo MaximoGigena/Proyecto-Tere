@@ -243,7 +243,7 @@ function goToHistorial() {
   };
   
   router.replace({
-    path: '/revisar/propietarios',
+    path: '/revisar/tutores',
     query: query
   });
 }

@@ -59,13 +59,13 @@ const ordenAsc = ref(true)
 
 const owners = [
   {
-    nombre: 'Nombre del Dueño',
+    nombre: 'Nombre del Tutor',
     adopcion: '15/05/2020',
     desligo: '20/10/2022',
     contactable: true,
   },
   {
-    nombre: 'Otro Dueño',
+    nombre: 'Otro Tutor',
     adopcion: '01/03/2023',
     desligo: 'Presente',
     contactable: false,

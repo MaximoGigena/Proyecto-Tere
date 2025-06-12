@@ -1,5 +1,6 @@
+<!-- desparasitaciones -->
 <template>
-  <div class="p-4 min-w-[300px] flex flex-col h-full">
+  <div class="p-4 w-full flex flex-col h-full min-h-[400px]">
     <h2 class="text-xl font-semibold text-gray-800 flex items-center mb-4">
       <font-awesome-icon :icon="['fas', 'capsules']" class="mr-2" />
       Desparasitaciones de la Mascota

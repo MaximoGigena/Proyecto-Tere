@@ -42,6 +42,17 @@
             Auditorías
         </span>
         </router-link>
+
+        <!-- Botón de Auditorías -->
+        <router-link to="/admin/solicitudes" class="group relative">
+        <font-awesome-icon
+            :icon="['fas', 'folder-open']" size="2x" 
+            class="h-7 w-7 text-gray-400 group-hover:text-blue-400 transition"
+            />
+        <span class="absolute left-12 top-1/2 transform -translate-y-1/2 text-sm bg-gray-700 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
+            Solicitudes pendientes
+        </span>
+        </router-link>
     </nav>
 
     <!-- Contenido del admin (zona de vistas) -->

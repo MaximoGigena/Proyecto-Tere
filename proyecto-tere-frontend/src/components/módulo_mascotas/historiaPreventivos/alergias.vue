@@ -1,8 +1,9 @@
+<!-- alergias -->
 <template>
-  <div class="p-4 min-w-[300px] flex flex-col h-full">
-    <h2 class="text-xl font-semibold text-gray-800 flex items-center mb-4">
+  <div class="p-4 w-full flex flex-col h-full min-h-[400px]">
+    <h2 class="text-xl font-semibold text-gray-800 flex items-center mb-4 truncate">
       <font-awesome-icon :icon="['fas', 'pump-medical']" class="mr-2" />
-      Alergias o Sensibilidades de la mascota....
+      Alergias o Sensibilidades
     </h2>
     <p class="flex-grow">Contenido del las Alergias..</p>
    

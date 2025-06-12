@@ -1,6 +1,6 @@
-<!-- historialVacunas -->
+<!-- historialPreventivos -->
 <template>
-  <div class="flex flex-col h-[calc(100vh-140px)] w-full">
+  <div class="flex flex-col h-[calc(100vh-140px)] w-full min-w-[450px] max-w-[800px] mx-auto">
     <!-- Navbar de íconos -->
     <nav class="flex justify-around items-center bg-white border-b border-gray-200 py-3 sticky top-0 z-20">
       <router-link 
@@ -10,7 +10,7 @@
           name: nav.name,
           query: {
             ...$route.query, // Mantiene from/originalParams
-            tab: nav.name // Opcional: para tracking
+            tab: nav.name // Agrega el nombre de la pestaña actual
           }
         }"
         class="flex flex-col items-center p-2 rounded-full mx-2 text-gray-500 hover:text-blue-500 transition-all duration-200"
@@ -26,7 +26,7 @@
     </nav>
 
     <!-- Contenido dinámico con verificación de existencia -->
-    <div v-if="$route.matched.length" class="flex-1 overflow-y-auto p-4">
+    <div v-if="$route.matched.length" class="flex-1 overflow-y-auto p-4 w-full">
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <component :is="Component" v-if="Component" />

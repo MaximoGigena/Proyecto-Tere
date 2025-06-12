@@ -1,5 +1,6 @@
-<template>
-  <div class="p-4 min-w-[300px] flex flex-col h-full">
+<!-- vacunas -->
+ <template>
+  <div class="p-4 w-full flex flex-col h-full min-h-[400px]">
     <h2 class="text-xl font-semibold text-gray-800 flex items-center mb-4">
       <font-awesome-icon :icon="['fas', 'vial-circle-check']" class="mr-2" />
       Vacunas de la Mascota
