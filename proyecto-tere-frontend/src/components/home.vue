@@ -102,6 +102,14 @@
           <router-link to="/administradores" class="text-red-600 hover:underline">
             admins only 
           </router-link>
+
+          <router-link to="/registroUsuarios" class="text-purple-600 hover:underline">
+            RegistrarUsuario 
+          </router-link>
+
+          <router-link to="/registroVeterinario" class="text-yellow-600 hover:underline">
+            registrarVeterinario 
+          </router-link>
         </nav>
       </header>
 
@@ -157,8 +165,8 @@
             <div class="flex gap-4 justify-center">
               <!-- Iconos de FontAwesome -->
               <a href="https://www.instagram.com/proyecto_tere_2025/"><i class="fab fa-instagram-square hover:text-emerald-800 transition"></i></a>
-              <a href="#"><i class="fab fa-tiktok hover:text-emerald-800 transition"></i></a>
-              <a href="#"><i class="fab fa-youtube hover:text-emerald-800 transition"></i></a>
+              <a href="https://www.tiktok.com/@proyecto.tere"><i class="fab fa-tiktok hover:text-emerald-800 transition"></i></a>
+              <a href="https://www.youtube.com/@proyectotere"><i class="fab fa-youtube hover:text-emerald-800 transition"></i></a>
               <a href="https://x.com/Tere_Project"><i class="fab fa-x-twitter hover:text-emerald-800 transition"></i></a>
               <a href="#"><i class="fab fa-facebook hover:text-emerald-800 transition"></i></a>
               <a href="https://www.reddit.com/r/ProyectoTere/"><i class="fab fa-reddit-alien hover:text-emerald-800 transition"></i></a>
@@ -213,6 +221,7 @@ import fondo from '@/assets/fondodecadapagina.png'
 import telefono from '@/assets/684853.png'
 import correo from '@/assets/95645.png'
 import Imagenfinal from '@/assets/Imagen final.jpg'
+
 
 const modalVisible = ref(false)
 const modalTitulo = ref('Iniciar sesión')
