@@ -81,9 +81,8 @@ const tabs = computed(() => {
         ? `/veterinarios/mascota/${id}/historialClinico/cirugias` 
         : '/revisar/historialClinico/cirugias',
       activeNames: [
-        'historialClinico', 'cirugias', 'tratamientos', 'farmacos', 'terapias','diagnosticos', 'paliativos',
-        'veterinario-historialClinico', 'veterinario-cirugias', 
-        'veterinario-tratamientos', 'veterinario-farmacos', 'veterinario-terapias', 'veterinario-diagnosticos', 'veterinario-paliativos'
+        'historialClinico', 'cirugias', 'farmacos', 'terapias','diagnosticos', 'paliativos',
+        'veterinario-historialClinico', 'veterinario-cirugias', 'veterinario-farmacos', 'veterinario-terapias', 'veterinario-diagnosticos', 'veterinario-paliativos'
       ]
     }
   ];
@@ -155,7 +154,6 @@ const titulosPorRuta = {
   'veterinario-revisiones': 'Revisiones Realizadas',
   'veterinario-alergias': 'Alergias o Sensibilidades ',
   cirugias: 'Cirugías Realizadas',
-  tratamientos: 'Tratamientos Recibidos',
   farmacos: 'Fármacos Administrados',
   terapias: 'Terapias Realizadas',
   diagnosticos: 'Diagnósticos Realizados',

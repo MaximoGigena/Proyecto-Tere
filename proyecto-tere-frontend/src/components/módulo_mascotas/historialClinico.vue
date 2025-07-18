@@ -55,11 +55,6 @@ export default {
           label: 'Cirugías'
         },
         { 
-          name: this.$route.meta.overlay ? 'veterinario-tratamientos' : 'tratamientos', 
-          icon: 'file-waveform', 
-          label: 'Tratamientos'
-        },
-        { 
           name: this.$route.meta.overlay ? 'veterinario-farmacos' : 'farmacos', 
           icon: 'prescription-bottle-medical', 
           label: 'Fármacos'

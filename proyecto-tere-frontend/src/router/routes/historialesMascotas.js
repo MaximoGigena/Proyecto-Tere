@@ -4,7 +4,6 @@ import propietarios from '@/components/módulo_mascotas/historialDueños.vue'
 import vacunas from '@/components/módulo_mascotas/historialPreventivos.vue'
 import HistorialMedicoLayout from '@/components/módulo_mascotas/historialClinico.vue'
 import Procedimientos from '@/components/módulo_mascotas/historiaClinica/cirugías.vue' 
-import Tratamientos from '@/components/módulo_mascotas/historiaClinica/Tratamientos.vue'
 import Fármacos from '@/components/módulo_mascotas/historiaClinica/Medicamentos.vue'
 import Terapias from '@/components/módulo_mascotas/historiaClinica/Terapias.vue'
 import Diagnosticos from '@/components/módulo_mascotas/historiaClinica/Diagnosticos.vue'
@@ -91,16 +90,6 @@ const baseRoutes = [
         path: 'cirugias',
         name: 'cirugias',
         component: Procedimientos,
-        props: (route) => ({
-          id: route.params.id || route.query.id,
-          isOverlay: route.meta?.overlay || false,
-          ...route.query
-        })
-      },
-      { 
-        path: 'tratamientos',
-        name: 'tratamientos',
-        component: Tratamientos,
         props: (route) => ({
           id: route.params.id || route.query.id,
           isOverlay: route.meta?.overlay || false,
@@ -231,17 +220,6 @@ export const overlayVeterinario = [
                 })
               },
               { 
-                path: 'desparasitaciones',
-                name: 'veterinario-desparasitaciones',
-                component: Desparasitación,
-                meta: { overlay: true },
-                props: (route) => ({
-                  id: route.params.id,
-                  isOverlay: true,
-                  ...route.query
-                })
-              },
-              { 
                 path: 'revisiones',
                 name: 'veterinario-revisiones',
                 component: Revisión,
@@ -279,17 +257,6 @@ export const overlayVeterinario = [
                 path: 'cirugias',
                 name: 'veterinario-cirugias',
                 component: Procedimientos,
-                meta: { overlay: true },
-                props: (route) => ({
-                  id: route.params.id,
-                  isOverlay: true,
-                  ...route.query
-                })
-              },
-              { 
-                path: 'tratamientos',
-                name: 'veterinario-tratamientos',
-                component: Tratamientos,
                 meta: { overlay: true },
                 props: (route) => ({
                   id: route.params.id,
