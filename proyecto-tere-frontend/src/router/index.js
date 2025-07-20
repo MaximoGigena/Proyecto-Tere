@@ -20,6 +20,15 @@ import { registrarDiagnostico } from './routes/registrarDiagnostico.js'
 import { registrarFarmaco } from './routes/registroFarmaco.js'
 import { registrarPaliativo } from './routes/registrarPaliativos.js'
 import { registrarTerapia } from './routes/registrarTerapia.js'
+import { registrarTipoAlergia } from './routes/registrarTipoAlergia.js'
+import { registrarTipoVacuna } from './routes/registrarTipoVacuna.js'
+import { registrarTipoDesparasitacion } from './routes/registrarTipoDesparasitacion.js'
+import { registrarTipoRevision } from './routes/registrarTipoRevision.js'
+import { registrarTipoCirugia } from './routes/registrarTipoCirugia.js'
+import { registrarTipoFarmaco } from './routes/registrarTipoFarmaco.js'
+import { registrarTipoTerapia } from './routes/registrarTipoTerapia.js'
+import { registrarTipoDiagnostico } from './routes/registrarTipoDiagnostico.js'
+import { registrarTipoPaliativo } from './routes/registrarTipoPaliativo.js'
 
 const routes = [
   ...homeRoutes,
@@ -44,6 +53,15 @@ const routes = [
   ...registrarFarmaco,
   ...registrarPaliativo,
   ...registrarTerapia,
+  ...registrarTipoAlergia,
+  ...registrarTipoVacuna,
+  ...registrarTipoDesparasitacion,
+  ...registrarTipoRevision,
+  ...registrarTipoCirugia,
+  ...registrarTipoFarmaco,
+  ...registrarTipoTerapia,
+  ...registrarTipoDiagnostico,
+  ...registrarTipoPaliativo
 ]
 
 const router = createRouter({

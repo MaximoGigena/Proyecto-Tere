@@ -26,17 +26,45 @@
 
           <div>
             <label class="block font-medium">Tipo de desparasitación</label>
-            <select v-model="desparasitacion.tipo" required class="w-full border rounded p-2">
-              <option value="">Seleccione un tipo</option>
-              <option value="interna">Interna</option>
-              <option value="externa">Externa</option>
-              <option value="combinada">Combinada (interna + externa)</option>
-            </select>
+            <div class="flex gap-2">
+                <!-- Contenedor relativo para el input con ícono -->
+                <div class="relative w-full">
+                  <input 
+                    v-model="desparasitacion.tipo" 
+                    type="text" 
+                    required 
+                    class="w-full border rounded p-2 pr-10" 
+                    placeholder="Gastrointestinal, Externa, etc."
+                  />
+                  <font-awesome-icon 
+                    :icon="['fas', 'magnifying-glass']" 
+                    class="absolute inset-y-0 right-0 mt-3 text-xl flex items-center pr-3 text-gray-400 cursor-pointer hover:text-gray-600"
+                  />
+                </div>
+
+                <!-- Botón de + Tipo -->
+                <button 
+                  type="button"
+                  @click="abrirRegistroTipoDesparasitacion"
+                  class="bg-blue-500 text-white px-4 rounded font-bold hover:bg-blue-700 transition-colors whitespace-nowrap"
+                >
+                  + Tipo 
+                </button>
+              </div>
           </div>
 
           <div>
             <label class="block font-medium">Nombre del desparasitante</label>
-            <input v-model="desparasitacion.nombreProducto" type="text" required class="w-full border rounded p-2" placeholder="Nombre comercial o genérico" />
+            <div class="flex gap-2">
+              <input v-model="desparasitacion.nombreProducto" type="text" required class="w-full border rounded p-2" placeholder="Nombe comercial o genérico" />
+              <!-- Botón de + Tipo -->
+                <button 
+                  type="button"
+                  class="bg-red-500 text-white px-4 rounded font-bold hover:bg-red-700 transition-colors whitespace-nowrap"
+                >
+                  + Asociar Desparasitante 
+                </button>
+              </div>
           </div>
         </div>
 
@@ -80,9 +108,15 @@
         </div>
 
         <div class="col-span-full">
-          <label class="block font-medium mb-1">Observaciones adicionales</label>
-          <textarea v-model="desparasitacion.observaciones" rows="4" maxlength="500" class="w-full border rounded p-2 resize-none"></textarea>
-          <p class="text-sm text-gray-500 text-right mt-1">{{ desparasitacion.observaciones.length }}/500 caracteres</p>
+          <div class="flex gap-2 items-center mb-1">
+            <label class="block font-medium mb-1">Observaciones adicionales</label>
+            <button 
+                  type="button"
+                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
+                >
+                  + Observación
+            </button>
+          </div>
         </div>
       </div>
 
@@ -111,6 +145,15 @@ const desparasitacion = reactive({
   proximaFecha: '',
   observaciones: ''
 })
+
+const abrirRegistroTipoDesparasitacion = () => {
+  router.push({
+    path: '/registro/registroTipoDesparasitacion',
+    query: {
+      from: '/historialPreventivo/desparasitaciones/registro/desparasitacion'
+    }
+  });
+};
 
 const registrarDesparasitacion = () => {
   const payload = {

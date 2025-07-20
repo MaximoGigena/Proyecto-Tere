@@ -21,7 +21,31 @@
         <div class="space-y-4">
           <div>
             <label class="block font-medium">Tipo de alergia/sensibilidad</label>
-            <input v-model="alergia.tipo" type="text" required class="w-full border rounded p-2" placeholder="Ej: Alimenticia, ambiental, medicamentosa, etc." />
+             <div class="flex gap-2">
+                <!-- Contenedor relativo para el input con ícono -->
+                <div class="relative w-full">
+                  <input 
+                    v-model="alergia.tipo" 
+                    type="text" 
+                    required 
+                    class="w-full border rounded p-2 pr-10" 
+                    placeholder="Alimenticia, Ambiental, etc."
+                  />
+                  <font-awesome-icon 
+                    :icon="['fas', 'magnifying-glass']" 
+                    class="absolute inset-y-0 right-0 mt-3 text-xl flex items-center pr-3 text-gray-400 cursor-pointer hover:text-gray-600"
+                  />
+                </div>
+
+                <!-- Botón de + Tipo -->
+                <button 
+                  type="button"
+                  @click="abrirRegistroTipoAlergia"
+                  class="bg-blue-500 text-white px-4 rounded font-bold hover:bg-blue-700 transition-colors whitespace-nowrap"
+                >
+                  + Tipo 
+                </button>
+              </div>
           </div>
 
           <div>
@@ -42,10 +66,6 @@
 
         <!-- Columna derecha -->
         <div class="space-y-4">
-          <div>
-            <label class="block font-medium">Centro veterinario</label>
-            <input v-model="alergia.centroVeterinario" type="text" required class="w-full border rounded p-2" />
-          </div>
 
           <div>
             <label class="block font-medium">Reacción común observada</label>
@@ -90,11 +110,19 @@
         </div>
 
         <div>
-          <label class="block font-medium mb-1">Observaciones adicionales</label>
-          <textarea v-model="alergia.observaciones" rows="3" maxlength="500" class="w-full border rounded p-2 resize-none"></textarea>
-          <p class="text-sm text-gray-500 text-right mt-1">{{ alergia.observaciones.length }}/500 caracteres</p>
+          <div class="col-span-full">
+          <div class="flex gap-2 items-center mb-1">
+            <label class="block font-medium mb-1">Observaciones adicionales</label>
+            <button 
+                  type="button"
+                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
+                >
+                  + Observación
+            </button>
+          </div>
         </div>
       </div>
+    </div>
 
       <div class="pt-4 flex items-center justify-center gap-4">
         <button type="submit" class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors">Registrar Alergia</button>
@@ -122,6 +150,17 @@ const alergia = reactive({
   recomendaciones: '',
   observaciones: ''
 })
+
+
+const abrirRegistroTipoAlergia = () => {
+  router.push({
+    path: '/registro/registroTipoAlergia',
+    query: {
+      from: '/historialPreventivo/alergias/registro/alergia'
+    }
+  });
+};
+
 
 const registrarAlergia = () => {
   // Aquí iría la lógica para enviar los datos al servidor
