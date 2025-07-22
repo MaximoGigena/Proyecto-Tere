@@ -29,6 +29,7 @@ import { registrarTipoFarmaco } from './routes/registrarTipoFarmaco.js'
 import { registrarTipoTerapia } from './routes/registrarTipoTerapia.js'
 import { registrarTipoDiagnostico } from './routes/registrarTipoDiagnostico.js'
 import { registrarTipoPaliativo } from './routes/registrarTipoPaliativo.js'
+import { veterinarioRoutes } from './routes/veterinarioRoutes.js'
 
 const routes = [
   ...homeRoutes,
@@ -61,7 +62,8 @@ const routes = [
   ...registrarTipoFarmaco,
   ...registrarTipoTerapia,
   ...registrarTipoDiagnostico,
-  ...registrarTipoPaliativo
+  ...registrarTipoPaliativo,
+  ...veterinarioRoutes
 ]
 
 const router = createRouter({

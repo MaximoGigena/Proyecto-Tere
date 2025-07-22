@@ -1,6 +1,7 @@
 // routes/historialesMascotas.js
 import historialLayout from '@/components/módulo_mascotas/carpetaHistoriales.vue'
 import propietarios from '@/components/módulo_mascotas/historialDueños.vue'
+import Episodios from '@/components/módulo_mascotas/historialEpisodios.vue'
 import vacunas from '@/components/módulo_mascotas/historialPreventivos.vue'
 import HistorialMedicoLayout from '@/components/módulo_mascotas/historialClinico.vue'
 import Procedimientos from '@/components/módulo_mascotas/historiaClinica/cirugías.vue' 
@@ -19,6 +20,17 @@ const baseRoutes = [
     path: 'tutores', 
     name: 'tutores', 
     component: propietarios,
+    meta: { overlay: false },
+    props: (route) => ({
+      id: route.params.id || route.query.id,
+      isOverlay: route.meta?.overlay || false,
+      ...route.query
+    })
+  },
+  { 
+    path: 'episodios', 
+    name: 'episodios', 
+    component: Episodios,
     meta: { overlay: false },
     props: (route) => ({
       id: route.params.id || route.query.id,
@@ -153,7 +165,6 @@ export const historialesMascotas = [
 ];
 
 // Rutas overlay para veterinarios
-// Rutas overlay para veterinarios
 export const overlayVeterinario = [
   {
     path: '/veterinarios',
@@ -180,6 +191,17 @@ export const overlayVeterinario = [
             path: 'tutores',
             name: 'veterinario-tutores',
             component: propietarios,
+            meta: { overlay: true },
+            props: (route) => ({
+              id: route.params.id,
+              isOverlay: true,
+              ...route.query
+            })
+          },
+          { 
+            path: 'episodios',
+            name: 'veterinario-episodios',
+            component: Episodios,
             meta: { overlay: true },
             props: (route) => ({
               id: route.params.id,

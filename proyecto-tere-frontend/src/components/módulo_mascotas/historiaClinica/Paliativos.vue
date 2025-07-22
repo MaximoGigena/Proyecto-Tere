@@ -8,7 +8,7 @@
     <p class="flex-grow">Contenido de los Paliativos...</p>
 
     <div
-      v-if="$route.query.from === 'veterinarios'"
+      v-if="$route.path.startsWith('/veterinarios')"
       class="mt-4 flex justify-center"
     >
       <button

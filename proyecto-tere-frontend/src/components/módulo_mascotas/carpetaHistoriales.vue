@@ -84,6 +84,14 @@ const tabs = computed(() => {
         'historialClinico', 'cirugias', 'farmacos', 'terapias','diagnosticos', 'paliativos',
         'veterinario-historialClinico', 'veterinario-cirugias', 'veterinario-farmacos', 'veterinario-terapias', 'veterinario-diagnosticos', 'veterinario-paliativos'
       ]
+    },
+    { 
+      nombre: 'Episodios', 
+      icon: 'clock-rotate-left', 
+      to: isOverlay 
+        ? `/veterinarios/mascota/${id}/episodios` 
+        : '/revisar/episodios',
+      activeNames: ['episodios', 'veterinario-episodios']  
     }
   ];
 });
@@ -145,6 +153,7 @@ const titulosPorRuta = {
   tutores: 'Tutores de la Mascota',
   historialPreventivo: 'Procedimientos Preventivos',
   historialClínico: 'Historial Clínico',
+  episodios: 'Episodios Médicos',
   vacunas: 'Vacunas Aplicadas',
   desparacitaciones: 'Desparasitaciones Realizadas',
   revisiones: 'Revisiones Realizadas',
