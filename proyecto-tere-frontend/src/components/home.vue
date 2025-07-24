@@ -163,15 +163,28 @@
           <div class="flex flex-col items-center text-center text-3xl">
             <h4 class="font-bold mb-3">Social</h4>
             <div class="flex gap-4 justify-center">
-              <!-- Iconos de FontAwesome -->
-              <a href="https://www.instagram.com/proyecto_tere_2025/"><i class="fab fa-instagram-square hover:text-emerald-800 transition"></i></a>
-              <a href="https://www.tiktok.com/@proyecto.tere"><i class="fab fa-tiktok hover:text-emerald-800 transition"></i></a>
-              <a href="https://www.youtube.com/@proyectotere"><i class="fab fa-youtube hover:text-emerald-800 transition"></i></a>
-              <a href="https://x.com/Tere_Project"><i class="fab fa-x-twitter hover:text-emerald-800 transition"></i></a>
-              <a href="#"><i class="fab fa-facebook hover:text-emerald-800 transition"></i></a>
-              <a href="https://www.reddit.com/r/ProyectoTere/"><i class="fab fa-reddit-alien hover:text-emerald-800 transition"></i></a>
+                <!-- Iconos de FontAwesome con efecto hover/focus -->
+                <a href="https://www.instagram.com/proyecto_tere_2025/" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-instagram-square hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+                </a>
+                <a href="https://www.tiktok.com/@proyecto.tere" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-tiktok hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+                </a>
+                <a href="https://www.youtube.com/@proyectotere" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-youtube hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+                </a>
+                <a href="https://x.com/Tere_Project" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-x-twitter hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+                </a>
+                <a href="#" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-facebook hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+                </a>
+                <a href="https://www.reddit.com/r/ProyectoTere/" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-reddit-alien hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+                </a>
             </div>
-          </div>
+        </div>
+
       </div>
 
       <!-- Línea inferior -->

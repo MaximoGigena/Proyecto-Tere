@@ -11,7 +11,7 @@ return new class extends Migration
      */
    public function up(): void
 {
-    Schema::table('caracteristicas_usuario', function (Blueprint $table) {
+    Schema::table('caracteristicas_usuarios', function (Blueprint $table) {
         // Primero añade la columna como nullable
         $table->unsignedBigInteger('usuario_id')->nullable();
         
@@ -25,7 +25,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('caracteristicas_usuario', function (Blueprint $table) {
+        Schema::table('caracteristicas_usuarios', function (Blueprint $table) {
             $table->dropForeign(['usuario_id']);
             $table->dropColumn('usuario_id');
         });

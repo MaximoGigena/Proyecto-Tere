@@ -1,10 +1,19 @@
 <template>
   <div class="min-h-screen bg-white text-gray-800 flex flex-col">
     <!-- Hero -->
-    <section class="bg-gradient-to-r from-green-100 to-teal-200 py-16 px-6 text-center">
-      <h1 class="text-4xl md:text-5xl font-bold text-teal-700">Modelo TERE</h1>
-      <p class="mt-4 text-lg md:text-xl text-gray-700">Tecnología para la Equidad en la Relación con los Animales</p>
+    <section class="bg-gradient-to-r from-green-100 to-teal-200 py-8 px-6 text-center">
+       <router-link to="/" class="block">
+          <img src="/src/assets/fondodecadapagina.png" alt="Logo TERE" class="mx-auto mb-2 w-32 h-auto transition-transform duration-300 hover:scale-110">
+        </router-link>
+          <h1 class="text-4xl md:text-5xl font-bold text-teal-700">Modelo TERE</h1>
+
+      <p class="mt-2 text-lg md:text-xl text-gray-700">
+          Un sistema p2p para la adopción,<br />
+          gestión y proporcionar un sistema descentralizado<br />
+          para el seguimiento de nuestras mascotas.
+      </p>
     </section>
+
 
     <!-- ¿Qué es TERE? -->
     <section class="py-12 px-6 max-w-4xl mx-auto text-center">
@@ -16,30 +25,39 @@
       </p>
     </section>
 
-    <!-- Componentes del Modelo -->
+    <!-- Motivo TERE -->
     <section class="bg-gray-50 py-12 px-6">
-      <h2 class="text-3xl font-semibold text-center mb-10">Componentes del Modelo</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-        <CardTere title="Usuarios" icon="👤">
-          Registro, autenticación y roles diferenciados (adoptantes, protectores, organizaciones, veterinarios).
-        </CardTere>
-        <CardTere title="Mascotas" icon="🐶">
-          Perfil completo, historial sanitario, ubicación y estado de adopción.
-        </CardTere>
-        <CardTere title="Adopciones" icon="🏡">
-          Proceso guiado y controlado legalmente para la entrega y seguimiento de mascotas.
-        </CardTere>
-        <CardTere title="Inteligencia" icon="🧠">
-          Recomendaciones automáticas, alertas de riesgo, coincidencias y evaluación de compatibilidad.
-        </CardTere>
-        <CardTere title="Marco Legal" icon="⚖️">
-          Basado en Ley 22.421, Ley 14.346, Ley 25.326 y articulación con SENASA y autoridades.
-        </CardTere>
-        <CardTere title="Trazabilidad" icon="📍">
-          Registro de eventos, ubicación, vacunación, tenencia y cambios de estado de la mascota.
-        </CardTere>
-      </div>
-    </section>
+    <h2 class="text-3xl font-semibold text-teal-700 text-center mb-10">La Inspiración detrás de TERE</h2>
+
+    <div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+        <!-- Imagen de la perrita Tere -->
+        <div class="flex justify-center">
+            <img 
+                src="/src/assets/la tere tere2.png" 
+                alt="Foto de Tere, la perrita que inspiró este proyecto" 
+                class="rounded-lg shadow-lg w-80 h-auto object-cover"
+            />
+        </div>
+
+        <!-- Descripción emotiva -->
+        <div>
+            <h3 class="text-2xl font-bold text-teal-700 mb-4">¿Quién fue Tere?</h3>
+            <p class="text-gray-700 leading-relaxed">
+                Tere fue una perrita rescatada que, a pesar de sus inicios difíciles, demostró cuánto puede cambiar una vida con el amor y cuidado de otra vida. 
+            </p>
+
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                Tere un día fue dada en adopción, este sistema es mi disculpa hacia ella.
+                Este sistema nace de su historia y busca ofrecer a todas las mascotas la oportunidad que ella tuvo: ser vista, cuidada y acompañada en cada etapa de su vida.
+            </p>
+
+            <p class="mt-4 text-gray-700 leading-relaxed">
+                Cada función del modelo TERE refleja la empatía, el compromiso y la responsabilidad que inspiró su historia.
+            </p>
+        </div>
+    </div>
+</section>
+
 
     <!-- Proceso Inteligente -->
     <section class="py-16 px-6 max-w-5xl mx-auto">
@@ -57,7 +75,7 @@
     <section class="bg-teal-600 py-12 px-6 text-white text-center">
       <h2 class="text-2xl font-bold mb-4">¿Querés conocer el sistema en acción?</h2>
       <router-link
-        to="/explorar"
+        to="/"
         class="inline-block bg-white text-teal-700 font-semibold py-2 px-6 rounded-full hover:bg-gray-100 transition"
       >
         Explorar TERE
@@ -74,19 +92,19 @@ const pasos = [
   },
   {
     title: "2. Vinculación de mascotas",
-    desc: "Cada mascota cuenta con un perfil con información legal, sanitaria y de comportamiento.",
+    desc: "Cada mascota cuenta con un perfil con información legal, sanitaria y social.",
   },
   {
     title: "3. Adopción responsable",
-    desc: "Las adopciones pasan por filtros automáticos y validaciones legales para asegurar su legalidad y bienestar.",
+    desc: "Las adopciones pasan por filtros automáticos y validaciones entre usuarios.",
   },
   {
     title: "4. Seguimiento y alertas",
-    desc: "El sistema monitorea la tenencia y emite alertas si detecta riesgos, abandonos o cambios indebidos.",
+    desc: "El sistema monitorea la tenencia y emite alertas de vacunación y proximos tratamientos.",
   },
   {
     title: "5. Inteligencia aplicada",
-    desc: "Módulos inteligentes optimizan adopciones, identifican perfiles compatibles y anticipan conflictos.",
+    desc: "Módulos inteligentes que optimizan adopciones y identifican perfiles compatibles.",
   },
 ];
 </script>

@@ -16,8 +16,32 @@ class UsuariosSeeder extends Seeder
     {
         DB::table('usuarios')->insert([
             'nombre' => 'Juan Pérez',
-            'email' => 'juan@example.com',
+            'email' => 'jueean@example.com',
             'password' => Hash::make('password123'),
+            'telefono' => '123436789',
+            'edad' => 30,
+            'activo' => true,
+            'latitud' => -34.6037,
+            'longitud' => -58.3816,
+            'foto_perfil' => null,
+        ]);
+
+        DB::table('usuarios')->insert([
+            'nombre' => 'Maxi pp',
+            'email' => 'juant@exampdfvdfle.com',
+            'password' => Hash::make('paedssword123'),
+            'telefono' => '1234536789',
+            'edad' => 30,
+            'activo' => true,
+            'latitud' => -34.6037,
+            'longitud' => -58.3816,
+            'foto_perfil' => null,
+        ]);
+
+        DB::table('usuarios')->insert([
+            'nombre' => 'Tu señora madre',
+            'email' => 'juano@exafvfmple.com',
+            'password' => Hash::make('passdsword123'),
             'telefono' => '123456789',
             'edad' => 30,
             'activo' => true,

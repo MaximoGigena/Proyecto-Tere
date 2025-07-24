@@ -14,20 +14,38 @@
         <p class="text-gray-600">
           Si querés colaborar, reportar un problema o conocer más sobre el modelo TERE, podés escribirnos directamente o completar el formulario.
         </p>
-        <div class="space-y-3">
-          <div class="flex items-center gap-2">
+        <div class="space-y-3 text-center">
+        <!-- Email -->
+        <div class="flex items-center justify-center gap-2">
             <span class="text-teal-600 text-xl">📧</span>
-            <a href="mailto:equipo@tere.org" class="text-gray-700 hover:underline">equipo@tere.org</a>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-teal-600 text-xl">🌐</span>
-            <a href="https://www.tere.org" class="text-gray-700 hover:underline" target="_blank">www.tere.org</a>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-teal-600 text-xl">🐦</span>
-            <a href="https://twitter.com/tere_org" class="text-gray-700 hover:underline" target="_blank">@tere_org</a>
-          </div>
+            <a href="mailto:proyectoterearg@gmail.com" class="text-gray-700 hover:underline">
+                proyectoterearg@gmail.com
+            </a>
         </div>
+
+        <!-- Redes Sociales -->
+        <div class="flex gap-4 justify-center mt-4">
+            <a href="https://www.instagram.com/proyecto_tere_2025/" target="_blank" rel="noopener noreferrer">
+                <i class="fab fa-instagram-square hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+            </a>
+            <a href="https://www.tiktok.com/@proyecto.tere" target="_blank" rel="noopener noreferrer">
+                <i class="fab fa-tiktok hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+            </a>
+            <a href="https://www.youtube.com/@proyectotere" target="_blank" rel="noopener noreferrer">
+                <i class="fab fa-youtube hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+            </a>
+            <a href="https://x.com/Tere_Project" target="_blank" rel="noopener noreferrer">
+                <i class="fab fa-x-twitter hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+            </a>
+            <a href="#" target="_blank" rel="noopener noreferrer">
+                <i class="fab fa-facebook hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+            </a>
+            <a href="https://www.reddit.com/r/ProyectoTere/" target="_blank" rel="noopener noreferrer">
+                <i class="fab fa-reddit-alien hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
+            </a>
+        </div>
+</div>
+
       </div>
 
       <!-- Formulario -->
