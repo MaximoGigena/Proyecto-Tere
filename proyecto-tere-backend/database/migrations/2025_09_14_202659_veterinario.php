@@ -11,14 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('usuarios', function (Blueprint $table) {
+        Schema::create('veterinarios', function (Blueprint $table) {
             $table->id();
-            $table->string('nombre', 100);
-            $table->integer('edad')->nullable();
+            $table->string('nombre_completo');
+            $table->string('matricula')->unique();
+            $table->string('especialidad');
             $table->boolean('activo')->default(true);
-            $table->string('foto_perfil')->nullable();
+            $table->string('foto')->nullable();
             $table->string('user_type')->default('free');
-            $table->string('google_id')->nullable(); // Mantener google_id aquí
+            $table->string('google_id')->nullable();
             $table->timestamps();
         });
     }
@@ -28,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('usuarios');
+        Schema::dropIfExists('veterinarios');
     }
 };

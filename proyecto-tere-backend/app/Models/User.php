@@ -6,11 +6,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -18,9 +19,10 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
         'email',
         'password',
+        'userable_type',
+        'userable_id'
     ];
 
     /**
@@ -32,6 +34,35 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    public function userable()
+    {
+        return $this->morphTo();
+    }
+
+    // Métodos helper
+    public function isUsuario()
+    {
+        return $this->userable_type === 'App\Models\Usuario';
+    }
+
+    public function isVeterinario()
+    {
+        return $this->userable_type === 'App\Models\Veterinario';
+    }
+
+    public function isAdministrador()
+    {
+        return $this->userable_type === 'App\Models\Administrador';
+    }
+
+    public function getNombreAttribute()
+    {
+        return $this->userable->nombre ?? 
+           $this->userable->nombre_completo ?? 
+           $this->userable->nombre_completo ?? // para admin y vet
+           null;
+    }
 
     /**
      * Get the attributes that should be cast.

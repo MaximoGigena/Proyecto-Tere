@@ -21,8 +21,6 @@ class UsuariosSeeder extends Seeder
             'telefono' => '123436789',
             'edad' => 30,
             'activo' => true,
-            'latitud' => -34.6037,
-            'longitud' => -58.3816,
             'foto_perfil' => null,
         ]);
 
@@ -33,8 +31,6 @@ class UsuariosSeeder extends Seeder
             'telefono' => '1234536789',
             'edad' => 30,
             'activo' => true,
-            'latitud' => -34.6037,
-            'longitud' => -58.3816,
             'foto_perfil' => null,
         ]);
 
@@ -45,8 +41,6 @@ class UsuariosSeeder extends Seeder
             'telefono' => '123456789',
             'edad' => 30,
             'activo' => true,
-            'latitud' => -34.6037,
-            'longitud' => -58.3816,
             'foto_perfil' => null,
         ]);
     }
