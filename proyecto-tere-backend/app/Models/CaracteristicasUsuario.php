@@ -1,13 +1,22 @@
-//caracterisitcas_usuarios
 <?php
-
+//caracterisitcas_usuarios.php
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
 class CaracteristicasUsuario extends Model
 {
-    protected $table = 'caracteristicas_usuario';
+    protected $fillable = [
+        'tipoVivienda',
+        'ocupacion',
+        'experiencia',
+        'convivenciaNiños',
+        'convivenciaMascotas',
+        'descripción',
+        'usuario_id'
+    ];
+
+    protected $table = 'caracteristicas_usuarios';
 
     public function usuario()
     {

@@ -13,12 +13,20 @@ return new class extends Migration
     {
         Schema::create('caracteristicas_usuarios', function (Blueprint $table) {
             $table->id();
-            $table->string('tipoVivienda');
-            $table->string('ocupacion');
-            $table->string('experiencia');
-            $table->string('convivenciaNiños');
-            $table->string('convivenciaMascotas');
-            $table->string('descripción');
+            $table->string('tipoVivienda')->nullable();
+            $table->string('ocupacion')->nullable();
+            $table->string('experiencia')->nullable();
+            $table->string('convivenciaNiños')->nullable();
+            $table->string('convivenciaMascotas')->nullable();
+            $table->string('descripción')->nullable();
+
+            // Nueva columna con clave foránea
+            $table->unsignedBigInteger('usuario_id')->nullable();
+            $table->foreign('usuario_id')
+                  ->references('id')
+                  ->on('usuarios')
+                  ->onDelete('cascade');
+
             $table->timestamps();
         });
     }
@@ -31,3 +39,4 @@ return new class extends Migration
         Schema::dropIfExists('caracteristicas_usuarios');
     }
 };
+

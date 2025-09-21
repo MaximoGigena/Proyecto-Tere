@@ -29,7 +29,7 @@ class caracteristicasUsuariosSeeder extends Seeder
             'experiencia' => 'muchas batallas en Skyrim',
             'convivenciaNiños' => 'no',
             'convivenciaMascotas' => 'sí',
-            'usuario_id' => 5,
+            'usuario_id' => 2,
             'descripción' => 'Viajo por el mundo en mi casa rodante con mi perro dragón llamado Fuego.'
 ]);
         DB::table('caracteristicas_usuarios')->insert([
@@ -38,7 +38,7 @@ class caracteristicasUsuariosSeeder extends Seeder
             'experiencia' => 'cazador de tesoros',
             'convivenciaNiños' => 'no',
             'convivenciaMascotas' => 'sí',
-            'usuario_id' => 6,
+            'usuario_id' => 3,
             'descripción' => 'Vivo en una cueva mágica llena de setas que brillan en la oscuridad y me gusta explorar ruinas antiguas.'
         ]);
 
