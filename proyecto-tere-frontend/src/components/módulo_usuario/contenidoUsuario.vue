@@ -1,4 +1,8 @@
 <template>    
+ <div class="bg-white backdrop-blur-md border border-gray-200 rounded-2xl 
+           overflow-y-auto max-h-[83vh] w-full shadow-2xl 
+           transition-all duration-300 relative p-2"
+  >
   <div
     ref="scrollContainer"
     class="flex-1 overflow-y-auto overflow-x-overlay [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-2"
@@ -103,6 +107,7 @@
     
     <div class="h-1"></div>
   </div>
+ </div>
 </template>
 
 <script setup>

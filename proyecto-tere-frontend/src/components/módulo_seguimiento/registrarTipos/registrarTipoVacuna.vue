@@ -250,7 +250,7 @@ const vacuna = reactive({
 
 const cancelar = () => {
   if (confirm('¿Está seguro que desea cancelar? Los datos no guardados se perderán.')) {
-    router.push('/tipos-vacuna')
+    router.back()
   }
 }
 

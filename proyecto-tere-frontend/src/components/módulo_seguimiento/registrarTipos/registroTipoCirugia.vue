@@ -267,7 +267,7 @@ const quitarArchivo = (index) => {
 
 const cancelar = () => {
   if (confirm('¿Está seguro que desea cancelar? Los datos no guardados se perderán.')) {
-    router.push('/tipos-cirugia')
+    router.back()
   }
 }
 

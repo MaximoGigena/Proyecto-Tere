@@ -230,7 +230,7 @@ const alergia = reactive({
 
 const cancelar = () => {
   if (confirm('¿Está seguro que desea cancelar? Los datos no guardados se perderán.')) {
-    router.push('/tipos-alergia')
+    router.back()
   }
 }
 

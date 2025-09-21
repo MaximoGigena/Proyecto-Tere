@@ -1,9 +1,16 @@
 <template>
   <div class="min-h-screen bg-white text-gray-800 flex flex-col">
     <!-- Encabezado -->
-    <section class="bg-gradient-to-r from-teal-100 to-green-200 py-16 px-6 text-center">
-      <h1 class="text-4xl md:text-5xl font-bold text-teal-700">Contacto</h1>
-      <p class="mt-4 text-lg md:text-xl text-gray-700">¿Tenés preguntas o querés sumarte al proyecto TERE?</p>
+    <section class="bg-gradient-to-r from-teal-500 to-green-300 py-16 px-6 text-center">
+      <router-link @click="volverOInicio()" to="/" class="absolute top-4 left-4">
+          <img 
+            src="@/assets/Logo_Pagina_Oscura.png" 
+            alt="Logo TERE"
+            class="h-60 w-auto hover:opacity-80 transition -mt-16"
+          />
+        </router-link>
+      <h1 class="text-4xl md:text-5xl font-bold text-white">Contacto</h1>
+      <p class="mt-4 text-lg md:text-xl text-gray-50">¿Tenés preguntas o querés sumarte al proyecto TERE?</p>
     </section>
 
     <!-- Sección de contacto -->
@@ -24,7 +31,7 @@
         </div>
 
         <!-- Redes Sociales -->
-        <div class="flex gap-4 justify-center mt-4">
+        <div class="flex gap-4 justify-center mt-4 text-xl">
             <a href="https://www.instagram.com/proyecto_tere_2025/" target="_blank" rel="noopener noreferrer">
                 <i class="fab fa-instagram-square hover:text-emerald-800 hover:scale-125 focus:scale-125 transition-transform duration-200"></i>
             </a>

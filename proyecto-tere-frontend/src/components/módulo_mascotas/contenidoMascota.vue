@@ -1,9 +1,18 @@
 <!-- contenidoMascota -->
-<template>    
-        <div
+<template> 
+   <div class="bg-white backdrop-blur-md border border-gray-200 rounded-2xl 
+         overflow-y-auto max-h-[83vh] w-full shadow-2xl 
+         transition-all duration-300 relative mx-0"
+>
+
+
+          <div
             ref="scrollContainer"
-            class="flex-1 overflow-y-auto overflow-x-overlay [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-2"
-            >
+            class="flex-1 overflow-y-auto overflow-x-overlay 
+                  [scrollbar-width:none] [-ms-overflow-style:none] 
+                  [&::-webkit-scrollbar]:hidden ml-4"
+    >
+            
 
             <!-- Imagen principal -->
             <div class="relative w-full min-h-[76vh] rounded-4xl overflow-hidden">
@@ -147,20 +156,24 @@
                     class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
                     <font-awesome-icon :icon="['fas', 'xmark']" class="text-black text-5xl hover:text-red-400" />
                   </button>
+
                   <button 
                     v-if="$route.path.startsWith('/explorar/cerca/')"
                     class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
                     <font-awesome-icon :icon="['fas', 'comment']" class="text-black text-4xl hover:text-purple-400" />
                   </button>
                   <button 
-                    v-if="$route.path.startsWith('/explorar/encuentros')||$route.path.startsWith('/explorar/cerca/')"
-                    class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
-                    <font-awesome-icon :icon="['fas', 'heart']" class="text-black text-4xl hover:text-green-400" />
+                    class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300"
+                    @click="abrirAdvertencia"
+                  >
+                    <font-awesome-icon :icon="['fas','heart']" class="text-black text-4xl hover:text-green-400"/>
                   </button>
+                  <AdvertenciaAdopcion ref="advertenciaRef" @continue="continuarAdopcion" />
                 </div>
 
                 <div class="h-20"></div>
             </div>
+    </div>
 </template>
 
 
@@ -169,8 +182,17 @@ import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import burro from '@/assets/burro.png'
 import PasoAlgo from '@/components/módulo_mascotas/reportarMascota.vue'
+import AdvertenciaAdopcion from '@/components/módulo_adopciones/advertenciaParaAdoptantes.vue'
 
+const advertenciaRef = ref(null)
 
+function abrirAdvertencia() {
+  advertenciaRef.value.open()
+}
+
+function continuarAdopcion() {
+  console.log('Usuario aceptó la advertencia, continuar proceso de adopción')
+}
 
 const route = useRoute()
 const router = useRouter()

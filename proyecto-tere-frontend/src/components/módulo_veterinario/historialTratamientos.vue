@@ -3,11 +3,8 @@
     <!-- Encabezado -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-2xl font-light text-gray-800">HISTORIAL MÉDICO</h1>
-        <div class="flex items-center mt-2">
-          <span class="text-sm text-gray-500 mr-4">Paciente: <span class="font-medium text-gray-700">Max (Golden Retriever)</span></span>
-          <span class="text-sm text-gray-500">N° Historia Clínica: <span class="font-medium text-gray-700">HC-2023-00542</span></span>
-        </div>
+        <h1 class="text-2xl font-light text-gray-800">HISTORIAL MÉDICO GENERAL</h1>
+        <p class="text-sm text-gray-500 mt-1">Listado de atenciones realizadas por el veterinario a diferentes pacientes</p>
       </div>
       <div class="flex items-center space-x-3">
         <button class="p-2 rounded-full bg-gray-100 hover:bg-gray-200">
@@ -65,11 +62,9 @@
               'bg-purple-100 text-purple-600': tratamiento.tipo === 'Cirugía',
               'bg-yellow-100 text-yellow-600': tratamiento.tipo === 'Medicamento'
             }">
+              <!-- Iconos según tipo -->
               <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path v-if="tratamiento.tipo === 'Consulta'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                <path v-if="tratamiento.tipo === 'Vacunación'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                <path v-if="tratamiento.tipo === 'Cirugía'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                <path v-if="tratamiento.tipo === 'Medicamento'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                <!-- mismos paths que tenías -->
               </svg>
             </div>
             <span class="mt-2 text-xs font-medium" :class="{
@@ -85,7 +80,10 @@
             <div class="flex justify-between items-start">
               <div>
                 <h3 class="font-medium text-gray-900">{{ tratamiento.procedimiento }}</h3>
-                <p class="text-sm text-gray-500 mt-1">Realizado por: <span class="text-gray-700">{{ tratamiento.veterinario }}</span></p>
+                <p class="text-sm text-gray-500 mt-1">Paciente: 
+                  <span class="text-gray-700 font-medium">{{ tratamiento.paciente }}</span>
+                </p>
+                <p class="text-sm text-gray-500">Realizado por: <span class="text-gray-700">{{ tratamiento.veterinario }}</span></p>
               </div>
               <button @click="toggleDetalles(index)" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
                 {{ tratamiento.mostrarDetalles ? 'Ocultar' : 'Ver detalles' }}
@@ -94,6 +92,7 @@
             
             <!-- Detalles expandibles -->
             <div v-if="tratamiento.mostrarDetalles" class="mt-4 pt-4 border-t border-gray-100">
+              <!-- igual que antes -->
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <h4 class="text-xs font-medium text-gray-500 uppercase mb-2">Descripción</h4>
@@ -108,12 +107,10 @@
                   </ul>
                 </div>
               </div>
-              
               <div class="mt-4 pt-4 border-t border-gray-100">
                 <h4 class="text-xs font-medium text-gray-500 uppercase mb-2">Observaciones</h4>
                 <p class="text-sm text-gray-700">{{ tratamiento.observaciones }}</p>
               </div>
-              
               <div class="mt-4 pt-4 border-t border-gray-100 flex justify-end">
                 <button class="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -127,7 +124,7 @@
         </div>
       </div>
     </div>
-
+    
     <!-- Paginación -->
     <div class="mt-8 flex items-center justify-between">
       <div class="text-sm text-gray-500">

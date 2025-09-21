@@ -82,11 +82,6 @@
           <input v-model="veterinario.experiencia" type="number" min="0" class="w-full border rounded p-2" />
         </div>
 
-        <div>
-          <label class="block font-medium">Clínica / Centro donde trabaja</label>
-          <input v-model="veterinario.clinica" type="text" class="w-full border rounded p-2" />
-        </div>
-
         <div class="col-span-full">
           <label class="block font-medium mb-1">Biografía o descripción profesional</label>
           <textarea v-model="veterinario.descripcion" rows="4" maxlength="500" class="w-full border rounded p-2 resize-none"></textarea>
@@ -108,18 +103,24 @@
         </div>
 
         <div>
-          <label class="block font-medium">Dirección</label>
-          <input v-model="veterinario.direccion" type="text" class="w-full border rounded p-2" />
-        </div>
-
-        <div>
-          <label class="block font-medium">Localidad</label>
-          <input v-model="veterinario.localidad" type="text" class="w-full border rounded p-2" />
+          <label class="block font-medium">Email de contacto</label>
+          <input v-model="veterinario.emailContacto" type="text" class="w-full border rounded p-2" />
         </div>
       </div>
 
       <div class="pt-4 flex items-center justify-center gap-4">
-        <button type="submit" class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors">Solicitar Cuenta</button>
+        <button 
+          type="submit" 
+          :disabled="loading"
+          class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
+        >
+          <span v-if="loading">Procesando...</span>
+          <span v-else>Solicitar Cuenta</span>
+        </button>
+      </div>
+
+      <div v-if="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        {{ errorMessage }}
       </div>
     </form>
   </div>
@@ -127,10 +128,11 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const route = useRoute()
+const loading = ref(false)
+const errorMessage = ref('')
 
 const veterinario = reactive({
   nombre: '',
@@ -138,11 +140,9 @@ const veterinario = reactive({
   matricula: '',
   especialidad: '',
   experiencia: '',
-  clinica: '',
   descripcion: '',
   telefono: '',
-  direccion: '',
-  localidad: ''
+  emailContacto: '',
 })
 
 const fotos = ref(Array.from({ length: 6 }, () => ({
@@ -169,23 +169,55 @@ const quitarFoto = (index) => {
   fotos.value[index].preview = null
 }
 
-const registrarVeterinario = () => {
-  const formData = new FormData()
-  for (const campo in veterinario) {
-    if (veterinario[campo] !== null) {
-      formData.append(campo, veterinario[campo])
-    }
-  }
+const registrarVeterinario = async () => {
+  loading.value = true
+  errorMessage.value = ''
+  
+  try {
+    const formData = new FormData()
+    
+    // Agregar datos del veterinario
+    formData.append('nombre', veterinario.nombre)
+    formData.append('email', veterinario.email)
+    formData.append('matricula', veterinario.matricula)
+    formData.append('especialidad', veterinario.especialidad)
+    formData.append('experiencia', veterinario.experiencia)
+    formData.append('descripcion', veterinario.descripcion)
+    formData.append('telefono', veterinario.telefono)
+    formData.append('emailContacto', veterinario.emailContacto)
+    
+    // Agregar fotos
+    fotos.value.forEach((foto, i) => {
+      if (foto.archivo) {
+        formData.append(`foto${i}`, foto.archivo)
+      }
+    })
+    
+    // Enviar datos al backend
+    const response = await fetch('http://localhost:8000/api/registrar-veterinario', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Accept': 'application/json'
+      }
+    })
 
-  fotos.value.forEach((foto, i) => {
-    if (foto.archivo) {
-      formData.append(`foto${i + 1}`, foto.archivo)
+    
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Error al registrar veterinario')
     }
-  })
-
-  console.log("Formulario veterinario enviado:")
-  for (let pair of formData.entries()) {
-    console.log(pair[0], pair[1])
+    
+    // Éxito - redirigir o mostrar mensaje
+    alert('Veterinario registrado exitosamente')
+    router.push('/') // o la ruta que desees
+    
+  } catch (error) {
+    console.error('Error:', error)
+    errorMessage.value = error.message || 'Ocurrió un error inesperado'
+  } finally {
+    loading.value = false
   }
 }
 </script>

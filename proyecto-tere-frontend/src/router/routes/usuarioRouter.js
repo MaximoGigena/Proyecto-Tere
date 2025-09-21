@@ -16,6 +16,7 @@ export const rutasUsuario = [
         children: [
           {
             path: 'mascotas',
+            name: 'mis-mascotas',
             component: PerfilMascotas,
             meta: { activeTab: 'mascotas' } // Meta información útil
           },

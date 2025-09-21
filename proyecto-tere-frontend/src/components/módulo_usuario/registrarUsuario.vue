@@ -7,7 +7,7 @@
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto "> <!-- Aumenté el max-width a 6xl para más espacio -->
     <h1 class="text-4xl font-bold mb-4">Registrar Usuario</h1>
 
-    <form @submit.prevent="registrarMascota" class="space-y-4">
+    <form  @submit.prevent="registrarUsuario" class="space-y-4">
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
         <h5 class="px-4 text-center font-bold text-gray-800 whitespace-nowrap">
@@ -21,7 +21,7 @@
               <div>
                 <label class="block font-medium">Nombre</label>
                 <input
-                  v-model="mascota.nombre"
+                  v-model="usuario.nombre"
                   type="text"
                   required
                   class="w-full border rounded p-2 focus:outline-none focus:ring"
@@ -29,14 +29,34 @@
               </div>  
 
               <div>
-                <label class="block font-medium">Gmail</label>
+                <label class="block font-medium">Email</label>
                 <input
-                  v-model="mascota.nombre"
+                  v-model="usuario.email"
                   type="text"
                   required
                   class="w-full border rounded p-2 focus:outline-none focus:ring"
                 />
-              </div>  
+              </div> 
+              
+            <div>
+              <label class="block font-medium">Contraseña</label>
+              <input
+                v-model="usuario.password"
+                type="password"
+                required
+                class="w-full border rounded p-2 focus:outline-none focus:ring"
+              />
+            </div>
+
+            <div>
+              <label class="block font-medium">Confirmar Contraseña</label>
+              <input
+                v-model="usuario.confirmPassword"
+                type="password"
+                required
+                class="w-full border rounded p-2 focus:outline-none focus:ring"
+              />
+            </div>
 
               <div>
                 <label class="block font-medium mb-1">Fecha de nacimiento</label>
@@ -240,7 +260,7 @@
             <div>
             <label class="block font-medium">Teléfono</label>
             <input
-                v-model="usuario.telefono"
+                v-model="usuario.telefono_contacto"
                 type="tel"
                 class="w-full border rounded p-2"
                 placeholder="Ej: +54 9 11 1234 5xxx"
@@ -251,7 +271,7 @@
             <div>
             <label class="block font-medium">Correo electrónico</label>
             <input
-                v-model="usuario.email"
+                v-model="usuario.email_contacto"
                 type="email"
                 class="w-full border rounded p-2"
                 placeholder="Ej: ejemplo@email.com"
@@ -262,7 +282,7 @@
             <div>
             <label class="block font-medium">DNI</label>
             <input
-                v-model="usuario.direccion"
+                v-model="usuario.dni"
                 type="text"
                 class="w-full border rounded p-2"
                 placeholder="Ej: 45.208.xxx"
@@ -273,7 +293,7 @@
             <div>
             <label class="block font-medium">Nombre Completo</label>
             <input
-                v-model="usuario.localidad"
+                v-model="usuario.nombre_completo"
                 type="text"
                 class="w-full border rounded p-2"
                 placeholder="Ej: Juan Pepito"
@@ -301,8 +321,9 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { reactive } from 'vue'
+import axios from 'axios'
 
-
+console.log(document.querySelector('meta[name="csrf-token"]').content);
 
 const router = useRouter()
 const route = useRoute()
@@ -321,33 +342,28 @@ const cerrar = () => {
   }
 }
 
-const mascota = ref({
-  nombre: '',
-  especie: '',
-  sexo: '',
-  foto: null,
-  tamaño: '',
- 
-  descripcion: '',
-  telefono: '',
-  email: '',
-  direccion: '',
-  localidad: '',
-})
 
 const usuario = reactive({
+  nombre: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  edad: null,
   fechaNacimiento: {
-  dia: null,
-  mes: '',
-  anio: null,
- },
+    dia: null,
+    mes: '',
+    anio: null,
+  },
   ocupacion: '',
   tipoVivienda: '',
   experienciaMascotas: '',
-  preferenciasAdopcion: '',
   conviveConNiños: '',
   conviveConMascotas: '',
-  descripcion: ''
+  descripcion: '',
+  dni: '',
+  telefono_contacto: '',
+  email_contacto: '',
+  nombre_completo: ''
 })
 
 const fotos = ref(Array.from({ length: 6 }, () => ({
@@ -375,25 +391,103 @@ const quitarFoto = (index) => {
   fotos.value[index].preview = null
 }
 
-const registrarMascota = () => {
-  const formData = new FormData()
-  for (const campo in mascota.value) {
-    if (mascota.value[campo] !== null)
-      formData.append(campo, mascota.value[campo])
-  }
 
-  fotos.value.forEach((foto, i) => {
-    if (foto.archivo) {
-      formData.append(`foto${i + 1}`, foto.archivo)
+  const calcularEdad = () => {
+    if (usuario.fechaNacimiento.dia && usuario.fechaNacimiento.mes && usuario.fechaNacimiento.anio) {
+      const hoy = new Date();
+      const fechaNac = new Date(
+        usuario.fechaNacimiento.anio,
+        usuario.fechaNacimiento.mes - 1,
+        usuario.fechaNacimiento.dia
+      );
+      
+      let edad = hoy.getFullYear() - fechaNac.getFullYear();
+      const mes = hoy.getMonth() - fechaNac.getMonth();
+      
+      if (mes < 0 || (mes === 0 && hoy.getDate() < fechaNac.getDate())) {
+        edad--;
+      }
+      
+      usuario.edad = edad;
     }
-  })
-
-  // Simulación de envío:
-  console.log("Formulario enviado:")
-  for (let pair of formData.entries()) {
-    console.log(pair[0], pair[1])
   }
-
   
+  const registrarUsuario = async () => {
+  try {
+    calcularEdad();
+    
+    if (usuario.password !== usuario.confirmPassword) {
+      alert('Las contraseñas no coinciden');
+      return;
+    }
+    
+    const formData = new FormData();
+    
+    // Datos básicos
+    formData.append('nombre', usuario.nombre);
+    formData.append('email', usuario.email);
+    formData.append('password', usuario.password);
+    if (usuario.telefono) formData.append('telefono', usuario.telefono);
+    if (usuario.edad) formData.append('edad', usuario.edad);
+    
+    // Características
+    if (usuario.tipoVivienda) formData.append('tipoVivienda', usuario.tipoVivienda);
+    if (usuario.ocupacion) formData.append('ocupacion', usuario.ocupacion);
+    if (usuario.experienciaMascotas) formData.append('experiencia', usuario.experienciaMascotas);
+    if (usuario.conviveConNiños) formData.append('convivenciaNiños', usuario.conviveConNiños);
+    if (usuario.conviveConMascotas) formData.append('convivenciaMascotas', usuario.conviveConMascotas);
+    if (usuario.descripcion) formData.append('descripcion', usuario.descripcion);
+    
+    // Datos de contacto
+    if (usuario.dni) formData.append('dni', usuario.dni);
+    if (usuario.telefono_contacto) formData.append('telefono_contacto', usuario.telefono_contacto);
+    if (usuario.email_contacto) formData.append('email_contacto', usuario.email_contacto);
+    if (usuario.nombre_completo) formData.append('nombre_completo', usuario.nombre_completo);
+
+    // Foto de perfil
+    if (fotos.value[0]?.archivo) {
+      formData.append('foto_perfil', fotos.value[0].archivo);
+    }
+
+    // Obtener CSRF token primero
+    await axios.get('/sanctum/csrf-cookie', {
+      withCredentials: true
+    });
+
+    const response = await axios.post('/api/registrar-usuario', formData, {
+      withCredentials: true,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'multipart/form-data',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+
+    if (response.data.success) {
+      // 🔥 GUARDAR EL TOKEN CORRECTAMENTE
+      if (response.data.access_token) {
+        localStorage.setItem('auth_token', response.data.access_token);
+        // Configurar axios para usar el token en futuras requests
+        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
+      }
+      
+      alert('Usuario registrado exitosamente');
+      router.push('/explorar/encuentros');
+    } else {
+      alert(response.data.message || 'Error al registrar usuario');
+    }
+    
+  } catch (error) {
+    console.error('Error completo:', error);
+    if (error.response) {
+      console.error('Datos del error:', error.response.data);
+      alert(`Error: ${error.response.data.message || 'Error en el servidor'}`);
+    } else if (error.request) {
+      alert('Error de conexión. Verifica tu red o si el servidor está funcionando.');
+    } else {
+      alert('Error al enviar los datos. Por favor intenta nuevamente.');
+    }
+  }
 }
+
 </script>

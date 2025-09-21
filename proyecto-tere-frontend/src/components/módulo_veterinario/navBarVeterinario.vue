@@ -18,18 +18,27 @@
       <router-link to="/veterinarios/busqueda" class="group relative">
         <font-awesome-icon
           :icon="['fas', 'magnifying-glass']" size="2x"
-          class="h-7 w-7 text-gray-400 group-hover:text-green-400 transition"
+          :class="[
+            'h-7 w-7 transition',
+            route.path === '/veterinarios/busqueda' ? 'text-green-400' : 'text-gray-400 group-hover:text-green-400'
+          ]"
         />
         <span class="absolute right-12 top-1/2 transform -translate-y-1/2 text-sm bg-gray-700 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
-          Busqueda de pacientes
+          Búsqueda de pacientes
         </span>
       </router-link>
+
 
       <!-- Botón Tipos -->
       <router-link to="/veterinarios/tipos" class="group relative">
         <font-awesome-icon
           :icon="['fas', 'file-medical']" size="2x"
-          class="h-7 w-7 text-gray-400 group-hover:text-green-400 transition"
+          :class="[
+            'h-7 w-7 transition',
+            route.path.startsWith('/veterinarios/tipos')
+            ? 'text-green-400'
+            : 'text-gray-400 group-hover:text-green-400'
+          ]"
         />
         <span class="absolute right-12 top-1/2 transform -translate-y-1/2 text-sm bg-gray-700 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
           Tipos de tratamientos
@@ -40,7 +49,10 @@
       <router-link to="/veterinarios/historial" class="group relative">
         <font-awesome-icon
           :icon="['fas', 'clock-rotate-left']" size="2x"
-          class="h-7 w-7 text-gray-400 group-hover:text-green-400 transition"
+          :class="[
+            'h-7 w-7 transition',
+            route.path === '/veterinarios/historial' ? 'text-green-400' : 'text-gray-400 group-hover:text-green-400'
+          ]"
         />
         <span class="absolute right-12 top-1/2 transform -translate-y-1/2 text-sm bg-gray-700 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
           Historial de tratamientos
@@ -51,10 +63,27 @@
       <router-link to="/veterinarios/rendimiento" class="group relative">
         <font-awesome-icon
           :icon="['fas', 'chart-line']" size="2x"
-          class="h-7 w-7 text-gray-400 group-hover:text-green-400 transition"
+          :class="[
+            'h-7 w-7 transition',
+            route.path === '/veterinarios/rendimiento' ? 'text-green-400' : 'text-gray-400 group-hover:text-green-400'
+          ]"
         />
         <span class="absolute right-12 top-1/2 transform -translate-y-1/2 text-sm bg-gray-700 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
           Rendimiento
+        </span>
+      </router-link>
+
+      <!-- Botón centroVeterinario -->
+      <router-link to="/veterinarios/centroVeterinario" class="group relative">
+        <font-awesome-icon
+          :icon="['fas', 'house-medical']" size="2x"
+          :class="[
+            'h-7 w-7 transition',
+            route.path === '/veterinarios/centroVeterinario' ? 'text-green-400' : 'text-gray-400 group-hover:text-green-400'
+          ]"
+        />
+        <span class="absolute right-12 top-1/2 transform -translate-y-1/2 text-sm bg-gray-700 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
+          Centro Veterinario
         </span>
       </router-link>
 
@@ -62,7 +91,10 @@
       <router-link to="/veterinarios/notificaciones" class="group relative">
         <font-awesome-icon
           :icon="['fas', 'bell']" size="2x"
-          class="h-7 w-7 text-gray-400 group-hover:text-green-400 transition"
+          :class="[
+            'h-7 w-7 transition',
+            route.path === '/veterinarios/notificaciones' ? 'text-green-400' : 'text-gray-400 group-hover:text-green-400'
+          ]"
         />
         <span class="absolute right-12 top-1/2 transform -translate-y-1/2 text-sm bg-gray-700 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
           notificaciones
@@ -73,7 +105,10 @@
       <router-link to="/veterinarios/perfil" class="group relative">
         <font-awesome-icon
           :icon="['fas', 'circle-user']" size="2x"
-          class="h-7 w-7 text-gray-400 group-hover:text-green-400 transition"
+          :class="[
+            'h-7 w-7 transition',
+            route.path === '/veterinarios/perfil' ? 'text-green-400' : 'text-gray-400 group-hover:text-green-400'
+          ]"
         />
         <span class="absolute right-12 top-1/2 transform -translate-y-1/2 text-sm bg-gray-700 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
           Perfil Usuario
@@ -84,5 +119,7 @@
 </template>
 
 <script setup>
-// No necesita lógica extra
+import { useRoute } from 'vue-router'
+const route = useRoute()
 </script>
+

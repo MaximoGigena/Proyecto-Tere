@@ -30,7 +30,14 @@ import { registrarTipoTerapia } from './routes/registrarTipoTerapia.js'
 import { registrarTipoDiagnostico } from './routes/registrarTipoDiagnostico.js'
 import { registrarTipoPaliativo } from './routes/registrarTipoPaliativo.js'
 import { veterinarioRoutes } from './routes/veterinarioRoutes.js'
-
+import { SeleccionarRegistro } from './routes/selecciónRegistro.js'
+import { ConfiguracionesUsuario } from './routes/rutasPerfilUsuario.js'
+import { overlayProcedimiento } from './routes/carpetaProcedimiento.js'
+import { RutasLoginRegistro } from './routes/rutasLoginRegistro.js'
+import { registrarVeterinaria } from './routes/registrarCentroVeterinario.js'
+import { editarMascotaRoutes } from './routes/editarMascota.js'
+import { motivosBajaMascota } from './routes/overlayMotivosMascota.js'
+ 
 const routes = [
   ...homeRoutes,
   ...encuentrosRoutes,
@@ -63,7 +70,14 @@ const routes = [
   ...registrarTipoTerapia,
   ...registrarTipoDiagnostico,
   ...registrarTipoPaliativo,
-  ...veterinarioRoutes
+  ...veterinarioRoutes,
+  ...SeleccionarRegistro,
+  ...ConfiguracionesUsuario,
+  ...overlayProcedimiento,
+  ...RutasLoginRegistro,
+  ...registrarVeterinaria,
+  ...editarMascotaRoutes,
+  ...motivosBajaMascota,
 ]
 
 const router = createRouter({

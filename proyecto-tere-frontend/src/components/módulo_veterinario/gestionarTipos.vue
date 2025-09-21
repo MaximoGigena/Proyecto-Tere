@@ -1,68 +1,60 @@
+<!-- gestionarTipos.vue -->
 <template>
-  <div class="p-8">
-    <h1 class="text-2xl font-bold mb-4">Gestión de Tipos de Tratamientos Médicos</h1>
+  <div class="p-6">
+    <h1 class="text-2xl font-bold mb-6">Gestión de Procedimientos Médicos</h1>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div v-for="categoria in categorias" :key="categoria.nombre" class="border p-4 rounded-lg shadow bg-white">
-        <h2 class="text-lg font-semibold mb-2">{{ categoria.nombre }}</h2>
-
-        <ul class="space-y-2 mb-4">
-          <li v-for="(item, index) in categoria.items" :key="index" class="flex justify-between items-center bg-gray-100 px-3 py-1 rounded">
-            <span>{{ item }}</span>
-            <button @click="eliminarItem(categoria.nombre, index)" class="text-red-500 hover:text-red-700">Eliminar</button>
-          </li>
-        </ul>
-
-        <div class="flex gap-2">
-          <input
-            v-model="categoria.nuevoItem"
-            type="text"
-            placeholder="Nuevo tipo..."
-            class="border rounded px-2 py-1 w-full"
-          />
-          <button
-            @click="agregarItem(categoria.nombre)"
-            class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-          >
-            Añadir
-          </button>
-        </div>
-      </div>
+    <!-- Carrusel de categorías -->
+    <div class="flex overflow-x-auto space-x-6 pb-4 mb-6 border-b border-gray-300 scrollbar-thin">
+      <router-link
+        v-for="cat in categorias"
+        :key="cat.nombre"
+        :to="{ name: cat.ruta }"
+        class="flex flex-col items-center min-w-[80px] px-2 py-2 rounded-lg transition-colors duration-200"
+        :class="$route.name === cat.ruta 
+          ? 'bg-blue-600 text-white' 
+          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'"
+      >
+        <component :is="cat.icono" class="w-7 h-7 mb-1" />
+        <span class="text-xs text-center whitespace-nowrap">{{ cat.nombre }}</span>
+      </router-link>
     </div>
+
+    
+    <!-- Contenido de la ruta activa -->
+    <router-view v-slot="{ Component }">
+      <div class="mb-4">
+        <component :is="Component" />
+      </div>
+    </router-view>
+
   </div>
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { Syringe, Pill, Activity, Stethoscope, Shield, Scissors, FlaskConical, HeartPulse, Bandage } from "lucide-vue-next"
 
-const categorias = reactive([
-  { nombre: 'Tipos de Vacunas', items: [], nuevoItem: '' },
-  { nombre: 'Tipos de Desparasitaciones', items: [], nuevoItem: '' },
-  { nombre: 'Tipos de Revisiones Médicas', items: [], nuevoItem: '' },
-  { nombre: 'Tipos de Alergias', items: [], nuevoItem: '' },
-  { nombre: 'Tipos de Cirugías', items: [], nuevoItem: '' },
-  { nombre: 'Tipos de Terapias', items: [], nuevoItem: '' },
-  { nombre: 'Tipos de Fármacos', items: [], nuevoItem: '' },
-  { nombre: 'Tipos de Diagnósticos', items: [], nuevoItem: '' },
-  { nombre: 'Tipos de Paliativos', items: [], nuevoItem: '' }
-])
-
-function agregarItem(nombreCategoria) {
-  const categoria = categorias.find(c => c.nombre === nombreCategoria)
-  if (categoria.nuevoItem.trim() !== '') {
-    categoria.items.push(categoria.nuevoItem.trim())
-    categoria.nuevoItem = ''
-  }
-}
-
-function eliminarItem(nombreCategoria, index) {
-  const categoria = categorias.find(c => c.nombre === nombreCategoria)
-  categoria.items.splice(index, 1)
-}
+// Definimos categorías con icono y ruta
+const categorias = [
+  { nombre: "Vacunas", ruta: "tipoVacunas", icono: Syringe },
+  { nombre: "Desparasitaciones", ruta: "tipoDesparasitaciones", icono: Shield },
+  { nombre: "Revisiones", ruta: "tipoRevisiones", icono: Stethoscope },
+  { nombre: "Alergias", ruta: "tipoAlergias", icono: Activity },
+  { nombre: "Cirugías", ruta: "tipoCirugias", icono: Scissors },
+  { nombre: "Terapias", ruta: "tipoTerapias", icono: HeartPulse },
+  { nombre: "Fármacos", ruta: "tipoFarmacos", icono: Pill },
+  { nombre: "Diagnósticos", ruta: "tipoDiagnosticos", icono: FlaskConical },
+  { nombre: "Paliativos", ruta: "tipoPaliativos", icono: Bandage },
+]
 </script>
 
 <style scoped>
-h1, h2 {
-  color: #333;
+/* Scrollbar casi invisible */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 10px;
 }
 </style>
+

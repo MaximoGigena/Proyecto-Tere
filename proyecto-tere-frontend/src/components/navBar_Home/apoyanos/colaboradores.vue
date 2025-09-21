@@ -1,15 +1,50 @@
 <template>
-  <div class="min-h-screen bg-white p-6">
-    <div class="max-w-5xl mx-auto space-y-10">
+  <div class="min-h-screen bg-white">
+    <!-- Encabezado -->
+    <section class="h-28 w-auto flex flex-col justify-center items-center bg-gradient-to-r from-teal-500 to-green-300 relative px-6 text-center">
+      <!-- Logo en esquina -->
+      <router-link @click="volverOInicio()" to="/" class="absolute top-4 left-4">
+        <img 
+          src="@/assets/Logo_Pagina_Oscura.png" 
+          alt="Logo TERE"
+          class="h-60 w-auto hover:opacity-80 transition -mt-16"
+        />
+      </router-link>
 
       <!-- Título principal -->
-      <h1 class="text-3xl font-bold text-teal-700 text-center">Colaboradores de TERE</h1>
+      <h1 class="text-4xl font-bold text-white">Colaboradores de TERE</h1>
+    </section>
 
+    <!-- Progreso de funcionalidades -->
+    <section class="max-w-4xl mx-auto mt-8 px-6">
+      <h2 class="text-lg text-center font-semibold text-gray-700 mb-4">
+        Progreso de funcionalidades gracias a colaboradores
+      </h2>
+      <div 
+        v-for="(funcionalidad, index) in funcionalidades" 
+        :key="index" 
+        class="mb-6"
+      >
+        <p class="text-sm font-medium text-gray-700 mb-1">
+          {{ funcionalidad.nombre }} - {{ funcionalidadAnimada[index] }}%
+        </p>
+        <div class="w-full bg-gray-200 rounded-full h-5 overflow-hidden shadow-inner">
+          <div 
+            class="h-full bg-gradient-to-r from-teal-500 to-green-300 text-white text-xs flex items-center justify-center transition-all duration-700"
+            :style="{ width: funcionalidadAnimada[index] + '%' }"
+          >
+            {{ funcionalidadAnimada[index] }}%
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="max-w-5xl mx-auto space-y-10">
       <!-- Personas colaboradoras -->
       <section>
         <h2 class="text-xl font-semibold text-teal-600 mb-4">Veterinarias</h2>
         <div class="relative max-w-6xl mx-auto px-4">
-          <!-- Flechas de navegación -->
+          <!-- Flechas -->
           <button 
             @click="prevVeterinaria" 
             class="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white p-2 rounded-full shadow-md transition-all"
@@ -32,7 +67,7 @@
             </svg>
           </button>
 
-          <!-- Carrusel de logos -->
+          <!-- Carrusel -->
           <div class="overflow-hidden py-8">
             <div 
               class="flex transition-transform duration-500 ease-in-out" 
@@ -74,11 +109,11 @@
         </div>
       </section>
 
-      <!-- Marcas colaboradoras -->
+      <!-- Marcas -->
       <section>
         <h2 class="text-xl font-semibold text-teal-600 mb-4">Marcas</h2>
         <div class="relative max-w-6xl mx-auto px-4">
-          <!-- Flechas de navegación -->
+          <!-- Flechas -->
           <button 
             @click="prevMarca" 
             class="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white p-2 rounded-full shadow-md transition-all"
@@ -101,7 +136,7 @@
             </svg>
           </button>
 
-          <!-- Carrusel de logos -->
+          <!-- Carrusel -->
           <div class="overflow-hidden py-8">
             <div 
               class="flex transition-transform duration-500 ease-in-out" 
@@ -142,13 +177,40 @@
           </div>
         </div>
       </section>
-
     </div>
   </div>
 </template>
 
 <script>
+import { ref, onMounted } from 'vue'
+
 export default {
+  setup() {
+    const funcionalidades = ref([
+      { nombre: 'Nueva sección de adopciones', progreso: 80 },
+      { nombre: 'Sistema de registro de voluntarios', progreso: 55 },
+      { nombre: 'Integración con veterinarias', progreso: 40 },
+      { nombre: 'Tienda solidaria online', progreso: 65 }
+    ])
+
+    // Animación desde 0
+    const funcionalidadAnimada = ref(funcionalidades.value.map(() => 0))
+    
+    onMounted(() => {
+      setTimeout(() => {
+        funcionalidades.value.forEach((f, i) => {
+          setTimeout(() => {
+            funcionalidadAnimada.value[i] = f.progreso
+          }, i * 200)
+        })
+      }, 500)
+    })
+
+    return {
+      funcionalidades,
+      funcionalidadAnimada
+    }
+  },
   data() {
     return {
       currentVetIndex: 0,
@@ -175,7 +237,7 @@ export default {
         { nombre: "Veterinaria 5", logo: "https://cdn.pixabay.com/photo/2022/03/09/07/12/cat-7057193_1280.png" },
         { nombre: "Veterinaria 6", logo: "https://cdn.pixabay.com/photo/2022/03/09/07/12/cat-7057193_1280.png" },
         { nombre: "Veterinaria 7", logo: "https://cdn.pixabay.com/photo/2022/03/09/07/12/cat-7057193_1280.png" },
-        { nombre: "Veterinaria 8", logo: "https://cdn.pixabay.com/photo/2023/09/22/15/45/panda-8269336_1280.png" },
+        { nombre: "Veterinaria 8", logo: "https://cdn.pixabay.com/photo/2022/03/09/07/12/cat-7057193_1280.png" },
         { nombre: "Veterinaria 9", logo: "https://cdn.pixabay.com/photo/2022/03/09/07/12/cat-7057193_1280.png" },
         { nombre: "Veterinaria 10", logo: "https://cdn.pixabay.com/photo/2022/03/09/07/12/cat-7057193_1280.png" },
         { nombre: "Veterinaria 11", logo: "https://cdn.pixabay.com/photo/2022/03/09/07/12/cat-7057193_1280.png" },
@@ -201,6 +263,13 @@ export default {
     }
   },
   methods: {
+    volverOInicio() {
+      if (window.history.length > 1) {
+        this.$router.back()
+      } else {
+        this.$router.push('/')
+      }
+    },
     nextVeterinaria() {
       if (this.currentVetIndex < this.groupedVeterinarias.length - 1) {
         this.currentVetIndex++;

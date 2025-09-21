@@ -68,7 +68,7 @@ const tabs = computed(() => {
     },
     { 
       nombre: 'Preventivo', 
-      icon: 'house-medical', 
+      icon: 'square-plus', 
       to: isOverlay 
         ? `/veterinarios/mascota/${id}/historialPreventivo/vacunas` 
         : '/revisar/historialPreventivo',
