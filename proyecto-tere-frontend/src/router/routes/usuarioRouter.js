@@ -12,22 +12,18 @@ export const rutasUsuario = [
       {
         path: 'perfil',
         component: PerfilUsuario,
-        redirect: '/explorar/perfil/mascotas', // Redirección aquí también
+        redirect: '/explorar/perfil/mascotas', // 👈 Redirige directo a mascotas
         children: [
           {
             path: 'mascotas',
             name: 'mis-mascotas',
             component: PerfilMascotas,
-            meta: { activeTab: 'mascotas' } // Meta información útil
+            meta: { activeTab: 'mascotas' }
           },
           {
             path: 'adopciones',
             component: PerfilAdopciones,
             meta: { activeTab: 'adopciones' }
-          },
-          {
-            path: '', // Ruta vacía
-            redirect: '/explorar/perfil/mascotas' // Redirección doble garantizada
           }
         ]
       }

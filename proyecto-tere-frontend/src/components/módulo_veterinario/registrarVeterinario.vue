@@ -202,16 +202,14 @@ const registrarVeterinario = async () => {
       }
     })
 
-    
     const data = await response.json()
     
     if (!response.ok) {
-      throw new Error(data.message || 'Error al registrar veterinario')
+      throw new Error(data.message || 'Error al enviar solicitud')
     }
     
-    // Éxito - redirigir o mostrar mensaje
-    alert('Veterinario registrado exitosamente')
-    router.push('/') // o la ruta que desees
+    // Éxito - redirigir a pantalla de espera
+    router.push('/veterinario-pendiente')
     
   } catch (error) {
     console.error('Error:', error)

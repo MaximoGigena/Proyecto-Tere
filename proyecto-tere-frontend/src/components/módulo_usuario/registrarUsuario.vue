@@ -322,11 +322,14 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { reactive } from 'vue'
 import axios from 'axios'
+import { useAuthToken } from '@/composables/useAuthToken'
+
 
 console.log(document.querySelector('meta[name="csrf-token"]').content);
 
 const router = useRouter()
 const route = useRoute()
+const { setToken } = useAuthToken()
 
 function confirmarCancelar() {
   if (window.confirm("¿Estás seguro de que deseas cancelar y volver?")) {
@@ -466,9 +469,7 @@ const quitarFoto = (index) => {
     if (response.data.success) {
       // 🔥 GUARDAR EL TOKEN CORRECTAMENTE
       if (response.data.access_token) {
-        localStorage.setItem('auth_token', response.data.access_token);
-        // Configurar axios para usar el token en futuras requests
-        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
+        setToken(response.data.access_token)
       }
       
       alert('Usuario registrado exitosamente');

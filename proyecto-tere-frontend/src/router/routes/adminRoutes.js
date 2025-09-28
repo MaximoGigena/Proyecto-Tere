@@ -29,6 +29,7 @@ export const adminRoutes = [
         path: 'solicitudes',
         component: Solicitudes,
         name: 'adminSolicitudes',
+        meta: { requiresAuth: true, requiresAdmin: true }
       },
       {
         path: '',

@@ -59,7 +59,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from 'axios';
+import { useAuth } from '@/composables/useAuth';
 
 const props = defineProps({
   visible: Boolean,
@@ -78,25 +78,30 @@ const loading = ref(false);
 const error = ref(false);
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const router = useRouter();
+const { processTokenFromUrl } = useAuth();
 
-const redirectToGoogle = async () => {
+// Verificar si hay token en la URL al cargar el componente
+onMounted(async () => {
+  const hasToken = await processTokenFromUrl();
+  if (hasToken) {
+    emit('cerrar');
+    // El usuario ya está autenticado, no necesitas hacer nada más
+  }
+});
+
+const redirectToGoogle = () => {
   try {
     loading.value = true;
+    error.value = false;
     
-   // Deja que el navegador maneje la redirección OAuth
-  window.location.href = 'http://localhost:8000/auth/google';
-  
-
+    // Redirección simple a Google OAuth
+    window.location.href = 'http://localhost:8000/auth/google';
     
-  } catch (error) {
-    console.error('Error en redirección a Google:', {
-      error: error.response?.data || error.message
-    });
-    
+  } catch (err) {
+    console.error('Error en redirección a Google:', err);
     loading.value = false;
     error.value = true;
-    
-    alert(error.response?.data?.message || 'Error al conectar con Google');
+    alert('Error al conectar con Google. Por favor, intenta nuevamente.');
   }
 };
 

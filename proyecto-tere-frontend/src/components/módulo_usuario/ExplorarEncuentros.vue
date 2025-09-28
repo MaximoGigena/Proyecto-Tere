@@ -34,7 +34,7 @@
           :key="item.id"
           :to="item.path"
           class="flex flex-col items-center px-4 py-1 rounded-md transition relative"
-          :class="isActive(item.path) ? 'bg-white text-black' : 'text-gray-600 hover:text-black'"
+          :class="isActive(item) ? 'bg-white text-black' : 'text-gray-600 hover:text-black'"
         >
           <font-awesome-icon :icon="['fas', item.icon]" class="text-xl" />
           <span class="text-xs">{{ item.label }}</span>
@@ -86,13 +86,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { RouterLink } from 'vue-router'
 import huellas from '@/assets/huellas.png'
 import axios from 'axios'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthToken } from '@/composables/useAuthToken'
 import { watch } from 'vue'
 
 const animatedBg = ref(null)
 const route = useRoute()
 const router = useRouter()
-const authStore = useAuthStore()
+const { accessToken, isAuthenticated, setToken } = useAuthToken()
 const activo = ref('encuentros')
 const scrollContainer = ref(null)
 
@@ -117,16 +117,16 @@ async function handleTokenFromUrl() {
     try {
       console.log('Token encontrado en URL, procesando...')
       
-      // Guardar token en auth store
-      await authStore.setToken(token)
+      // Guardar token usando el composable
+      setToken(token)
       
       // Obtener información del usuario
       const response = await axios.get(`/api/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       
-      authStore.user = response.data
-      console.log('Usuario autenticado:', authStore.user)
+      // Aquí podrías guardar el usuario en un store si lo necesitas
+      console.log('Usuario autenticado:', response.data)
       
       // Limpiar la URL removiendo los parámetros del token
       const cleanUrl = window.location.pathname
@@ -157,10 +157,17 @@ const navItems = [
   { id: 'cerca', label: 'Cerca', icon: 'fa-location-dot', path: '/explorar/cerca' },
   { id: 'encuentros', label: 'Encuentros', icon: 'fa-paw', path: '/explorar/encuentros' },
   { id: 'chats', label: 'Chats', icon: 'fa-comment', path: '/explorar/chats' },
-  { id: 'perfil', label: 'Perfil', icon: 'fa-user', path: '/explorar/perfil/mascotas/' },
+  { id: 'perfil', label: 'Perfil', icon: 'fa-user', path: '/explorar/perfil/mascotas', base: '/explorar/perfil'},
 ]
 
-const isActive = (path) => route.path === path
+const isActive = (item) => {
+  if (item.base) {
+    return route.path.startsWith(item.base)
+  }
+  return route.path.startsWith(item.path.replace(/\/$/, ''))
+}
+
+
 
 onUnmounted(() => {
   document.body.style.overflow = 'auto'
@@ -170,8 +177,8 @@ onUnmounted(() => {
 async function pedirYGuardarUbicacion() {
   console.log('📍 Iniciando proceso de ubicación...');
   
-  // Verificar autenticación primero
-  if (!authStore.token) {
+  // Verificar autenticación usando el composable
+  if (!isAuthenticated.value) {
     console.log('Usuario no autenticado, no se solicita ubicación');
     return;
   }
@@ -225,7 +232,7 @@ async function pedirYGuardarUbicacion() {
     const { latitude, longitude, accuracy } = position.coords;
     console.log('Ubicación obtenida:', { latitude, longitude, accuracy });
 
-    // 4. Enviar ubicación al servidor usando el token de authStore
+    // 4. Enviar ubicación al servidor usando el token del composable
     console.log('Enviando ubicación al servidor...');
     const response = await axios.post('/api/guardar-ubicacion', {
       latitude,
@@ -237,7 +244,7 @@ async function pedirYGuardarUbicacion() {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
-        'Authorization': `Bearer ${authStore.token}` // Usar token del store
+        'Authorization': `Bearer ${accessToken.value}` // Usar token del composable
       }
     });
 
@@ -254,7 +261,6 @@ async function pedirYGuardarUbicacion() {
       alert('No se pudo obtener la ubicación. Verifica que el GPS esté activado.');
     } else if (error.response?.status === 401) {
       alert('Sesión expirada. Por favor inicia sesión nuevamente.');
-      authStore.logout();
       router.push('/login');
     } else {
       alert('Error al obtener la ubicación: ' + error.message);
@@ -262,15 +268,15 @@ async function pedirYGuardarUbicacion() {
   }
 }
 
- // Verificar autenticación usando authStore
- function checkAuth() {
-  if (!authStore.token) {
+ // Verificar autenticación usando el composable
+function checkAuth() {
+  if (!isAuthenticated.value) {
     console.log('Usuario no autenticado, redirigiendo a login');
     router.push('/login');
-    return; // ✅ ahora sí está dentro de una función
+    return false;
   }
+  return true;
 }
-
   
   console.log('Usuario autenticado, solicitando ubicación...');
   
@@ -283,8 +289,8 @@ async function pedirYGuardarUbicacion() {
 onMounted(async () => {
   await nextTick();
   
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
+  // Verificar autenticación usando el composable
+  if (!isAuthenticated.value) {
     console.log('Usuario no autenticado, no se solicita ubicación');
     // Redirigir a login si no está autenticado
     router.push('/login');

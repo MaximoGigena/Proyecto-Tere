@@ -36,38 +36,84 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import axios from 'axios'
 import MascotaCard from '@/components/módulo_mascotas/tarjetaMascota.vue'
+import { useAuthToken } from '@/composables/useAuthToken'
 
 const router = useRouter()
+const { accessToken, isAuthenticated, tokenData, loadTokenFromStorage } = useAuthToken()
 const mascotas = ref([])
 const loading = ref(true)
 
+// Logs para ver el estado del token
+console.log('[MascotasUsuario] Estado inicial del token:', {
+  accessToken: accessToken.value,
+  isAuthenticated: isAuthenticated.value,
+  tokenData: tokenData.value
+})
 
+// Watcher para monitorear cambios en el token
+watch(accessToken, (newToken, oldToken) => {
+  console.log('[MascotasUsuario] Token cambiado:', {
+    oldToken: oldToken ? `${oldToken.substring(0, 10)}...` : 'null',
+    newToken: newToken ? `${newToken.substring(0, 10)}...` : 'null'
+  })
+})
+
+watch(isAuthenticated, (newAuthStatus) => {
+  console.log('[MascotasUsuario] Estado autenticación cambiado:', newAuthStatus)
+})
 
 // Cargar mascotas al montar el componente
 const cargarMascotas = async () => {
   try {
     loading.value = true
+    
+    // Verificar autenticación antes de hacer la petición
+    if (!isAuthenticated.value) {
+      console.warn('[MascotasUsuario] Usuario no autenticado, intentando cargar token desde storage')
+      loadTokenFromStorage()
+      
+      if (!isAuthenticated.value) {
+        console.error('[MascotasUsuario] No hay token de autenticación disponible')
+        throw new Error('Usuario no autenticado')
+      }
+    }
+
+    console.log('[MascotasUsuario] Realizando petición a /api/mascotas con token:', {
+      tokenPresente: !!accessToken.value,
+      tokenInicio: accessToken.value ? `${accessToken.value.substring(0, 10)}...` : 'null'
+    })
+
     const response = await axios.get('/api/mascotas', {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Content-Type': 'application/json'
       }
     })
-    console.log('Respuesta del servidor:', response.data);
 
+    console.log('[MascotasUsuario] Respuesta del servidor:', {
+      success: response.data.success,
+      cantidadMascotas: response.data.mascotas?.length || 0
+    })
 
     if (response.data.success) {
       mascotas.value = response.data.mascotas.map(mascota => {
-        console.log('Mascota ID:', mascota.id, 'Fotos:', mascota.fotos);
+        console.log('[MascotasUsuario] Procesando mascota:', {
+          id: mascota.id,
+          nombre: mascota.nombre,
+          cantidadFotos: mascota.fotos?.length || 0
+        })
         
         let imagenUrl = 'https://cdn.pixabay.com/photo/2017/08/18/06/49/capybara-2653996_1280.jpg';
         
         if (mascota.fotos && mascota.fotos.length > 0) {
           const foto = mascota.fotos[0];
-          imagenUrl = foto.url; // 👈 usa el accessor que ya devuelve la URL completa
-          console.log('URL completa de la imagen desde accessor:', imagenUrl);
+          imagenUrl = foto.url;
+          console.log('[MascotasUsuario] URL de imagen desde accessor:', imagenUrl)
+        } else {
+          console.log('[MascotasUsuario] Usando imagen por defecto para mascota:', mascota.nombre)
         }
         
         return {
@@ -78,11 +124,24 @@ const cargarMascotas = async () => {
           imagen: imagenUrl
         }
       })
+
+      console.log('[MascotasUsuario] Mascotas cargadas exitosamente:', mascotas.value.length)
     }
   } catch (error) {
-    console.error('Error al cargar mascotas:', error)
+    console.error('[MascotasUsuario] Error al cargar mascotas:', {
+      error: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    })
+
+    // Manejo específico de errores de autenticación
+    if (error.response?.status === 401) {
+      console.warn('[MascotasUsuario] Token inválido o expirado')
+      // Aquí podrías redirigir al login o intentar refrescar el token
+    }
   } finally {
     loading.value = false
+    console.log('[MascotasUsuario] Carga de mascotas finalizada')
   }
 }
 

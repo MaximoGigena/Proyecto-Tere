@@ -1,7 +1,23 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
+import { onMounted } from 'vue'
 import home from './components/home.vue'
+import { useAuth } from '@/composables/useAuth'
 import './assets/styles.css'
+
+
+const { checkAuth, processTokenFromUrl } = useAuth()
+
+onMounted(async () => {
+  // Primero procesar token de URL (si viene de OAuth)
+  const hasTokenFromUrl = await processTokenFromUrl()
+  
+  // Si no hay token en URL, verificar autenticación existente
+  if (!hasTokenFromUrl) {
+    await checkAuth()
+  }
+})
+
 </script>
 
 <template>

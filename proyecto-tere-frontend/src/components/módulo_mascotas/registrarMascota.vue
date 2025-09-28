@@ -277,7 +277,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthToken } from '@/composables/useAuthToken' // Importar el composable
 import axios from "axios"
 
 axios.defaults.withCredentials = true
@@ -285,7 +285,8 @@ axios.defaults.baseURL = 'http://localhost:8000'
 
 const router = useRouter()
 const route = useRoute()
-const authStore = useAuthStore()
+const { accessToken, isAuthenticated } = useAuthToken() // Usar el composable
+
 
 const cargando = ref(false)
 const mensaje = ref('')
@@ -295,14 +296,19 @@ const mensajeExito = ref(false)
 const esEdicion = computed(() => route.name === 'editar-mascota' || !!route.params.id)
 const mascotaId = ref(null)
 
+// Función para verificar autenticación
+const verificarAutenticacion = () => {
+  if (!isAuthenticated.value) {
+    alert("Debes iniciar sesión.")
+    router.push('/')
+    return false
+  }
+  return true
+}
+
 // Cargar datos de la mascota si estamos editando
 onMounted(async () => {
-  const authenticated = await authStore.checkAuth()
-  if (!authenticated) {
-    alert("Debes iniciar sesión.")
-    router.push('/login')
-    return
-  }
+  if (!verificarAutenticacion()) return
 
   // Determinar si estamos en modo edición
   const esEdicionMode = route.name === 'editar-mascota' || !!route.params.id
@@ -313,13 +319,14 @@ onMounted(async () => {
   }
 })
 
+
 // Cargar datos de la mascota para editar
 const cargarMascota = async () => {
   try {
     cargando.value = true
     const response = await axios.get(`/api/mascotas/${mascotaId.value}`, {
       headers: {
-        'Authorization': `Bearer ${authStore.token}`,
+        'Authorization': `Bearer ${accessToken.value}`, // Usar accessToken del composable
       }
     })
 
@@ -358,12 +365,12 @@ const cargarMascota = async () => {
           if (index < 6) {
             fotos.value[index] = {
               archivo: null,
-              preview: foto.url, // 👈 USAR EL ACCESOR 'url' EN LUGAR DE CONSTRUIR LA URL MANUALMENTE
+              preview: foto.url,
               id: foto.id,
               esExistente: true,
               paraEliminar: false
             }
-            console.log('Foto cargada:', foto.url); // Para debug
+            console.log('Foto cargada:', foto.url);
           }
         })
       }
@@ -372,12 +379,21 @@ const cargarMascota = async () => {
     }
   } catch (error) {
     console.error('Error al cargar mascota:', error)
+    
+    // Manejar errores de autenticación
+    if (error.response?.status === 401) {
+      alert('Tu sesión ha expirado. Por favor inicia sesión nuevamente.')
+      router.push('/login')
+      return
+    }
+    
     alert('Error al cargar los datos de la mascota')
     router.back()
   } finally {
     cargando.value = false
   }
 }
+
 
 function confirmarCancelar() {
   if (window.confirm("¿Estás seguro de que deseas cancelar y volver?")) {
@@ -441,6 +457,9 @@ const quitarFoto = (index) => {
 
 // Función para actualizar mascota
 const actualizarMascota = async () => {
+  // Verificar autenticación antes de proceder
+  if (!verificarAutenticacion()) return
+  
   cargando.value = true
   mensaje.value = ''
   mensajeExito.value = false
@@ -454,7 +473,7 @@ const actualizarMascota = async () => {
     formData.append('edad', mascota.value.edad)
     formData.append('unidad_edad', mascota.value.unidadEdad)
     formData.append('sexo', mascota.value.sexo)
-    formData.append('_method', 'PUT') // Para Laravel ya que usamos POST para PUT
+    formData.append('_method', 'PUT')
 
     // Opcionales
     if (mascota.value.tamaño) formData.append('tamano', mascota.value.tamaño)
@@ -484,7 +503,7 @@ const actualizarMascota = async () => {
       headers: {
         'Content-Type': 'multipart/form-data',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${authStore.token}`,
+        'Authorization': `Bearer ${accessToken.value}`, // Usar accessToken del composable
       }
     })
 
@@ -496,6 +515,14 @@ const actualizarMascota = async () => {
 
   } catch (error) {
     console.error('Error al actualizar:', error)
+    
+    // Manejar errores de autenticación
+    if (error.response?.status === 401) {
+      mensaje.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
+      router.push('/login')
+      return
+    }
+    
     if (error.response?.status === 422) {
       const errores = error.response.data.errors
       let mensajeError = 'Errores de validación:\n'
@@ -514,7 +541,11 @@ const actualizarMascota = async () => {
   }
 }
 
+
 const registrarMascota = async () => {
+  // Verificar autenticación antes de proceder
+  if (!verificarAutenticacion()) return
+  
   cargando.value = true
   mensaje.value = ''
   mensajeExito.value = false
@@ -530,13 +561,13 @@ const registrarMascota = async () => {
     formData.append('unidad_edad', mascota.value.unidadEdad)
     formData.append('sexo', mascota.value.sexo)
 
-    // Opcionales (asegurate de que coincidan con Laravel)
-    if (mascota.value.tamaño) formData.append('tamano', mascota.value.tamaño) // 👈 corregí sin tilde
+    // Opcionales
+    if (mascota.value.tamaño) formData.append('tamano', mascota.value.tamaño)
     if (mascota.value.pelaje) formData.append('pelaje', mascota.value.pelaje)
     if (mascota.value.alimentacion) formData.append('alimentacion', mascota.value.alimentacion)
     if (mascota.value.energia) formData.append('energia', mascota.value.energia)
     if (mascota.value.comportamientoAnimales) formData.append('comportamiento_animales', mascota.value.comportamientoAnimales)
-    if (mascota.value.comportamientoNiños) formData.append('comportamiento_ninos', mascota.value.comportamientoNiños) // 👈 corregí sin ñ
+    if (mascota.value.comportamientoNiños) formData.append('comportamiento_ninos', mascota.value.comportamientoNiños)
     if (mascota.value.personalidad) formData.append('personalidad', mascota.value.personalidad)
     if (mascota.value.descripcion) formData.append('descripcion', mascota.value.descripcion)
 
@@ -552,12 +583,11 @@ const registrarMascota = async () => {
       console.log(key, value)
     }
 
-
     const response = await axios.post('/api/mascotas', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${authStore.token}`,
+        'Authorization': `Bearer ${accessToken.value}`, // Usar accessToken del composable
       }
     })
 
@@ -568,29 +598,32 @@ const registrarMascota = async () => {
     }
 
   } catch (error) {
-  console.error('Error completo:', error)
-  
-  // MÁS DETALLES DEL ERROR 422
-  if (error.response?.status === 422) {
-    console.error('Errores de validación DETALLADOS:', error.response.data)
-    const errores = error.response.data.errors
-    let mensajeError = 'Errores de validación:\n'
+    console.error('Error completo:', error)
     
-    for (const campo in errores) {
-      mensajeError += `- ${campo}: ${errores[campo].join(', ')}\n`
+    // Manejar errores de autenticación
+    if (error.response?.status === 401) {
+      mensaje.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
+      router.push('/login')
+      return
     }
     
-    mensaje.value = mensajeError
-    alert(mensajeError) // 👈 Esto te mostrará EXACTAMENTE qué campo falla
-  } 
-  else if (error.response?.status === 401 || error.message.includes('No autenticado')) {
-    mensaje.value = 'No estás autenticado. Por favor inicia sesión nuevamente.'
-    router.push('/login')
-  } else {
-    mensaje.value = error.response?.data?.message || error.message || 'Error al registrar la mascota.'
+    if (error.response?.status === 422) {
+      console.error('Errores de validación DETALLADOS:', error.response.data)
+      const errores = error.response.data.errors
+      let mensajeError = 'Errores de validación:\n'
+      
+      for (const campo in errores) {
+        mensajeError += `- ${campo}: ${errores[campo].join(', ')}\n`
+      }
+      
+      mensaje.value = mensajeError
+      alert(mensajeError)
+    } else {
+      mensaje.value = error.response?.data?.message || error.message || 'Error al registrar la mascota.'
+    }
+  } finally {
+    cargando.value = false
   }
-}  
-cargando.value = false
 }
 </script>
 
