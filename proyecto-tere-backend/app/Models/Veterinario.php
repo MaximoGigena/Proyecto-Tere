@@ -19,10 +19,85 @@ class Veterinario extends Model
         'foto',
         'activo',    
         'user_type',
-        'google_id' 
+        'google_id',
+        'estado',
     ];
 
     protected $table = 'veterinarios';
+
+    // Estados posibles
+    const ESTADO_PENDIENTE = 'pendiente';
+    const ESTADO_APROBADO = 'aprobado';
+    const ESTADO_RECHAZADO = 'rechazado';
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted()
+    {
+        static::creating(function ($veterinario) {
+            if (empty($veterinario->estado)) {
+                $veterinario->estado = self::ESTADO_PENDIENTE;
+            }
+        });
+    }
+
+    /**
+     * Scope para veterinarios pendientes
+     */
+    public function scopePendientes($query)
+    {
+        return $query->where('estado', self::ESTADO_PENDIENTE);
+    }
+
+    /**
+     * Scope para veterinarios aprobados
+     */
+    public function scopeAprobados($query)
+    {
+        return $query->where('estado', self::ESTADO_APROBADO);
+    }
+
+    /**
+     * Scope para veterinarios rechazados
+     */
+    public function scopeRechazados($query)
+    {
+        return $query->where('estado', self::ESTADO_RECHAZADO);
+    }
+
+    /**
+     * Scope para veterinarios activos (aprobados y activo=true)
+     */
+    public function scopeActivos($query)
+    {
+        return $query->where('estado', self::ESTADO_APROBADO)
+                    ->where('activo', true);
+    }
+
+    /**
+     * Verificar si el veterinario está pendiente
+     */
+    public function estaPendiente()
+    {
+        return $this->estado === self::ESTADO_PENDIENTE;
+    }
+
+    /**
+     * Verificar si el veterinario está aprobado
+     */
+    public function estaAprobado()
+    {
+        return $this->estado === self::ESTADO_APROBADO;
+    }
+
+    /**
+     * Verificar si el veterinario está rechazado
+     */
+    public function estaRechazado()
+    {
+        return $this->estado === self::ESTADO_RECHAZADO;
+    }
 
     public function caracteristicas(): HasOne
     {

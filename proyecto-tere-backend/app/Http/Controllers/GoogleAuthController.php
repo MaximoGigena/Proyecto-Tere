@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Usuario;
 use App\Models\Veterinario;
 use App\Models\Administrador;
+use App\Models\SolicitudVeterinario;
 use Illuminate\Http\Request;
 use Google\Client as GoogleClient;
 use Illuminate\Support\Facades\Auth;
@@ -42,13 +43,14 @@ class GoogleAuthController extends Controller
             $client->setRedirectUri(env('GOOGLE_REDIRECT_URI'));
 
             if (!$request->has('code')) {
+                Log::error('Google Callback: No code parameter');
                 return redirect('http://localhost:5173/login?error=no_code');
             }
 
             $token = $client->fetchAccessTokenWithAuthCode($request->code);
 
             if (isset($token['error'])) {
-                Log::error('Google Token Error: ' . $token['error']);
+                Log::error('Google Token Error: ' . json_encode($token));
                 return redirect('http://localhost:5173/login?error=auth_failed');
             }
 
@@ -56,19 +58,25 @@ class GoogleAuthController extends Controller
             $oauth = new \Google\Service\Oauth2($client);
             $googleUser = $oauth->userinfo->get();
 
-            // Buscar en la tabla users (autenticación principal)
+            Log::info('Google User Info: ', [
+                'email' => $googleUser->email,
+                'id' => $googleUser->id,
+                'name' => $googleUser->name
+            ]);
+
+            // Buscar usuario existente
             $authUser = User::where('email', $googleUser->email)->first();
 
             if ($authUser) {
                 Auth::login($authUser);
                 $sanctumToken = $authUser->createToken('web')->plainTextToken;
 
-                // ✅ REDIRECCIÓN SEGÚN TIPO DE USUARIO (ACTUALIZADO)
-                $redirectUrl = $this->getRedirectUrlByUserType($authUser);
-                return redirect($redirectUrl . '?token=' . $sanctumToken . '&user_id=' . $authUser->id);
+                // ✅ ACTUALIZADO: Redirigir según el estado del usuario/veterinario
+                $redirectUrl = $this->getRedirectUrlByUserAndStatus($authUser);
+                return redirect($redirectUrl . '#token=' . $sanctumToken . '&user_id=' . $authUser->id);
             }
 
-            // Usuario nuevo: preparar datos temporales
+            // Usuario nuevo
             $tempUserData = [
                 'email' => $googleUser->email,
                 'nombre' => $googleUser->name,
@@ -82,17 +90,41 @@ class GoogleAuthController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Google Callback Error: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             return redirect('http://localhost:5173/login?error=server_error');
         }
     }
 
-    // ✅ NUEVO MÉTODO PARA REDIRECCIÓN
-    private function getRedirectUrlByUserType($user)
+    /**
+     * @param \App\Models\User $user
+     * @return string
+     */
+    private function getRedirectUrlByUserAndStatus(User $user)
     {
         if ($user->isAdministrador()) {
             return 'http://localhost:5173/administradores';
         } elseif ($user->isVeterinario()) {
-            return 'http://localhost:5173/veterinarios/busqueda';
+            // Obtener el modelo veterinario asociado
+            $veterinario = $user->userable;
+            
+            if ($veterinario) {
+                switch ($veterinario->estado) {
+                    case Veterinario::ESTADO_PENDIENTE:
+                        return 'http://localhost:5173/veterinario-pendiente';
+                    
+                    case Veterinario::ESTADO_APROBADO:
+                        return 'http://localhost:5173/veterinarios/busqueda';
+                    
+                    case Veterinario::ESTADO_RECHAZADO:
+                        return 'http://localhost:5173/veterinario-rechazado';
+                    
+                    default:
+                        return 'http://localhost:5173/veterinario-pendiente';
+                }
+            }
+            
+            // Si no se encuentra el veterinario, redirigir a pendiente
+            return 'http://localhost:5173/veterinario-pendiente';
         } else {
             return 'http://localhost:5173/explorar/encuentros';
         }
@@ -125,14 +157,20 @@ class GoogleAuthController extends Controller
                     break;
 
                 case 'veterinario':
+                    // Crear veterinario con estado pendiente
                     $specificUser = Veterinario::create([
                         'nombre_completo' => $validated['nombre'],
                         'google_id' => $validated['google_id'],
                         'matricula' => $validated['matricula'],
                         'especialidad' => $validated['especialidad'],
                         'foto' => $request->foto_perfil,
+                        'estado' => Veterinario::ESTADO_PENDIENTE, // Estado inicial pendiente
+                        'activo' => false, // Inactivo hasta ser aprobado
                     ]);
                     $userableType = 'App\Models\Veterinario';
+                    
+                    // ✅ Crear también la solicitud para el administrador
+                    $this->crearSolicitudVeterinario($specificUser, $validated);
                     break;
 
                 case 'administrador':
@@ -140,7 +178,7 @@ class GoogleAuthController extends Controller
                         'nombre_completo' => $validated['nombre'],
                         'nivel_acceso' => $validated['nivel_acceso'],
                         'google_id' => $validated['google_id'],
-                        'user_type' => 'admin', // ✅ Valor por defecto para admin
+                        'user_type' => 'admin',
                         'activo' => true,
                     ]);
                     $userableType = 'App\Models\Administrador';
@@ -153,12 +191,12 @@ class GoogleAuthController extends Controller
                 'password' => Hash::make(uniqid()),
                 'userable_type' => $userableType,
                 'userable_id' => $specificUser->id,
+                'estado' => ($validated['user_type'] === 'veterinario') ? 'pendiente' : 'activo'
             ]);
 
             // Autenticar y generar token
             Auth::login($authUser);
             $token = $authUser->createToken('web')->plainTextToken;
-
 
             return response()->json([
                 'success' => true,
@@ -166,10 +204,11 @@ class GoogleAuthController extends Controller
                     'id' => $authUser->id,
                     'email' => $authUser->email,
                     'nombre' => $authUser->nombre,
-                    'type' => $validated['user_type']
+                    'type' => $validated['user_type'],
+                    'estado' => ($validated['user_type'] === 'veterinario') ? 'pendiente' : 'activo'
                 ],
                 'token' => $token,
-                'redirect_url' => $this->getRedirectUrlByUserType($authUser) // ✅ Usar el mismo método
+                'redirect_url' => $this->getRedirectUrlByUserAndStatus($authUser) // ✅ Usar el método actualizado
             ]);
 
         } catch (\Exception $e) {
@@ -177,6 +216,63 @@ class GoogleAuthController extends Controller
             return response()->json([
                 'error' => 'Registration failed',
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // ✅ NUEVO MÉTODO: Crear solicitud para veterinarios
+    private function crearSolicitudVeterinario($veterinario, $data)
+    {
+        try {
+            SolicitudVeterinario::create([
+                'nombre_completo' => $veterinario->nombre_completo,
+                'email' => $data['email'], // Email del usuario
+                'matricula' => $veterinario->matricula,
+                'especialidad' => $veterinario->especialidad,
+                'anos_experiencia' => 0, // Puedes añadir este campo al formulario si lo necesitas
+                'descripcion' => null, // Puedes añadir este campo al formulario
+                'telefono' => null, // Puedes añadir este campo al formulario
+                'email_contacto' => $data['email'],
+                'fotos' => $veterinario->foto ? [$veterinario->foto] : [],
+                'estado' => SolicitudVeterinario::ESTADO_PENDIENTE,
+                'fecha_solicitud' => now()
+            ]);
+
+            Log::info('Solicitud creada para veterinario: ' . $veterinario->id);
+            
+        } catch (\Exception $e) {
+            Log::error('Error creando solicitud para veterinario: ' . $e->getMessage());
+            // No lanzar excepción para no interrumpir el registro principal
+        }
+    }
+
+    // ✅ NUEVO MÉTODO: Verificar estado del veterinario (para uso en frontend)
+    public function verificarEstadoVeterinario(Request $request)
+    {
+        try {
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+            
+            if (!$user->isVeterinario()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El usuario no es un veterinario'
+                ], 400);
+            }
+
+            $veterinario = $user->userable;
+            
+            return response()->json([
+                'success' => true,
+                'estado' => $veterinario->estado,
+                'redirect_url' => $this->getRedirectUrlByUserAndStatus($user)
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error verificando estado del veterinario: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al verificar el estado'
             ], 500);
         }
     }

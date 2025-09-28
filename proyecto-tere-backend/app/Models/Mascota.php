@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Mascota extends Model
 {
@@ -43,16 +44,18 @@ class Mascota extends Model
     // Método para dar de baja
     public function darDeBaja(int $motivoBajaId, ?string $observacion = null, int $usuarioId): bool
     {
-        // Crear registro de baja
-        $baja = BajaMascota::create([
-            'mascota_id' => $this->id,
-            'motivo_baja_id' => $motivoBajaId,
-            'observacion' => $observacion,
-            'usuario_id' => $usuarioId
-        ]);
-        
-        // Soft delete de la mascota
-        return $this->delete();
+        return DB::transaction(function () use ($motivoBajaId, $observacion, $usuarioId) {
+            // Crear registro de baja
+            $baja = BajaMascota::create([
+                'mascota_id' => $this->id,
+                'motivo_baja_id' => $motivoBajaId,
+                'observacion' => $observacion,
+                'usuario_id' => $usuarioId
+            ]);
+            
+            // Soft delete de la mascota
+            return $this->delete();
+        });
     }
     
     // Verificar si está dada de baja

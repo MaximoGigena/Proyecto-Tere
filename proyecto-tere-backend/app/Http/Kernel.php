@@ -16,10 +16,12 @@ class Kernel extends HttpKernel
         \Illuminate\Http\Middleware\HandleCors::class,
         \App\Http\Middleware\RegistrarMascota::class,
         \App\Http\Middleware\CheckUserType::class,
+        \App\Http\Middleware\AdminMiddleware::class,
     ];
 
     protected $routeMiddleware = [
         'user.type' => \App\Http\Middleware\CheckUserType::class,
+        'admin' => \App\Http\Middleware\AdminMiddleware::class,
     ];
 
     protected $middlewareGroups = [
