@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('foto')->nullable();
             $table->string('user_type')->default('free');
             $table->string('google_id')->nullable();
+            $table->enum('estado', ['pendiente', 'aprobado', 'rechazado'])->default('pendiente');
             $table->timestamps();
         });
     }

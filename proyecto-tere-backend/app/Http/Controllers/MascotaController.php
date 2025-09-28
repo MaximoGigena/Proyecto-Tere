@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Mascota;
 use App\Models\CaracteristicasMascota;
 use App\Models\MascotaFoto; 
+use App\Models\MotivoBaja;
+use App\Models\BajaMascota;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class MascotaController extends Controller
 {
@@ -171,15 +174,116 @@ class MascotaController extends Controller
     public function index()
     {
         // 🔑 Obtener el usuario real (tabla usuarios)
-        $usuario = Auth::user()->userable;
-
-        $mascotas = Mascota::with(['caracteristicas', 'fotos'])
+        $user = Auth::user();
+        $usuario = $user->userable;
+        
+        $mascotas = Mascota::with(['caracteristicas', 'fotos', 'baja'])
             ->where('usuario_id', $usuario->id)
+            ->whereNull('deleted_at') // Solo mascotas activas
             ->get();
 
         return response()->json([
             'success' => true,
             'mascotas' => $mascotas
         ]);
+    }
+
+   // En MascotaController.php - CORREGIR ESTE MÉTODO
+    public function darDeBaja(Request $request, $id)
+    {
+        // Validar que el ID sea numérico
+        if (!is_numeric($id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'ID de mascota inválido'
+            ], 422);
+        }
+
+        // Validar los datos de la baja
+        $request->validate([
+            'motivo_baja_id' => 'required|integer|exists:motivos_baja,id',
+            'observacion' => 'nullable|string|max:500'
+        ]);
+
+        $usuario = Auth::user()->userable;
+
+        try {
+            // Buscar la mascota del usuario
+            $mascota = Mascota::where('id', $id)
+                ->where('usuario_id', $usuario->id)
+                ->first();
+
+            if (!$mascota) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mascota no encontrada'
+                ], 404);
+            }
+
+            // Verificar que la mascota no esté ya dada de baja
+            if ($mascota->trashed()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La mascota ya está dada de baja'
+                ], 409);
+            }
+
+            // Usar el método del modelo para dar de baja
+            $resultado = $mascota->darDeBaja(
+                $request->motivo_baja_id,
+                $request->observacion,
+                $usuario->id
+            );
+
+            if ($resultado) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Mascota dada de baja correctamente'
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al dar de baja la mascota'
+            ], 500);
+
+        } catch (\Exception $e) {
+            Log::error('Error al dar de baja mascota ID ' . $id . ': ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno del servidor: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // En MascotaController.php
+    public function obtenerMotivosBaja()
+    {
+        try {
+            $motivos = MotivoBaja::where('activo', true)
+                ->get(['id', 'descripcion']);
+
+            return response()->json([
+                'success' => true,
+                'motivos' => $motivos
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error al obtener motivos de baja: ' . $e->getMessage());
+            
+            // Fallback con motivos por defecto
+            $motivosPorDefecto = [
+                ['id' => 1, 'descripcion' => 'Fallecimiento de la mascota'],
+                ['id' => 2, 'descripcion' => 'Extraviada'],
+                ['id' => 3, 'descripcion' => 'Adoptada por otra persona'],
+                ['id' => 4, 'descripcion' => 'Traslado de domicilio'],
+                ['id' => 5, 'descripcion' => 'Problemas de convivencia'],
+            ];
+
+            return response()->json([
+                'success' => true,
+                'motivos' => $motivosPorDefecto
+            ]);
+        }
     }
 }

@@ -18,6 +18,7 @@ return new class extends Migration
             $table->integer('edad');
             $table->enum('unidad_edad', ['Dias', 'Meses', 'Años']);
             $table->enum('sexo', ['macho', 'hembra']);
+            $table->timestamp('deleted_at')->nullable();
             $table->foreignId('usuario_id')
             ->references('id')
             ->on('usuarios')
