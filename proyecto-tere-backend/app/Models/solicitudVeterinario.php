@@ -4,12 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class SolicitudVeterinario extends Model
 {
     use HasFactory;
 
     protected $table = 'solicitudes_veterinarios';
+
+    protected $casts = [
+        'fotos' => 'array', 
+        'fecha_solicitud' => 'datetime',
+        'anos_experiencia' => 'integer'
+    ];
 
     protected $fillable = [
         'nombre_completo',
@@ -26,11 +33,6 @@ class SolicitudVeterinario extends Model
         'observaciones'
     ];
 
-    protected $casts = [
-        'fotos' => 'array',
-        'fecha_solicitud' => 'datetime',
-        'anos_experiencia' => 'integer'
-    ];
 
     // Estados posibles
     const ESTADO_PENDIENTE = 'pendiente';
@@ -50,6 +52,33 @@ class SolicitudVeterinario extends Model
                 $solicitud->fecha_solicitud = now();
             }
         });
+    }
+
+    
+    /**
+     * Accesor para obtener las URLs completas de las fotos
+     */
+    public function getFotosUrlsAttribute()
+    {
+        if (empty($this->fotos)) {
+            return [];
+        }
+
+        return array_map(function ($foto) {
+            return Storage::url($foto);
+        }, $this->fotos);
+    }
+
+    /**
+     * Accesor para la primera foto (útil para vistas de lista)
+     */
+    public function getFotoPrincipalAttribute()
+    {
+        if (empty($this->fotos)) {
+            return null;
+        }
+
+        return Storage::url($this->fotos[0]);
     }
 
     /**

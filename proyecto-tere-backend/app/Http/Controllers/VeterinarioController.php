@@ -269,13 +269,10 @@ class VeterinarioController extends Controller
             ->orderBy('fecha_solicitud', 'desc')
             ->get()
             ->map(function ($solicitud) {
-                // Convertir rutas de fotos a URLs completas
-                if ($solicitud->fotos) {
-                    $solicitud->fotos = array_map(function ($foto) {
-                        return Storage::url($foto);
-                    }, $solicitud->fotos);
-                }
-                return $solicitud;
+                // Incluir las URLs de las fotos usando el accesor
+                $solicitudData = $solicitud->toArray();
+                $solicitudData['fotos_urls'] = $solicitud->fotos_urls;
+                return $solicitudData;
             });
 
         return response()->json([

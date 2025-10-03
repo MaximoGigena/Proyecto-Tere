@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('telefono', 20)->nullable();
             $table->string('email', 100)->nullable()->unique(); 
             $table->string('nombre_completo', 200)->nullable(); 
+            $table->timestamp('deleted_at')->nullable();
             $table->timestamps();
             
             // Índices para mejorar el rendimiento

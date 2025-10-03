@@ -24,7 +24,13 @@ class Usuario extends Model
 
     public function caracteristicas()
     {
-        return $this->hasMany(CaracteristicasUsuario::class, 'usuario_id');
+        return $this->hasOne(CaracteristicasUsuario::class, 'usuario_id');
+    }
+
+    // AGREGAR: relación con contacto
+    public function contacto()
+    {
+        return $this->hasOne(ContactoUsuario::class, 'usuario_id');
     }
 
      /**
