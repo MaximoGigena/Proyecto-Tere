@@ -108,19 +108,20 @@
           <p class="text-gray-700 bg-gray-50 p-3 rounded">{{ seleccionado.descripcion || 'No proporcionada' }}</p>
         </div>
         
-        <div v-if="seleccionado.fotos && seleccionado.fotos.length > 0" class="mt-4">
-          <h4 class="font-semibold mb-2">Fotos Adjuntas</h4>
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-            <img 
-              v-for="(foto, index) in seleccionado.fotos" 
-              :key="index"
-              :src="getFotoUrl(foto)" 
-              :alt="`Foto ${index + 1}`"
-              class="w-full h-24 object-cover rounded cursor-pointer"
-              @click="ampliarFoto(getFotoUrl(foto))"
-            />
-          </div>
+        <div v-if="seleccionado.fotos_urls && seleccionado.fotos_urls.length > 0" class="mt-4">
+        <h4 class="font-semibold mb-2">Fotos Adjuntas</h4>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+          <img 
+            v-for="(foto, index) in seleccionado.fotos_urls" 
+            :key="index"
+            :src="getFotoUrl(foto)" 
+            :alt="`Foto ${index + 1}`"
+            class="w-full h-24 object-cover rounded cursor-pointer"
+            @click="ampliarFoto(getFotoUrl(foto))"
+          />
         </div>
+      </div>
+
         
         <button @click="detalleVisible = false" class="mt-6 bg-gray-300 px-4 py-2 rounded hover:bg-gray-400 w-full">
           Cerrar
@@ -248,7 +249,16 @@ const verDetalle = (solicitud) => {
   detalleVisible.value = true
 }
 
-const getFotoUrl = (fotoPath) => `http://localhost:8000/storage/${fotoPath}`
+const getFotoUrl = (fotoPath) => {
+  if (!fotoPath) return null
+  // Si ya viene con http, lo dejamos como está
+  if (fotoPath.startsWith('http')) {
+    return fotoPath
+  }
+  // Si viene relativo (/storage/...), le agregamos la URL base
+  return `http://localhost:8000${fotoPath}`
+}
+
 const ampliarFoto = (fotoUrl) => { fotoAmpliada.value = fotoUrl }
 
 const formatFecha = (fecha) => {

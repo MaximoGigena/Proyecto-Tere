@@ -1,13 +1,17 @@
-// composables/useAuth.ts
+// composables/useAuth.ts - VERSIÓN CORREGIDA
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { useAuthToken } from './useAuthToken'
+import { useAuthToken } from './useAuthToken.js'
+
+interface User {
+  id: string
+}  // <-- QUITA LA LLAVE EXTRA QUE ESTÁ AQUÍ
 
 export const useAuth = () => {
   const router = useRouter()
   const { setToken, clearToken, accessToken, isAuthenticated } = useAuthToken()
-  const user = ref(null)
+  const user = ref<User | null>(null)  
   const loading = ref(false)
 
   // Procesar token desde URL (fragment identifier)
@@ -42,11 +46,12 @@ export const useAuth = () => {
   const fetchUser = async (userId?: string) => {
     try {
       loading.value = true
-      
+        
       const id = userId || user.value?.id
       if (!id) throw new Error('No user ID available')
 
-      const response = await axios.get(`http://localhost:8000/api/users/${id}`, {
+      // ✅ CAMBIAR ESTA LÍNEA - usar el endpoint correcto
+      const response = await axios.get(`/api/usuarios/${id}`, {
         headers: {
           'Authorization': `Bearer ${accessToken.value}`,
           'Accept': 'application/json'

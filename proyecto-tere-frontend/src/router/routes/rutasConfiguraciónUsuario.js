@@ -1,5 +1,5 @@
 import ConfiguracionUsuario from '@/components/módulo_usuario/configuracionesUsuario.vue'
-import EditarDatosUsuario from '@/components/módulo_usuario/editarDatosUsuario.vue'
+import EditarDatosUsuario from '@/components/módulo_usuario/registrarUsuario.vue'
 
 export const ConfiguracionesUsuario = [
   {

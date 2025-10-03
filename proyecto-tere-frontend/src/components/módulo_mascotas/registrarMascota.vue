@@ -15,7 +15,7 @@
         </h5>
         <div class="flex-grow border-t border-gray-600"></div>
       </div>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8"> <!-- Contenedor grid de dos columnas -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <!-- Columna izquierda - Formulario -->
             <div class="space-y-4">
               <div>
@@ -29,22 +29,8 @@
               </div>
 
               <div>
-                <label class="block font-medium">Especie</label>
-                <select
-                 v-model="mascota.especie"
-                 required
-                 class="w-full border rounded p-2"
-                >
-                 <option disabled value="">Seleccionar</option>
-                 <option value="perro">Perro</option>
-                 <option value="gato">Gato</option>
-                 <option value="otro">Otro</option>
-                </select>
-              </div>
-
-              <div>
                 <label class="block font-medium">Edad</label>
-                <div class="flex gap-2"> <!-- Contenedor flex con espacio entre elementos -->
+                <div class="flex gap-2">
                   <input
                   v-model.number="mascota.edad"
                   type="number"
@@ -74,6 +60,73 @@
                  <option value="macho">Macho</option>
                  <option value="hembra">Hembra</option>
                 </select>
+              </div>
+
+              <div>
+                <label class="block font-medium mb-2">Especie</label>
+
+                <div class="flex items-center justify-center gap-4">
+                  <!-- Botón anterior -->
+                  <button
+                    type="button"
+                    @click="prevEspecie"
+                    class="p-2 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white transition-all duration-300 transform hover:scale-110 shadow-lg"
+                  >
+                    ‹
+                  </button>
+
+                  <!-- Contenedor del carrusel con animación -->
+                  <div class="relative overflow-hidden w-32 h-32">
+                    <div 
+                      class="flex transition-transform duration-500 ease-in-out"
+                      :style="{ transform: `translateX(-${especieIndex * 100}%)` }"
+                    >
+                      <!-- Icono y nombre con colores y animación -->
+                      <div
+                        v-for="(especie, index) in especies"
+                        :key="especie.value"
+                        class="flex-shrink-0 w-32 h-32 flex flex-col items-center justify-center p-4 rounded-2xl transition-all duration-300 transform cursor-pointer min-w-32"
+                        :class="[
+                          getColorClasses(index),
+                          mascota.especie === especie.value 
+                            ? 'scale-110 shadow-2xl ring-4 ring-white ring-opacity-50' 
+                            : 'scale-100 opacity-70 hover:opacity-90 hover:scale-105'
+                        ]"
+                        @click="seleccionarEspecie(especie.value)"
+                      >
+                        <font-awesome-icon 
+                          :icon="especie.icon" 
+                          class="text-4xl mb-2 text-white drop-shadow-md" 
+                        />
+                        <span class="text-white font-semibold text-sm drop-shadow-md text-center">{{ especie.label }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Botón siguiente -->
+                  <button
+                    type="button"
+                    @click="nextEspecie"
+                    class="p-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white transition-all duration-300 transform hover:scale-110 shadow-lg"
+                  >
+                    ›
+                  </button>
+                </div>
+
+                <!-- Indicadores del carrusel -->
+                <div class="flex justify-center mt-4 space-x-2">
+                  <button
+                    v-for="(especie, index) in especies"
+                    :key="index"
+                    @click="especieIndex = index"
+                    class="w-3 h-3 rounded-full transition-all duration-300"
+                    :class="[
+                      index === especieIndex 
+                        ? getDotColor(index) + ' transform scale-125' 
+                        : 'bg-gray-300'
+                    ]"
+                  ></button>
+                </div>
               </div>
           </div>
 
@@ -126,6 +179,7 @@
         </div>
       </div>
 
+      <!-- Resto del código se mantiene igual -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
         <h5 class="px-4 text-center font-bold text-gray-800 whitespace-nowrap">
@@ -287,6 +341,52 @@ const router = useRouter()
 const route = useRoute()
 const { accessToken, isAuthenticated } = useAuthToken() // Usar el composable
 
+const especies = [
+  { value: 'perro', label: 'Perro', icon: ['fas', 'dog'] },
+  { value: 'gato', label: 'Gato', icon: ['fas', 'cat'] },
+  { value: 'otro', label: 'Otro', icon: ['fas', 'paw'] }
+]
+
+const especieIndex = ref(0)
+
+// Función para obtener clases de color según el índice
+const getColorClasses = (index) => {
+  const colors = [
+    'bg-gradient-to-br from-blue-500 to-purple-600', // Perro
+    'bg-gradient-to-br from-pink-500 to-red-600',    // Gato
+    'bg-gradient-to-br from-green-500 to-teal-600'   // Otro
+  ]
+  return colors[index] || colors[0]
+}
+
+// Función para obtener color de los dots indicadores
+const getDotColor = (index) => {
+  const colors = [
+    'bg-gradient-to-r from-blue-500 to-purple-500', // Perro
+    'bg-gradient-to-r from-pink-500 to-red-500',    // Gato
+    'bg-gradient-to-r from-green-500 to-teal-500'   // Otro
+  ]
+  return colors[index] || colors[0]
+}
+
+const seleccionarEspecie = (value) => {
+  mascota.value.especie = value
+  // Encontrar el índice de la especie seleccionada
+  const index = especies.findIndex(e => e.value === value)
+  if (index !== -1) {
+    especieIndex.value = index
+  }
+}
+
+const prevEspecie = () => {
+  especieIndex.value = (especieIndex.value - 1 + especies.length) % especies.length
+  mascota.value.especie = especies[especieIndex.value].value
+}
+
+const nextEspecie = () => {
+  especieIndex.value = (especieIndex.value + 1) % especies.length
+  mascota.value.especie = especies[especieIndex.value].value
+}
 
 const cargando = ref(false)
 const mensaje = ref('')
@@ -309,6 +409,12 @@ const verificarAutenticacion = () => {
 // Cargar datos de la mascota si estamos editando
 onMounted(async () => {
   if (!verificarAutenticacion()) return
+
+  // Si ya hay una especie seleccionada (carrusel de especies), actualizar el índice
+  if (mascota.value.especie) {
+    const index = especies.findIndex(e => e.value === mascota.value.especie)
+    if (index !== -1) especieIndex.value = index
+  }
 
   // Determinar si estamos en modo edición
   const esEdicionMode = route.name === 'editar-mascota' || !!route.params.id

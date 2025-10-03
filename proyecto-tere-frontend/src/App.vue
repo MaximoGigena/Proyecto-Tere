@@ -8,13 +8,19 @@ import './assets/styles.css'
 
 const { checkAuth, processTokenFromUrl } = useAuth()
 
+
+// En App.vue - AGREGAR ESTO
 onMounted(async () => {
-  // Primero procesar token de URL (si viene de OAuth)
-  const hasTokenFromUrl = await processTokenFromUrl()
+  console.log('🔐 APP - Verificando autenticación...')
   
-  // Si no hay token en URL, verificar autenticación existente
-  if (!hasTokenFromUrl) {
-    await checkAuth()
+  // Verificar si hay token en localStorage
+  const token = localStorage.getItem('auth_token')
+  console.log('📦 Token en localStorage:', token ? 'SÍ' : 'NO')
+  
+  // Procesar token SIEMPRE al cargar la app
+  const hasToken = await processTokenFromUrl()
+  if (hasToken) {
+    console.log('✅ Token procesado desde URL')
   }
 })
 
