@@ -1,16 +1,18 @@
 <template>
   <div class="min-h-screen bg-white text-gray-800 flex flex-col">
     <!-- Hero -->
-    <section class="bg-gradient-to-r from-green-100 to-teal-200 py-8 px-6 text-center">
-       <router-link to="/" class="block">
-          <img src="/src/assets/fondodecadapagina.png" alt="Logo TERE" class="mx-auto mb-2 w-32 h-auto transition-transform duration-300 hover:scale-110">
+    <section class="bg-gradient-to-r from-teal-500 to-green-300 py-8 px-6 text-center">
+       <router-link @click="volverOInicio()" to="/" class="absolute top-4 left-4">
+          <img 
+            src="@/assets/Logo_Pagina_Oscura.png" 
+            alt="Logo TERE"
+            class="h-60 w-auto hover:opacity-80 transition -mt-16"
+          />
         </router-link>
-          <h1 class="text-4xl md:text-5xl font-bold text-teal-700">Modelo TERE</h1>
+          <h1 class="text-4xl md:text-5xl font-bold text-white">Modelo TERE</h1>
 
-      <p class="mt-2 text-lg md:text-xl text-gray-700">
-          Un sistema p2p para la adopción,<br />
-          gestión y proporcionar un sistema descentralizado<br />
-          para el seguimiento de nuestras mascotas.
+      <p class="mt-2 text-lg md:text-xl text-gray-50">
+          Un sistema P2P para facilitar la adopción, gestión y seguimiento descentralizado de nuestras mascotas.
       </p>
     </section>
 
@@ -125,6 +127,14 @@ export default {
     },
   },
 };
+
+function volverOInicio() {
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/')
+  }
+}
 </script>
 
 <style scoped>

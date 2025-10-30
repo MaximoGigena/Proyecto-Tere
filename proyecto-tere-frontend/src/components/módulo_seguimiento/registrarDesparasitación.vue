@@ -66,6 +66,16 @@
                 </button>
               </div>
           </div>
+
+          <div class="flex gap-2 items-center mb-1">
+            <label class="block font-medium mb-1">Centro Veterinario donde se realizo el procedimiento</label>
+            <button 
+                  type="button"
+                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
+                >
+                  + Centro
+            </button>
+          </div>
         </div>
 
         <!-- Columna derecha -->
@@ -105,18 +115,6 @@
         <div>
           <label class="block font-medium">Próxima fecha sugerida</label>
           <input v-model="desparasitacion.proximaFecha" type="date" class="w-full border rounded p-2" />
-        </div>
-
-        <div class="col-span-full">
-          <div class="flex gap-2 items-center mb-1">
-            <label class="block font-medium mb-1">Observaciones adicionales</label>
-            <button 
-                  type="button"
-                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
-                >
-                  + Observación
-            </button>
-          </div>
         </div>
       </div>
 

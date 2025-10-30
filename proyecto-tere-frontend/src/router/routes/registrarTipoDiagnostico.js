@@ -4,5 +4,12 @@ export const registrarTipoDiagnostico = [
    {
     path: '/registro/registroTipoDiagnostico',
     component: RegistrarTipoDiagnostico,
+    name: 'RegistrarTipoDiagnostico',
+  },
+  {
+   path: '/registro/registroTipoDiagnostico/:id',
+   name: 'editarTipoDiagnostico',
+   component: RegistrarTipoDiagnostico, 
+   props: true 
   }
 ]

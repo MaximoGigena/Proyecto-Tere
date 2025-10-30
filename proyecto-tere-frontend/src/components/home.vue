@@ -88,41 +88,30 @@
                 </router-link>
               </div>
             </div> 
-            
-
-
-          <router-link to="/encuentros" class="text-blue-500 hover:underline">
-            Ir a Encuentros
-          </router-link>
-
-          <router-link to="/veterinarios" class="text-green-100 hover:underline">
-            veterinarios only 
-          </router-link>
-
-          <router-link to="/administradores" class="text-red-600 hover:underline">
-            admins only 
-          </router-link>
-
-          <router-link to="/registroUsuarios" class="text-purple-600 hover:underline">
-            RegistrarUsuario 
-          </router-link>
-
-          <router-link to="/registroVeterinario" class="text-yellow-600 hover:underline">
-            registrarVeterinario 
-          </router-link>
         </nav>
       </header>
 
       <div class="absolute top-1/2 left-10 transform -translate-y-1/2 text-left z-10">
         <h1 class="text-5xl mb-4 font-serif drop-shadow-xl">Adopción Responsable</h1>
-        <div class="flex justify-center gap-5 flex-wrap">
-          <a href="#" class="bg-white text-black hover:bg-gray-200 px-6 py-3 rounded-full font-bold transition" @click.prevent="abrirModal('Iniciar sesión')">Iniciar sesión</a>
-          <a href="#" class="bg-gradient-to-r from-emerald-200 to-emerald-700 text-white hover:from-emerald-600 hover:to-emerald-700 px-6 py-3 rounded-full font-bold transition" @click.prevent="abrirModal('Crear cuenta')">Crear cuenta</a>
+          <div class="flex justify-center gap-5 flex-wrap">
+            <button 
+              class="bg-white text-black hover:bg-gray-200 px-6 py-3 rounded-full font-bold transition" 
+              @click="abrirModal('Iniciar sesión')"
+            >
+              Iniciar sesión
+            </button>
+
+            <button 
+              class="bg-gradient-to-r from-emerald-200 to-emerald-700 text-white hover:from-emerald-600 hover:to-emerald-700 px-6 py-3 rounded-full font-bold transition" 
+              @click="abrirModal('Crear cuenta')"
+            >
+              Crear cuenta
+            </button>
         </div>
       </div>
     </div>
 
-    <!-- Info Section -->
+     <!-- Info Section -->
     <div ref="infoSection" :class="['transition-all duration-1000 ease-in-out px-16 py-5 bg-[#f9f9f9] text-[#333]', { 'opacity-100 translate-y-0': seVeInfo, 'opacity-0 translate-y-24': !seVeInfo }]">
       <!-- Recuadros -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
@@ -153,7 +142,9 @@
         </p>
       </div>
     </div>
-    </div>
+  </div>
+
+
 
     <footer class="bg-[#f8f8f8] px-16 py-10">
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -184,71 +175,46 @@
                 </a>
             </div>
         </div>
-
       </div>
 
       <!-- Línea inferior -->
       <div class="border-t border-gray-700 mt-4"></div>
       <h1>© 2025 Tere, All Rights Reserved.</h1>
     </footer>
-
-    <!-- Modal -->
-    <div v-show="modalVisible" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="w-full max-w-sm p-6 bg-white rounded-lg shadow-md relative">
-        <button @click="cerrarModal" class="absolute top-2 right-3 text-gray-600 hover:text-black text-4xl">&times;</button>
-        <div class="flex flex-col items-center">
-          <img :src="fondo" alt="Logo Tere" class="w-40 mb-4" />
-          <p class="text-3xl text-blue-400 font-bold text-center">{{ modalTitulo }}</p>
-        </div>
-        <div class="mt-6 space-y-4">
-          <button class="flex items-center justify-center w-full px-4 py-3 border border-gray-300 rounded-full bg-white">
-            <img :src="telefono" class="w-6 h-6 mr-2" /> Continuar con móvil
-          </button>
-          <button class="flex items-center justify-center w-full px-4 py-3 border border-gray-300 rounded-full bg-white">
-            <img :src="correo" class="w-6 h-6 mr-2" /> Continuar con correo
-          </button>
-          <button class="bg-[#1877f2] text-white w-full px-4 py-3 rounded-full flex items-center justify-center">
-            <i class="fab fa-facebook text-xl"></i>&nbsp;&nbsp;Continuar con Facebook
-          </button>
-          <button class="bg-black text-white w-full px-4 py-3 rounded-full flex items-center justify-center">
-            <i class="fab fa-google text-xl"></i>&nbsp;&nbsp;Continuar con Google
-          </button>
-        </div>
-        <p class="mt-4 text-xs text-gray-500 text-center">
-          <a href="#" class="text-blue-600 hover:underline">¿No puedes entrar a tu cuenta?</a>
-        </p>
-        <p class="mt-4 text-xs text-gray-500 text-center">Nunca compartiremos nada sin tu permiso</p>
-        <div class="mt-4 text-xs text-center text-gray-500">
-          Al registrarte, aceptas nuestras <a href="#" class="text-blue-600 hover:underline">Condiciones de uso</a>.<br />
-          Consulta nuestra <a href="#" class="text-blue-600 hover:underline">Política de privacidad</a>.
-        </div>
-      </div>
-    </div>
   </div>
+   <ModalInicioSesion
+      :visible="modalVisible"
+      :titulo="tituloModal"
+      :fondo="fondo"
+      :telefono="telefono"
+      :correo="correo"
+      @cerrar="cerrarModal"
+    />
 </template>
 
 <script setup>
 import { onMounted, ref, onBeforeUnmount} from 'vue'
+import ModalInicioSesion from '@/components/módulo_usuario/iniciarRegistrarUsuario.vue'
 import logo from '@/assets/logo tere.png'
 import fondo from '@/assets/fondodecadapagina.png'
 import telefono from '@/assets/684853.png'
 import correo from '@/assets/95645.png'
 import Imagenfinal from '@/assets/Imagen final.jpg'
 
-
-const modalVisible = ref(false)
-const modalTitulo = ref('Iniciar sesión')
 const seVeInfo = ref(false)
 const infoSection = ref(null)
+const modalVisible = ref(false)
+const tituloModal = ref('')
 
 function abrirModal(titulo) {
+  tituloModal.value = titulo
   modalVisible.value = true
-  modalTitulo.value = titulo
 }
 
 function cerrarModal() {
   modalVisible.value = false
 }
+
 
 onMounted(() => {
   window.addEventListener('scroll', () => {

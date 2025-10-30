@@ -1,9 +1,16 @@
 <template>
   <div class="min-h-screen bg-white text-gray-800 flex flex-col">
     <!-- Encabezado -->
-    <section class="bg-gradient-to-r from-gray-100 to-emerald-100 py-16 px-6 text-center">
-      <h1 class="text-4xl md:text-5xl font-bold text-emerald-700">Protección de Datos</h1>
-      <p class="mt-4 text-lg md:text-xl text-gray-700">
+    <section class="bg-gradient-to-r from-teal-500 to-green-300 py-16 px-6 text-center">
+      <router-link @click="volverOInicio()" to="/" class="absolute top-4 left-4">
+          <img 
+            src="@/assets/Logo_Pagina_Oscura.png" 
+            alt="Logo TERE"
+            class="h-60 w-auto hover:opacity-80 transition -mt-16"
+          />
+        </router-link>
+      <h1 class="text-4xl md:text-5xl font-bold text-white">Protección de Datos</h1>
+      <p class="mt-4 text-lg md:text-xl text-gray-50">
         Conocé cómo el proyecto TERE protege tu información personal.
       </p>
     </section>
@@ -97,3 +104,16 @@
     </section>
   </div>
 </template>
+
+<script setup>
+import { useRouter } from 'vue-router'
+const router = useRouter()
+
+function volverOInicio() {
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/')
+  }
+}
+</script>

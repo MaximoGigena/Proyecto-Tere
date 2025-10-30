@@ -53,18 +53,14 @@
             <input v-model="cirugia.fecha" type="datetime-local" required class="w-full border rounded p-2" />
           </div>
 
-          <div>
-            <label class="block font-medium">Diagnóstico o causa</label>
-            <div class="flex gap-2">
-              <input v-model="cirugia.diagnostico" type="text" required class="w-full border rounded p-2" placeholder="Motivo que justificó la cirugía" />
-              <!-- Botón de + Tipo -->
-                <button 
+          <div class="flex gap-2 items-center mb-1">
+            <label class="block font-medium mb-1">Centro Veterinario donde se realizo el procedimiento</label>
+            <button 
                   type="button"
-                  class="bg-orange-500 text-white px-4 rounded font-bold hover:bg-orange-700 transition-colors whitespace-nowrap"
+                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
                 >
-                  + Asociar Diagnostico 
-                </button>
-              </div>
+                  + Centro
+            </button>
           </div>
 
         </div>
@@ -94,6 +90,20 @@
               <option value="hospitalizado">Hospitalizado</option>
             </select>
           </div>
+
+          <div>
+            <label class="block font-medium">Diagnóstico o causa</label>
+            <div class="flex gap-2">
+              <input v-model="cirugia.diagnostico" type="text" required class="w-full border rounded p-2" placeholder="Motivo que justificó la cirugía" />
+              <!-- Botón de + Tipo -->
+                <button 
+                  type="button"
+                  class="bg-orange-500 text-white px-4 rounded font-bold hover:bg-orange-700 transition-colors whitespace-nowrap"
+                >
+                  + Asociar Diagnostico 
+                </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -114,20 +124,7 @@
           <label class="block font-medium mb-1">Descripción del procedimiento</label>
           <textarea v-model="cirugia.descripcion" rows="4" maxlength="1000" class="w-full border rounded p-2 resize-none"></textarea>
           <p class="text-sm text-gray-500 text-right mt-1">{{ cirugia.descripcion.length }}/1000 caracteres</p>
-        </div>
-
-        <div class="col-span-full">
-          <div class="flex gap-2 items-center mb-1">
-            <label class="block font-medium mb-1">Observaciones posoperatorias</label>
-            <button 
-                type="button"
-                class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
-              >
-                + Observación
-              </button>
-          </div>
-        </div>
-        
+        </div>        
 
         <div class="col-span-full">
       <label class="block font-medium mb-1">Medicación postquirúrgica</label>

@@ -6,9 +6,9 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Procedimiento Paliativo</h1>
+    <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar' : 'Registrar' }} Procedimiento Paliativo</h1>
 
-    <form @submit.prevent="registrarProcedimiento" class="space-y-4">
+    <form @submit.prevent="esEdicion ? actualizarProcedimiento() : registrarProcedimiento()" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -199,17 +199,46 @@
 
       <div class="pt-4 flex items-center justify-center gap-4">
         <button type="button" @click="cancelar" class="bg-gray-500 text-white font-bold text-xl px-6 py-2 rounded-full hover:bg-gray-700 transition-colors">Cancelar</button>
-        <button type="submit" class="bg-blue-500 text-white font-bold text-2xl px-6 py-2 rounded-full hover:bg-blue-700 transition-colors">+ Tipo</button>
+        <button type="submit" class="bg-blue-500 text-white font-bold text-2xl px-6 py-2 rounded-full hover:bg-blue-700 transition-colors">
+          {{ esEdicion ? 'Actualizar' : '+' }} Tipo
+        </button>
       </div>
     </form>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router' // ¡Agregar useRoute!
+import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
+const route = useRoute() // ¡Agregar esta línea!
+const { accessToken, isAuthenticated, checkAuth } = useAuth()
+
+const esEdicion = ref(false)
+const procedimientoId = ref(null) // Variable para almacenar el ID
+
+// Verificar autenticación y cargar datos si es edición
+onMounted(async () => {
+  if (!isAuthenticated.value) {
+    const isAuth = await checkAuth()
+    if (!isAuth) {
+      showMessage('Debe iniciar sesión para acceder a esta página', 'error')
+      setTimeout(() => {
+        router.push('/')
+      }, 2000)
+      return
+    }
+  }
+  
+  // Verificar si hay un ID en la ruta (modo edición)
+  if (route.params.id) {
+    esEdicion.value = true
+    procedimientoId.value = route.params.id
+    await cargarPaliativo()
+  }
+})
 
 const procedimiento = reactive({
   nombre: '',
@@ -227,13 +256,53 @@ const procedimiento = reactive({
   observaciones: ''
 })
 
-const recursoTemporal = ref('')
-const archivos = ref(Array.from({ length: 6 }, () => ({
-  archivo: null,
-  preview: null
-})))
+// Función para cargar los datos del procedimiento
+const cargarPaliativo = async () => {
+  try {
+    const response = await fetch(`/api/tipos-procedimiento-paliativo/${procedimientoId.value}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken.value}`
+      }
+    })
 
-const inputsArchivo = ref([])
+    if (!response.ok) {
+      throw new Error('Error al cargar el procedimiento')
+    }
+
+    const result = await response.json()
+
+    if (result.success) {
+      const datos = result.data
+      
+      // Mapear los datos del API al formulario
+      procedimiento.nombre = datos.nombre || ''
+      procedimiento.descripcion = datos.descripcion || ''
+      procedimiento.especie = datos.especie || ''
+      procedimiento.objetivo = datos.objetivo_terapeutico || ''
+      procedimiento.objetivoOtro = datos.objetivo_otro || ''
+      procedimiento.indicaciones = datos.indicaciones_clinicas || ''
+      procedimiento.frecuenciaValor = datos.frecuencia_valor || ''
+      procedimiento.frecuenciaUnidad = datos.frecuencia_unidad || 'dias'
+      procedimiento.contraindicaciones = datos.contraindicaciones || ''
+      procedimiento.riesgos = datos.riesgos_efectos_secundarios || ''
+      procedimiento.recursos = datos.recursos_necesarios || []
+      procedimiento.recomendaciones = datos.recomendaciones_clinicas || ''
+      procedimiento.observaciones = datos.observaciones || ''
+      
+    } else {
+      throw new Error(result.message || 'Error al cargar los datos')
+    }
+
+  } catch (error) {
+    console.error('Error al cargar el procedimiento:', error)
+    alert('Error al cargar el procedimiento: ' + error.message)
+  }
+}
+
+const recursoTemporal = ref('')
 
 const agregarRecurso = () => {
   if (recursoTemporal.value.trim() !== '') {
@@ -246,60 +315,107 @@ const eliminarRecurso = (index) => {
   procedimiento.recursos.splice(index, 1)
 }
 
-const esImagen = (archivo) => {
-  if (!archivo) return false
-  return archivo.type.startsWith('image/')
-}
-
-const handleArchivo = (event, index) => {
-  const file = event.target.files[0]
-  if (file) {
-    archivos.value[index].archivo = file
-    archivos.value[index].preview = esImagen(file) ? URL.createObjectURL(file) : null
-  }
-}
-
-const activarInput = (index) => {
-  inputsArchivo.value[index]?.click()
-}
-
-const quitarArchivo = (index) => {
-  archivos.value[index].archivo = null
-  archivos.value[index].preview = null
-}
-
 const cancelar = () => {
   if (confirm('¿Está seguro que desea cancelar? Los datos no guardados se perderán.')) {
-    router.push('/cuidados-paliativos')
+    router.back()
   }
 }
 
-const registrarProcedimiento = () => {
-  const formData = new FormData()
-  
-  // Preparar datos para enviar
-  const datosEnvio = {
-    ...procedimiento,
-    frecuencia: `${procedimiento.frecuenciaValor} ${procedimiento.frecuenciaUnidad}`,
-    objetivoTerapeutico: procedimiento.objetivo === 'otro' ? procedimiento.objetivoOtro : procedimiento.objetivo,
-    recursos: procedimiento.recursos.join('; ')
-  }
+const registrarProcedimiento = async () => {
+  try {
+    // Preparar datos según el modelo
+    const datosEnvio = {
+      nombre: procedimiento.nombre,
+      descripcion: procedimiento.descripcion,
+      especie: procedimiento.especie,
+      objetivo_terapeutico: procedimiento.objetivo,
+      objetivo_otro: procedimiento.objetivo === 'otro' ? procedimiento.objetivoOtro : null,
+      frecuencia_valor: parseInt(procedimiento.frecuenciaValor),
+      frecuencia_unidad: procedimiento.frecuenciaUnidad,
+      indicaciones_clinicas: procedimiento.indicaciones,
+      contraindicaciones: procedimiento.contraindicaciones || null,
+      riesgos_efectos_secundarios: procedimiento.riesgos || null,
+      recursos_necesarios: procedimiento.recursos,
+      recomendaciones_clinicas: procedimiento.recomendaciones || null,
+      observaciones: procedimiento.observaciones || null,
+    };
 
-  for (const campo in datosEnvio) {
-    if (datosEnvio[campo] !== null && datosEnvio[campo] !== '') {
-      formData.append(campo, datosEnvio[campo])
-    }
-  }
+    // Enviar al backend
+    const response = await fetch('/api/tipos-procedimiento-paliativo', {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: JSON.stringify(datosEnvio)
+    });
 
-  archivos.value.forEach((archivo, i) => {
-    if (archivo.archivo) {
-      formData.append(`archivo${i + 1}`, archivo.archivo)
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Error al registrar el procedimiento');
     }
-  })
-  
-  console.log('Datos a enviar:', formData)
-  // Aquí iría la lógica para enviar los datos al servidor
-  alert('Procedimiento registrado correctamente')
-  router.push('/cuidados-paliativos')
-}
+
+    if (result.success) {
+      alert('Procedimiento paliativo registrado correctamente');
+      router.push('/veterinarios/tipos/paliativos');
+    } else {
+      throw new Error(result.message);
+    }
+
+  } catch (error) {
+    console.error('Error:', error);
+    alert('Error al registrar el procedimiento: ' + error.message);
+  }
+};
+
+const actualizarProcedimiento = async () => {
+  try {
+    // Preparar datos según el modelo
+    const datosEnvio = {
+      nombre: procedimiento.nombre,
+      descripcion: procedimiento.descripcion,
+      especie: procedimiento.especie,
+      objetivo_terapeutico: procedimiento.objetivo,
+      objetivo_otro: procedimiento.objetivo === 'otro' ? procedimiento.objetivoOtro : null,
+      frecuencia_valor: parseInt(procedimiento.frecuenciaValor),
+      frecuencia_unidad: procedimiento.frecuenciaUnidad,
+      indicaciones_clinicas: procedimiento.indicaciones,
+      contraindicaciones: procedimiento.contraindicaciones || null,
+      riesgos_efectos_secundarios: procedimiento.riesgos || null,
+      recursos_necesarios: procedimiento.recursos,
+      recomendaciones_clinicas: procedimiento.recomendaciones || null,
+      observaciones: procedimiento.observaciones || null,
+    };
+
+    // Enviar al backend con PUT
+    const response = await fetch(`/api/tipos-procedimiento-paliativo/${procedimientoId.value}`, {
+      method: 'PUT',
+      headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: JSON.stringify(datosEnvio)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Error al actualizar el procedimiento');
+    }
+
+    if (result.success) {
+      alert('Procedimiento actualizado correctamente');
+      router.push('/veterinarios/tipos/paliativos');
+    } else {
+      throw new Error(result.message);
+    }
+
+  } catch (error) {
+    console.error('Error:', error);
+    alert('Error al actualizar el procedimiento: ' + error.message);
+  }
+};
 </script>

@@ -1,7 +1,29 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
+import { onMounted } from 'vue'
 import home from './components/home.vue'
+import { useAuth } from '@/composables/useAuth'
 import './assets/styles.css'
+
+
+const { checkAuth, processTokenFromUrl } = useAuth()
+
+
+// En App.vue - AGREGAR ESTO
+onMounted(async () => {
+  console.log('🔐 APP - Verificando autenticación...')
+  
+  // Verificar si hay token en localStorage
+  const token = localStorage.getItem('auth_token')
+  console.log('📦 Token en localStorage:', token ? 'SÍ' : 'NO')
+  
+  // Procesar token SIEMPRE al cargar la app
+  const hasToken = await processTokenFromUrl()
+  if (hasToken) {
+    console.log('✅ Token procesado desde URL')
+  }
+})
+
 </script>
 
 <template>

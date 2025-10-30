@@ -62,6 +62,17 @@
               <option value="grave">Grave</option>
             </select>
           </div>
+
+          <div class="flex gap-2 items-center mb-1">
+            <label class="block font-medium mb-1">Centro Veterinario donde se realizo</label>
+            <button 
+                  type="button"
+                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
+                >
+                  + Centro
+            </button>
+          </div>
+
         </div>
 
         <!-- Columna derecha -->
@@ -108,20 +119,6 @@
           <textarea v-model="alergia.recomendaciones" rows="3" maxlength="500" class="w-full border rounded p-2 resize-none"></textarea>
           <p class="text-sm text-gray-500 text-right mt-1">{{ alergia.recomendaciones.length }}/500 caracteres</p>
         </div>
-
-        <div>
-          <div class="col-span-full">
-          <div class="flex gap-2 items-center mb-1">
-            <label class="block font-medium mb-1">Observaciones adicionales</label>
-            <button 
-                  type="button"
-                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
-                >
-                  + Observación
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
 
       <div class="pt-4 flex items-center justify-center gap-4">

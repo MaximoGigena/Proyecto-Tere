@@ -1,6 +1,6 @@
 import ExplorarEncuentros from '@/components/módulo_usuario/ExplorarEncuentros.vue';
 import ChatsLista from '@/components/módulo_usuario/chats.vue';
-import ContenidoPerfil from '@/components/módulo_usuario/contenidoUsuario.vue';
+import ContenidoPerfil from '@/components/módulo_adopciones/solicitudAdopción.vue';
 
 export const chatRoutes = [
   {
@@ -14,17 +14,19 @@ export const chatRoutes = [
       },
       {
         path: 'perfil/:userId',
-        name: 'user-profile-list', // Nombre único para esta versión
+        name: 'user-profile-list',
         components: {
           default: ChatsLista,
           overlay: ContenidoPerfil
         },
         props: {
-          default: () => ({
-            from: 'chats-list',
-            id: null
+          default: (route) => ({
+            from: route.query.from || 'chats-list',
+            userId: route.params.userId
           }),
-          overlay: true
+          overlay: (route) => ({
+            userId: route.params.userId
+          })
         }
       }
     ]

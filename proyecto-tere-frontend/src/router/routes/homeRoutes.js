@@ -9,9 +9,7 @@ import donaciones from '@/components/navBar_Home/apoyanos/donaciones.vue'
 import colaboradores from '@/components/navBar_Home/apoyanos/colaboradores.vue'
 import veterinarios from '@/components/módulo_veterinario/navBarVeterinario.vue'
 import administradores from '@/components/módulo_administrador/navBarAdmin.vue'
-import registroUsuario from '@/components/módulo_usuario/registrarUsuario.vue'
-import registroVeterinario  from '@/components/módulo_veterinario/registrarVeterinario.vue'
-//import Denuncias from '@/views/Denuncias.vue'
+
 
 export const homeRoutes = [
   { path: '/', name: 'Home', component: Home },
@@ -24,6 +22,4 @@ export const homeRoutes = [
   { path: '/Colaboradores', name: 'colaboradores', component: colaboradores },
   { path: '/veterinarios', name: 'veterinarios', component: veterinarios },
   { path: '/administradores', name: 'administradores', component: administradores },
-  { path: '/registroUsuarios', name: 'registroUsuarios', component: registroUsuario },
-  { path: '/registroVeterinario', name: 'registroVeterinario', component: registroVeterinario },
-]
+ ]

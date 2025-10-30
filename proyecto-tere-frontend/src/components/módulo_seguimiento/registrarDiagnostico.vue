@@ -52,6 +52,17 @@
             <label class="block font-medium">Nombre del diagnóstico</label>
             <input v-model="diagnostico.nombre" type="text" required class="w-full border rounded p-2" placeholder="Ej: Insuficiencia renal, parvovirus, etc." />
           </div>
+
+          <div class="flex gap-2 items-center mb-1">
+            <label class="block font-medium mb-1">Centro Veterinario donde se realizo</label>
+            <button 
+                  type="button"
+                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
+                >
+                  + Centro
+            </button>
+          </div>
+          
         </div>
 
         <!-- Columna derecha -->
@@ -73,18 +84,6 @@
             </select>
           </div>
         </div>
-      </div>
-
-      <div class="col-span-full mt-4">
-       <div class="flex gap-2 items-center mb-1">
-            <label class="block font-medium mb-1">Observaciones clínicas</label>
-            <button 
-                  type="button"
-                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
-                >
-                  + Observación
-            </button>
-          </div>
       </div>
 
       <!-- DATOS OPCIONALES -->
