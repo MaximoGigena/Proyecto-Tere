@@ -83,12 +83,21 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { computed, ref, onMounted } from 'vue'
-import { useAuthToken } from '@/composables/useAuthToken'
+import { useAuth } from '@/composables/useAuth' // ✅ Usar useAuth en lugar de useAuthToken
 import axios from 'axios'
 
 const router = useRouter()
 const route = useRoute()
-const { accessToken, isAuthenticated } = useAuthToken()
+const { 
+  user, 
+  accessToken, 
+  isAuthenticated, 
+  checkAuth, 
+  isUsuario,
+  isVeterinario,
+  isAdministrador,
+  fetchUser 
+} = useAuth() // ✅ Nuevo composable
 
 const usuario = ref({
   id: null,
@@ -97,8 +106,19 @@ const usuario = ref({
   foto: null
 })
 
+const cargando = ref(true)
+const error = ref('')
+
 const activeTab = computed(() => {
   return route.meta.activeTab || 'mascotas'
+})
+
+// Computed para mostrar el tipo de usuario
+const tipoUsuario = computed(() => {
+  if (isAdministrador()) return 'Administrador'
+  if (isVeterinario()) return 'Veterinario'
+  if (isUsuario()) return 'Usuario'
+  return 'Invitado'
 })
 
 // Computed para la ruta de edición
@@ -109,68 +129,104 @@ const editarRuta = computed(() => {
       query: { id: usuario.value.id }
     }
   }
-  return '/usuarioEdicion';
-});
+  return '/usuarioEdicion'
+})
 
-// Cargar datos del usuario
+// ✅ Configurar axios con interceptor
+const axiosAuth = axios.create({
+  baseURL: 'http://localhost:8000'
+})
+
+// Interceptor para agregar el token automáticamente
+axiosAuth.interceptors.request.use(
+  (config) => {
+    if (accessToken.value) {
+      config.headers.Authorization = `Bearer ${accessToken.value}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// ✅ Función mejorada para cargar datos del usuario
 const cargarUsuario = async () => {
   try {
-    // Primero obtenemos el usuario autenticado
-    const response = await axios.get('/api/user', {
-      headers: {
-        'Authorization': `Bearer ${accessToken.value}`,
-        'Accept': 'application/json'
-      }
-    })
+    cargando.value = true
+    error.value = ''
 
-    const userData = response.data
-    console.log('Datos del usuario autenticado:', userData)
+    console.log('🔐 PERFIL - Verificando autenticación...')
+    
+    // Verificar autenticación con el servidor
+    const autenticado = await checkAuth()
+    
+    if (!autenticado) {
+      error.value = 'Debes iniciar sesión para ver tu perfil'
+      cargando.value = false
+      return
+    }
 
-    if (userData && userData.userable) {
-      // Si el usuario tiene relación userable (polimórfica)
+    console.log('✅ PERFIL - Usuario autenticado:', user.value)
+
+    // Usar los datos del composable useAuth
+    if (user.value && user.value.userable) {
+      const userData = user.value
+      
       usuario.value.id = userData.userable.id
-      usuario.value.nombre = userData.userable.nombre
+      usuario.value.nombre = userData.userable.nombre || userData.userable.nombre_completo || 'Usuario'
       usuario.value.email = userData.email
       
       // Cargar foto de perfil si existe
-      if (userData.userable.fotos && userData.userable.fotos.length > 0) {
-        usuario.value.foto = `/storage/${userData.userable.fotos[0].ruta_foto}`
+      if (userData.userable.foto) {
+        usuario.value.foto = userData.userable.foto.startsWith('http') 
+          ? userData.userable.foto 
+          : `/storage/${userData.userable.foto}`
+      } else if (userData.userable.fotos && userData.userable.fotos.length > 0) {
+        // Para compatibilidad con el formato antiguo
+        const primeraFoto = userData.userable.fotos[0]
+        usuario.value.foto = primeraFoto.ruta_foto
+          ? `/storage/${primeraFoto.ruta_foto}`
+          : primeraFoto
       }
+
+      console.log('📝 PERFIL - Datos cargados:', usuario.value)
+    } else {
+      throw new Error('No se encontraron datos del usuario')
     }
-  } catch (error) {
-    console.error('Error al cargar usuario:', error)
+
+  } catch (err) {
+    console.error('❌ Error al cargar usuario:', err)
+    
+    if (err.response?.status === 401) {
+      error.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
+    } else if (err.response?.status === 404) {
+      error.value = 'No se encontró la información del usuario.'
+    } else {
+      error.value = err.response?.data?.message || err.message || 'Error al cargar el perfil'
+    }
+    
     // En caso de error, mostrar valores por defecto
     usuario.value.nombre = 'Usuario'
     usuario.value.email = 'usuario@ejemplo.com'
+  } finally {
+    cargando.value = false
   }
 }
 
-// En perfilUsuario.vue - MEJORAR ESTE CÓDIGO
-onMounted(() => {
+// ✅ Mejor manejo del mounted
+onMounted(async () => {
   console.log('🔐 PERFIL - Estado de autenticación:', {
     isAuthenticated: isAuthenticated.value,
     accessToken: accessToken.value ? accessToken.value.substring(0, 10) + '...' : 'NO',
+    user: user.value,
     localStorage: {
       auth_token: localStorage.getItem('auth_token'),
       token: localStorage.getItem('token')
     }
   })
 
-  // VERIFICACIÓN MÁS ROBUSTA
-  const tokenFromStorage = localStorage.getItem('auth_token')
-  if (tokenFromStorage && !accessToken.value) {
-    console.log('🔄 Token encontrado en storage pero no en composable, recargando...')
-    // Forzar recarga del token
-    window.location.reload()
-    return
-  }
-
-  if (isAuthenticated.value && accessToken.value) {
-    cargarUsuario()
-  } else {
-    console.log('❌ PERFIL - Usuario no autenticado')
-    // NO redirigir automáticamente, solo mostrar mensaje
-  }
+  await cargarUsuario()
 })
 </script>
 

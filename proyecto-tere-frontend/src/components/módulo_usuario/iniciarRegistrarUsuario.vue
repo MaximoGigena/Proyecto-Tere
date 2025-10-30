@@ -15,15 +15,32 @@
         <button class="flex items-center justify-center w-full px-4 py-3 border border-gray-300 rounded-full bg-white">
           <img :src="correo" class="w-6 h-6 mr-2" /> Continuar con correo
         </button>
-        <button class="bg-[#1877f2] text-white w-full px-4 py-3 rounded-full flex items-center justify-center">
-          <i class="fab fa-facebook text-xl"></i>&nbsp;&nbsp;Continuar con Facebook
+
+        <!-- Botón de Facebook con pointer-events-auto -->
+        <button 
+          @click="redirectToFacebook"
+          :disabled="loadingFacebook"
+          :class="[
+            'bg-[#1877f2] text-white w-full px-4 py-3 rounded-full flex items-center justify-center',
+            'transition-all duration-200 relative pointer-events-auto',
+            loadingFacebook ? 'opacity-75 cursor-not-allowed' : 'hover:bg-blue-600 active:bg-blue-700'
+          ]"
+        >
+          <template v-if="loadingFacebook">
+            <i class="fas fa-spinner fa-spin text-xl"></i>&nbsp;&nbsp;Procesando...
+          </template>
+          <template v-else>
+            <i class="fab fa-facebook text-xl"></i>&nbsp;&nbsp;Continuar con Facebook
+          </template>
         </button>
+
+        <!-- Botón de Google -->
         <button 
           @click="redirectToGoogle"
           :disabled="loading"
           :class="[
             'bg-black text-white w-full px-4 py-3 rounded-full flex items-center justify-center',
-            'transition-all duration-200',
+            'transition-all duration-200 relative pointer-events-auto',
             loading ? 'opacity-75 cursor-not-allowed' : 'hover:bg-gray-800 active:bg-gray-900',
             error ? 'ring-2 ring-red-500' : ''
           ]"
@@ -35,7 +52,6 @@
             <i class="fab fa-google text-xl"></i>&nbsp;&nbsp;Continuar con Google
           </template>
         </button>
-
       </div>
 
       <p class="mt-4 text-xs text-gray-500 text-center">
@@ -77,6 +93,7 @@ const emit = defineEmits(['cerrar', 'loading', 'error']);
 const loading = ref(false);
 const error = ref(false);
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const loadingFacebook = ref(false);
 const router = useRouter();
 const { processTokenFromUrl } = useAuth();
 
@@ -102,6 +119,26 @@ const redirectToGoogle = () => {
     loading.value = false;
     error.value = true;
     alert('Error al conectar con Google. Por favor, intenta nuevamente.');
+  }
+};
+
+const redirectToFacebook = () => {
+  console.log('🔵 Botón Facebook clickeado'); // Debug 1
+  try {
+    loadingFacebook.value = true;
+    error.value = false;
+    
+    console.log('🔄 Redirigiendo a Facebook...'); // Debug 2
+    console.log('📍 URL destino:', 'http://localhost:8000/auth/facebook'); // Debug 3
+    
+    // Redirección al endpoint de Laravel
+    window.location.href = 'http://localhost:8000/auth/facebook';
+    
+  } catch (err) {
+    console.error('❌ Error en redirección a Facebook:', err);
+    loadingFacebook.value = false;
+    error.value = true;
+    alert('Error al conectar con Facebook. Por favor, intenta nuevamente.');
   }
 };
 

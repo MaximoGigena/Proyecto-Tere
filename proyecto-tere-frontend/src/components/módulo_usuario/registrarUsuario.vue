@@ -627,7 +627,9 @@ const cargarUsuario = async () => {
         
         userData.fotos.forEach((foto, index) => {
           if (index < fotos.value.length && foto.ruta_foto) {
-            fotos.value[index].preview = `/storage/${foto.ruta_foto}`;
+            // USAR url_foto SI ESTÁ DISPONIBLE, SINO CONSTRUIR LA RUTA
+            fotos.value[index].preview = foto.url_foto || `/storage/${foto.ruta_foto}`;
+            console.log('🖼️ Foto cargada:', fotos.value[index].preview);
           }
         });
       }
@@ -688,7 +690,6 @@ const registrarUsuario = async () => {
       withCredentials: true,
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'multipart/form-data',
         'X-Requested-With': 'XMLHttpRequest'
       }
     });
@@ -719,12 +720,30 @@ const registrarUsuario = async () => {
 
 const modificarUsuario = async () => {
   try {
+    console.log('🔄 ===== INICIANDO MODIFICACIÓN DE USUARIO =====');
+    
     if (!isAuthenticated.value) {
       alert('Debes estar autenticado para modificar un usuario');
       return;
     }
 
     const formData = new FormData();
+    
+    // DEBUG: Mostrar qué datos se van a enviar
+    console.log('📤 Datos a enviar:', {
+      edad: usuario.edad,
+      tipoVivienda: usuario.tipoVivienda,
+      ocupacion: usuario.ocupacion,
+      experienciaMascotas: usuario.experienciaMascotas,
+      conviveConNiños: usuario.conviveConNiños,
+      conviveConMascotas: usuario.conviveConMascotas,
+      descripcion: usuario.descripcion,
+      dni: usuario.dni,
+      telefono_contacto: usuario.telefono_contacto,
+      email_contacto: usuario.email_contacto,
+      nombre_completo: usuario.nombre_completo,
+      tieneFoto: !!fotos.value[0]?.archivo
+    });
     
     // Datos básicos (solo los que se pueden modificar)
     if (usuario.edad) formData.append('edad', usuario.edad);
@@ -746,14 +765,33 @@ const modificarUsuario = async () => {
     // Foto de perfil (solo si se cambió)
     if (fotos.value[0]?.archivo) {
       formData.append('foto_perfil', fotos.value[0].archivo);
+      console.log('📸 Foto adjuntada');
     }
 
+    // DEBUG: Verificar qué hay en el FormData antes de enviar
+    console.log('📋 CONTENIDO DEL FORM DATA:');
+    for (let [key, value] of formData.entries()) {
+      console.log(`   ${key}:`, value);
+    }
+    
+    // DEBUG: Verificar headers
+    console.log('📋 HEADERS A ENVIAR:', {
+      'Authorization': `Bearer ${accessToken.value.substring(0, 20)}...`,
+      'Content-Type': 'multipart/form-data',
+      'X-Requested-With': 'XMLHttpRequest'
+    });
+
+    console.log('🔐 Token de autenticación:', accessToken.value ? accessToken.value.substring(0, 20) + '...' : 'NO');
+    console.log('👤 ID de usuario:', usuarioId.value);
+
     // Obtener CSRF token primero
+    console.log('🛡️ Obteniendo token CSRF...');
     await axios.get('/sanctum/csrf-cookie', {
       withCredentials: true
     });
 
-    const response = await axios.put(`/api/usuarios/${usuarioId.value}`, formData, {
+    console.log('🚀 Enviando solicitud PUT...');
+    const response = await axios.post(`/api/usuarios/${usuarioId.value}`, formData, {
       withCredentials: true,
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
@@ -763,43 +801,68 @@ const modificarUsuario = async () => {
       }
     });
 
+    console.log('✅ Respuesta del servidor:', response.data);
+
     if (response.data.success) {
       alert('Usuario modificado exitosamente');
-      router.push('/explorar/perfil/mascotas'); // O donde quieras redirigir después de modificar
+      router.push('/explorar/perfil/mascotas');
     } else {
       alert(response.data.message || 'Error al modificar usuario');
     }
+
+    if (response.data.success) {
+      console.log('✅ Modificación exitosa, verificando cambios...');
+      
+      // Hacer una nueva petición para verificar los cambios
+      const verificationResponse = await axios.get(`/api/usuarios/${usuarioId.value}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken.value}`,
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('🔍 Datos después de la modificación:', verificationResponse.data);
+      
+      alert('Usuario modificado exitosamente');
+      router.push('/explorar/perfil/mascotas');
+    }
     
   } catch (error) {
-    console.error('Error completo:', error);
+    console.error('❌ ===== ERROR EN MODIFICACIÓN =====');
+    console.error('❌ Error completo:', error);
+    
     if (error.response) {
-      console.error('Datos del error:', error.response.data);
+      console.error('❌ Datos del error:', error.response.data);
+      console.error('❌ Status:', error.response.status);
       alert(`Error: ${error.response.data.message || 'Error en el servidor'}`);
     } else if (error.request) {
+      console.error('❌ No se recibió respuesta:', error.request);
       alert('Error de conexión. Verifica tu red o si el servidor está funcionando.');
     } else {
+      console.error('❌ Error de configuración:', error.message);
       alert('Error al enviar los datos. Por favor intenta nuevamente.');
     }
   }
-    // Función temporal para debug
-    const debugAuth = () => {
-      console.log('🐛 DEBUG AUTH STATE:', {
-        accessToken: accessToken.value,
-        isAuthenticated: isAuthenticated.value,
-        localStorage: {
-          auth_token: localStorage.getItem('auth_token'),
-          token: localStorage.getItem('token')
-        },
-        usuarioId: usuarioId.value,
-        esModificacion: esModificacion.value
-      });
-    }
-
-    // Llámala en mounted para ver el estado
-    onMounted(async () => {
-      console.log('🔄 Componente montado...');
-      await determinarModo();
-      debugAuth(); // <- Agrega esta línea
-    });
 }
+
+// Función temporal para debug
+const debugAuth = () => {
+  console.log('🐛 DEBUG AUTH STATE:', {
+    accessToken: accessToken.value,
+    isAuthenticated: isAuthenticated.value,
+    localStorage: {
+      auth_token: localStorage.getItem('auth_token'),
+      token: localStorage.getItem('token')
+    },
+    usuarioId: usuarioId.value,
+    esModificacion: esModificacion.value
+  });
+}
+
+// SOLO UN onMounted - ELIMINA CUALQUIER OTRO onMounted
+onMounted(async () => {
+  console.log('🔄 Componente montado...');
+  await determinarModo();
+  debugAuth();
+});
 </script>

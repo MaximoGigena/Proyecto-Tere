@@ -54,18 +54,14 @@
             <input v-model="farmaco.fecha" type="datetime-local" required class="w-full border rounded p-2" />
           </div>
 
-          <div>
-            <label class="block font-medium">Dosis administrada</label>
-            <div class="flex">
-              <input v-model="farmaco.dosis" type="text" required class="w-3/4 border rounded-l p-2" placeholder="Cantidad" />
-              <select v-model="farmaco.unidad" required class="w-1/4 border rounded-r p-2">
-                <option value="mg">mg</option>
-                <option value="ml">ml</option>
-                <option value="UI">UI</option>
-                <option value="comp">comp.</option>
-                <option value="gotas">gotas</option>
-              </select>
-            </div>
+          <div class="flex gap-2 items-center mb-1">
+            <label class="block font-medium mb-1">Centro Veterinario donde se realizo el procedimiento</label>
+            <button 
+                  type="button"
+                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
+                >
+                  + Centro
+            </button>
           </div>
         </div>
 
@@ -79,6 +75,20 @@
           <div>
             <label class="block font-medium">Duración del tratamiento</label>
             <input v-model="farmaco.duracion" type="text" required class="w-full border rounded p-2" placeholder="Ej: 7 días, 2 semanas, etc." />
+          </div>
+
+          <div>
+            <label class="block font-medium">Dosis administrada</label>
+            <div class="flex">
+              <input v-model="farmaco.dosis" type="text" required class="w-3/4 border rounded-l p-2" placeholder="Cantidad" />
+              <select v-model="farmaco.unidad" required class="w-1/4 border rounded-r p-2">
+                <option value="mg">mg</option>
+                <option value="ml">ml</option>
+                <option value="UI">UI</option>
+                <option value="comp">comp.</option>
+                <option value="gotas">gotas</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -94,18 +104,6 @@
         <div>
           <label class="block font-medium">Fecha próxima dosis (si aplica)</label>
           <input v-model="farmaco.proximaDosis" type="datetime-local" class="w-full border rounded p-2" />
-        </div>
-
-        <div class="col-span-full">
-          <div class="flex gap-2 items-center mb-1">
-            <label class="block font-medium">Observaciones clínicas</label>
-            <button 
-              type="button"
-              class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
-            >
-              + Observación
-            </button>
-          </div>
         </div>
 
         <div class="col-span-full">

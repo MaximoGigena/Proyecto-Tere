@@ -6,9 +6,9 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Tipo de Terapia</h1>
+    <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Tipo de Terapia' : 'Registrar Tipo de Terapia' }}</h1>
 
-    <form @submit.prevent="registrarTerapia" class="space-y-4">
+    <form @submit.prevent="guardarTerapia" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -176,17 +176,26 @@
 
       <div class="pt-4 flex items-center justify-center gap-4">
         <button type="button" @click="cancelar" class="bg-gray-500 text-white font-bold text-xl px-6 py-2 rounded-full hover:bg-gray-700 transition-colors">Cancelar</button>
-        <button type="submit" class="bg-blue-500 text-white font-bold text-2xl px-6 py-2 rounded-full hover:bg-blue-700 transition-colors">+ Tipo</button>
+        <button type="submit" class="bg-blue-500 text-white font-bold text-2xl px-6 py-2 rounded-full hover:bg-blue-700 transition-colors">
+          {{ esEdicion ? 'Guardar' : '+ Tipo' }}
+        </button>
       </div>
     </form>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
+const route = useRoute()
+const { accessToken, isAuthenticated, checkAuth } = useAuth()
+
+const esEdicion = ref(false)
+const terapiaId = ref(null)
+const cargando = ref(false)
 
 const terapia = reactive({
   nombre: '',
@@ -203,33 +212,67 @@ const terapia = reactive({
   observaciones: ''
 })
 
-const archivos = ref(Array.from({ length: 6 }, () => ({
-  archivo: null,
-  preview: null
-})))
-
-const inputsArchivo = ref([])
-
-const esImagen = (archivo) => {
-  if (!archivo) return false
-  return archivo.type.startsWith('image/')
-}
-
-const handleArchivo = (event, index) => {
-  const file = event.target.files[0]
-  if (file) {
-    archivos.value[index].archivo = file
-    archivos.value[index].preview = esImagen(file) ? URL.createObjectURL(file) : null
+// Verificar autenticación y cargar datos si es edición
+onMounted(async () => {
+  if (!isAuthenticated.value) {
+    const isAuth = await checkAuth()
+    if (!isAuth) {
+      console.error('Debe iniciar sesión para acceder a esta página')
+      setTimeout(() => {
+        router.push('/')
+      }, 2000)
+      return
+    }
   }
-}
 
-const activarInput = (index) => {
-  inputsArchivo.value[index]?.click()
-}
+  // Verificar si estamos en modo edición
+  if (route.params.id) {
+    esEdicion.value = true
+    terapiaId.value = route.params.id
+    await cargarTerapia()
+  }
+})
 
-const quitarArchivo = (index) => {
-  archivos.value[index].archivo = null
-  archivos.value[index].preview = null
+// Cargar datos de la terapia para edición
+const cargarTerapia = async () => {
+  try {
+    cargando.value = true
+    const response = await fetch(`/api/tipos-terapia/${terapiaId.value}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      if (data.success) {
+        const terapiaData = data.data
+        // Asignar los datos cargados al reactive object
+        Object.assign(terapia, {
+          nombre: terapiaData.nombre || '',
+          descripcion: terapiaData.descripcion || '',
+          especie: terapiaData.especie || '',
+          duracionValor: terapiaData.duracion_valor || '',
+          duracionUnidad: terapiaData.duracion_unidad || 'sesiones',
+          frecuencia: terapiaData.frecuencia || '',
+          requisitos: terapiaData.requisitos || '',
+          indicaciones: terapiaData.indicaciones_clinicas || '',
+          contraindicaciones: terapiaData.contraindicaciones || '',
+          riesgos: terapiaData.riesgos_efectos_secundarios || '',
+          recomendaciones: terapiaData.recomendaciones_clinicas || '',
+          observaciones: terapiaData.observaciones || ''
+        })
+      }
+    } else {
+      throw new Error('Error al cargar los datos de la terapia')
+    }
+  } catch (error) {
+    console.error('Error al cargar terapia:', error)
+    alert('Error al cargar los datos de la terapia')
+  } finally {
+    cargando.value = false
+  }
 }
 
 const cancelar = () => {
@@ -238,30 +281,65 @@ const cancelar = () => {
   }
 }
 
-const registrarTerapia = () => {
-  const formData = new FormData()
-  
-  // Preparar datos para enviar
-  const datosEnvio = {
-    ...terapia,
-    duracion: `${terapia.duracionValor} ${terapia.duracionUnidad}`
-  }
-
-  for (const campo in datosEnvio) {
-    if (datosEnvio[campo] !== null && datosEnvio[campo] !== '') {
-      formData.append(campo, datosEnvio[campo])
+const guardarTerapia = async () => {
+  try {
+    // Validar datos obligatorios
+    if (!terapia.nombre || !terapia.descripcion || !terapia.especie || !terapia.duracionValor || !terapia.frecuencia || !terapia.requisitos || !terapia.indicaciones) {
+      alert('Por favor complete todos los campos obligatorios')
+      return
     }
-  }
 
-  archivos.value.forEach((archivo, i) => {
-    if (archivo.archivo) {
-      formData.append(`archivo${i + 1}`, archivo.archivo)
+    cargando.value = true
+
+    // Preparar datos para enviar
+    const datosEnvio = {
+      nombre: terapia.nombre,
+      descripcion: terapia.descripcion,
+      especie: terapia.especie,
+      duracion_valor: parseInt(terapia.duracionValor),
+      duracion_unidad: terapia.duracionUnidad,
+      frecuencia: terapia.frecuencia,
+      requisitos: terapia.requisitos,
+      indicaciones_clinicas: terapia.indicaciones,
+      contraindicaciones: terapia.contraindicaciones || '',
+      riesgos_efectos_secundarios: terapia.riesgos || '',
+      recomendaciones_clinicas: terapia.recomendaciones || '',
+      observaciones: terapia.observaciones || ''
     }
-  })
-  
-  console.log('Datos a enviar:', formData)
-  // Aquí iría la lógica para enviar los datos al servidor
-  alert('Tipo de terapia registrado correctamente')
-  router.push('/tipos-terapia')
+
+    // Determinar método y URL según si es creación o edición
+    const method = esEdicion.value ? 'PUT' : 'POST'
+    const url = esEdicion.value ? `/api/tipos-terapia/${terapiaId.value}` : '/api/tipos-terapia'
+
+    // Enviar datos al servidor
+    const response = await fetch(url, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: JSON.stringify(datosEnvio)
+    })
+
+    const data = await response.json()
+
+    if (response.ok && data.success) {
+      alert(`Tipo de terapia ${esEdicion.value ? 'actualizado' : 'registrado'} correctamente`)
+      router.push('/veterinarios/tipos/terapias')
+    } else {
+      if (data.errors) {
+        const errores = Object.values(data.errors).flat().join('\n')
+        alert(`Error al ${esEdicion.value ? 'actualizar' : 'registrar'}: ${errores}`)
+      } else {
+        alert(`Error al ${esEdicion.value ? 'actualizar' : 'registrar'}: ${data.message || 'Error desconocido'}`)
+      }
+    }
+  } catch (error) {
+    console.error('Error:', error)
+    alert('Error al conectar con el servidor')
+  } finally {
+    cargando.value = false
+  }
 }
 </script>

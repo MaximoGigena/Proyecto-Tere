@@ -140,16 +140,26 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useAuthToken } from '@/composables/useAuthToken'
+import { useRouter } from 'vue-router'
+import { useAuth } from '@/composables/useAuth' // ✅ Usar el nuevo composable
 import axios from 'axios'
 
-axios.defaults.baseURL = 'http://localhost:8000'
+const router = useRouter()
+const { 
+  user, 
+  accessToken, 
+  isAuthenticated, 
+  checkAuth, 
+  isAdministrador,
+  logout 
+} = useAuth() // ✅ Solo usar useAuth
 
-const { accessToken, isAuthenticated } = useAuthToken()
+axios.defaults.baseURL = 'http://localhost:8000'
 
 const solicitudes = ref([])
 const cargando = ref(true)
 const error = ref('')
+const noAutorizado = ref('')
 const procesando = ref([])
 
 const detalleVisible = ref(false)
@@ -159,33 +169,51 @@ const fotoAmpliada = ref(null)
 const filtroNombre = ref('')
 const filtroEspecialidad = ref('')
 
-// Función para obtener token del localStorage
-// Función para verificar autenticación
-const verificarAutenticacion = () => {
+// ✅ Configurar axios con interceptor para el token
+const axiosAuth = axios.create({
+  baseURL: 'http://localhost:8000'
+})
+
+// Interceptor para agregar el token automáticamente
+axiosAuth.interceptors.request.use(
+  (config) => {
+    if (accessToken.value) {
+      config.headers.Authorization = `Bearer ${accessToken.value}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// ✅ Función mejorada para verificar autenticación
+const verificarAutenticacion = async () => {
   if (!isAuthenticated.value) {
     error.value = 'Debes iniciar sesión para acceder a esta página'
     cargando.value = false
     return false
   }
+
+  // Verificar que sea administrador
+  if (!isAdministrador()) {
+    noAutorizado.value = 'No tienes permisos para acceder a esta página. Solo los administradores pueden ver solicitudes.'
+    cargando.value = false
+    return false
+  }
+
   return true
 }
 
-// Peticiones con Bearer token del composable
-const axiosAuth = axios.create({
-  baseURL: 'http://localhost:8000',
-  headers: {
-    Authorization: `Bearer ${accessToken.value}`
-  }
-})
-
-// Obtener solicitudes pendientes
+// ✅ Obtener solicitudes pendientes
 const obtenerSolicitudesPendientes = async () => {
   try {
     cargando.value = true
     error.value = ''
+    noAutorizado.value = ''
 
     // Verificar autenticación antes de hacer la petición
-    if (!verificarAutenticacion()) return
+    if (!await verificarAutenticacion()) return
 
     const response = await axiosAuth.get('/api/solicitudes-pendientes')
     if (response.data.success) {
@@ -199,6 +227,13 @@ const obtenerSolicitudesPendientes = async () => {
     // Manejar errores de autenticación
     if (err.response?.status === 401) {
       error.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
+      logout()
+      return
+    }
+
+    // Manejar errores de permisos
+    if (err.response?.status === 403) {
+      noAutorizado.value = 'No tienes permisos para acceder a esta página.'
       return
     }
     
@@ -221,14 +256,15 @@ const rechazarSolicitud = async (solicitudId) => {
 const procesarSolicitud = async (solicitudId, accion) => {
   try {
     // Verificar autenticación antes de procesar
-    if (!verificarAutenticacion()) return
+    if (!await verificarAutenticacion()) return
     
     procesando.value.push(solicitudId)
     const endpoint = `/api/solicitudes/${solicitudId}/${accion}`
     const response = await axiosAuth.post(endpoint)
+    
     if (response.data.success) {
       solicitudes.value = solicitudes.value.filter(s => s.id !== solicitudId)
-      alert(`Solicitud ${accion} exitosamente`)
+      alert(`Solicitud ${accion === 'aprobar' ? 'aprobada' : 'rechazada'} exitosamente`)
     }
   } catch (err) {
     console.error('Error al procesar solicitud:', err)
@@ -236,6 +272,7 @@ const procesarSolicitud = async (solicitudId, accion) => {
     // Manejar errores de autenticación
     if (err.response?.status === 401) {
       error.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
+      logout()
       return
     }
     
@@ -244,6 +281,7 @@ const procesarSolicitud = async (solicitudId, accion) => {
     procesando.value = procesando.value.filter(id => id !== solicitudId)
   }
 }
+
 const verDetalle = (solicitud) => {
   seleccionado.value = solicitud
   detalleVisible.value = true
@@ -259,7 +297,9 @@ const getFotoUrl = (fotoPath) => {
   return `http://localhost:8000${fotoPath}`
 }
 
-const ampliarFoto = (fotoUrl) => { fotoAmpliada.value = fotoUrl }
+const ampliarFoto = (fotoUrl) => { 
+  fotoAmpliada.value = fotoUrl 
+}
 
 const formatFecha = (fecha) => {
   return new Date(fecha).toLocaleDateString('es-ES', {
@@ -284,7 +324,9 @@ const especialidadesUnicas = computed(() => {
   return Array.from(set)
 })
 
-onMounted(() => {
+onMounted(async () => {
+  // ✅ Verificar autenticación primero
+  await checkAuth()
   obtenerSolicitudesPendientes()
 })
 </script>

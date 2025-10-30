@@ -29,25 +29,14 @@
               </div>
 
               <div>
-                <label class="block font-medium">Edad</label>
-                <div class="flex gap-2">
-                  <input
-                  v-model.number="mascota.edad"
-                  type="number"
-                  min="0"
-                  class="flex-1 border rounded p-2"
-                  />
-                  <select
-                  v-model="mascota.unidadEdad" 
-                  required
-                  class="flex-1 border rounded p-2" 
-                  >
-                  <option value="Dias">Días</option>
-                  <option value="Meses">Meses</option>
-                  <option value="Años">Años</option>
-                  </select>
-                </div>
-              </div>
+                <label class="block font-medium">Fecha de Nacimiento Aproximada</label>
+                <input
+                    v-model="mascota.fechaNacimiento"
+                    type="date"
+                    class="w-full border rounded p-2"
+                    required
+                />
+            </div>
 
               <div>
                   <label class="block font-medium">Sexo</label>
@@ -65,68 +54,7 @@
               <div>
                 <label class="block font-medium mb-2">Especie</label>
 
-                <div class="flex items-center justify-center gap-4">
-                  <!-- Botón anterior -->
-                  <button
-                    type="button"
-                    @click="prevEspecie"
-                    class="p-2 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white transition-all duration-300 transform hover:scale-110 shadow-lg"
-                  >
-                    ‹
-                  </button>
-
-                  <!-- Contenedor del carrusel con animación -->
-                  <div class="relative overflow-hidden w-32 h-32">
-                    <div 
-                      class="flex transition-transform duration-500 ease-in-out"
-                      :style="{ transform: `translateX(-${especieIndex * 100}%)` }"
-                    >
-                      <!-- Icono y nombre con colores y animación -->
-                      <div
-                        v-for="(especie, index) in especies"
-                        :key="especie.value"
-                        class="flex-shrink-0 w-32 h-32 flex flex-col items-center justify-center p-4 rounded-2xl transition-all duration-300 transform cursor-pointer min-w-32"
-                        :class="[
-                          getColorClasses(index),
-                          mascota.especie === especie.value 
-                            ? 'scale-110 shadow-2xl ring-4 ring-white ring-opacity-50' 
-                            : 'scale-100 opacity-70 hover:opacity-90 hover:scale-105'
-                        ]"
-                        @click="seleccionarEspecie(especie.value)"
-                      >
-                        <font-awesome-icon 
-                          :icon="especie.icon" 
-                          class="text-4xl mb-2 text-white drop-shadow-md" 
-                        />
-                        <span class="text-white font-semibold text-sm drop-shadow-md text-center">{{ especie.label }}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Botón siguiente -->
-                  <button
-                    type="button"
-                    @click="nextEspecie"
-                    class="p-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white transition-all duration-300 transform hover:scale-110 shadow-lg"
-                  >
-                    ›
-                  </button>
-                </div>
-
-                <!-- Indicadores del carrusel -->
-                <div class="flex justify-center mt-4 space-x-2">
-                  <button
-                    v-for="(especie, index) in especies"
-                    :key="index"
-                    @click="especieIndex = index"
-                    class="w-3 h-3 rounded-full transition-all duration-300"
-                    :class="[
-                      index === especieIndex 
-                        ? getDotColor(index) + ' transform scale-125' 
-                        : 'bg-gray-300'
-                    ]"
-                  ></button>
-                </div>
+                 <EspecieSelector v-model="mascota.especie" />
               </div>
           </div>
 
@@ -333,6 +261,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthToken } from '@/composables/useAuthToken' // Importar el composable
 import axios from "axios"
+import EspecieSelector from '@/components/ElementosGraficos/CarruselEspecie.vue'
 
 axios.defaults.withCredentials = true
 axios.defaults.baseURL = 'http://localhost:8000'
@@ -341,53 +270,6 @@ const router = useRouter()
 const route = useRoute()
 const { accessToken, isAuthenticated } = useAuthToken() // Usar el composable
 
-const especies = [
-  { value: 'perro', label: 'Perro', icon: ['fas', 'dog'] },
-  { value: 'gato', label: 'Gato', icon: ['fas', 'cat'] },
-  { value: 'otro', label: 'Otro', icon: ['fas', 'paw'] }
-]
-
-const especieIndex = ref(0)
-
-// Función para obtener clases de color según el índice
-const getColorClasses = (index) => {
-  const colors = [
-    'bg-gradient-to-br from-blue-500 to-purple-600', // Perro
-    'bg-gradient-to-br from-pink-500 to-red-600',    // Gato
-    'bg-gradient-to-br from-green-500 to-teal-600'   // Otro
-  ]
-  return colors[index] || colors[0]
-}
-
-// Función para obtener color de los dots indicadores
-const getDotColor = (index) => {
-  const colors = [
-    'bg-gradient-to-r from-blue-500 to-purple-500', // Perro
-    'bg-gradient-to-r from-pink-500 to-red-500',    // Gato
-    'bg-gradient-to-r from-green-500 to-teal-500'   // Otro
-  ]
-  return colors[index] || colors[0]
-}
-
-const seleccionarEspecie = (value) => {
-  mascota.value.especie = value
-  // Encontrar el índice de la especie seleccionada
-  const index = especies.findIndex(e => e.value === value)
-  if (index !== -1) {
-    especieIndex.value = index
-  }
-}
-
-const prevEspecie = () => {
-  especieIndex.value = (especieIndex.value - 1 + especies.length) % especies.length
-  mascota.value.especie = especies[especieIndex.value].value
-}
-
-const nextEspecie = () => {
-  especieIndex.value = (especieIndex.value + 1) % especies.length
-  mascota.value.especie = especies[especieIndex.value].value
-}
-
 const cargando = ref(false)
 const mensaje = ref('')
 const mensajeExito = ref(false)
@@ -395,6 +277,23 @@ const mensajeExito = ref(false)
 // Determinar si estamos en modo edición
 const esEdicion = computed(() => route.name === 'editar-mascota' || !!route.params.id)
 const mascotaId = ref(null)
+
+const edadMascota = computed(() => {
+    if (!mascota.value.fechaNacimiento) return null;
+    
+    const nacimiento = new Date(mascota.value.fechaNacimiento);
+    const hoy = new Date();
+    const diffTime = Math.abs(hoy - nacimiento);
+    const diffDias = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDias < 30) {
+        return { valor: diffDias, unidad: 'Dias' };
+    } else if (diffDias < 365) {
+        return { valor: Math.floor(diffDias / 30), unidad: 'Meses' };
+    } else {
+        return { valor: Math.floor(diffDias / 365), unidad: 'Años' };
+    }
+});
 
 // Función para verificar autenticación
 const verificarAutenticacion = () => {
@@ -405,6 +304,8 @@ const verificarAutenticacion = () => {
   }
   return true
 }
+
+
 
 // Cargar datos de la mascota si estamos editando
 onMounted(async () => {
@@ -443,8 +344,7 @@ const cargarMascota = async () => {
       mascota.value = {
         nombre: mascotaData.nombre,
         especie: mascotaData.especie,
-        edad: mascotaData.edad,
-        unidadEdad: mascotaData.unidad_edad,
+        fechaNacimiento: mascotaData.fechaNacimiento,
         sexo: mascotaData.sexo,
         tamaño: mascotaData.caracteristicas?.tamano || '',
         pelaje: mascotaData.caracteristicas?.pelaje || '',
@@ -518,8 +418,7 @@ const cerrar = () => {
 const mascota = ref({
   nombre: '',
   especie: '',
-  edad: null,
-  unidadEdad: 'Años',
+  fechaNacimiento: null,
   sexo: '',
   tamaño: '',
   pelaje: '', 
@@ -576,8 +475,7 @@ const actualizarMascota = async () => {
     // Datos obligatorios
     formData.append('nombre', mascota.value.nombre)
     formData.append('especie', mascota.value.especie)
-    formData.append('edad', mascota.value.edad)
-    formData.append('unidad_edad', mascota.value.unidadEdad)
+    formData.append('fecha_nacimiento', mascota.value.fechaNacimiento)
     formData.append('sexo', mascota.value.sexo)
     formData.append('_method', 'PUT')
 
@@ -663,8 +561,7 @@ const registrarMascota = async () => {
     // Datos obligatorios
     formData.append('nombre', mascota.value.nombre)
     formData.append('especie', mascota.value.especie)
-    formData.append('edad', mascota.value.edad)
-    formData.append('unidad_edad', mascota.value.unidadEdad)
+    formData.append('fecha_nacimiento', mascota.value.fechaNacimiento)
     formData.append('sexo', mascota.value.sexo)
 
     // Opcionales

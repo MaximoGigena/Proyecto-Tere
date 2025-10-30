@@ -6,9 +6,9 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Tipo de Alergia/Sensibilidad</h1>
+    <h1 class="text-4xl font-bold mb-4">{{ esModoEdicion ? 'Modificar' : 'Registrar' }} Tipo de Alergia/Sensibilidad</h1>
 
-    <form @submit.prevent="registrarAlergia" class="space-y-4">
+    <form @submit.prevent="esModoEdicion ? actualizarAlergia() : registrarAlergia()" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -177,7 +177,7 @@
           <div class="gap-2 items-center mb-1">
             <label class="block font-medium mb-1">Observaciones adicionales</label>
             <textarea 
-            v-model="alergia.conducta" 
+            v-model="alergia.observaciones" 
             rows="3" 
             maxlength="500" 
             class="w-full border rounded p-2 resize-none"
@@ -189,17 +189,27 @@
 
       <div class="pt-4 flex items-center justify-center gap-4">
         <button type="button" @click="cancelar" class="bg-gray-500 text-white font-bold text-xl px-6 py-2 rounded-full hover:bg-gray-700 transition-colors">Cancelar</button>
-        <button type="submit" class="bg-blue-500 text-white font-bold text-2xl px-6 py-2 rounded-full hover:bg-blue-700 transition-colors">+ Tipo</button>
+        <button type="submit" class="bg-blue-500 text-white font-bold text-2xl px-6 py-2 rounded-full hover:bg-blue-700 transition-colors">
+          {{ esModoEdicion ? 'Actualizar' : 'Registrar' }}
+        </button>
       </div>
     </form>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import axios from 'axios'
+import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
+const route = useRoute()
+const { accessToken, isAuthenticated, user } = useAuth()
+
+const esModoEdicion = computed(() => route.params.id !== undefined)
+
+const alergiaId = ref(null)
 
 const areasAfectadas = [
   { value: 'piel', label: 'Piel' },
@@ -222,11 +232,61 @@ const alergia = reactive({
   otraArea: '',
   tratamiento: '',
   recomendaciones: '',
-  especie: '',
+  especie: 'todos',
   desencadenante: '',
   conducta: '',
   observaciones: ''
 })
+
+// Cargar datos cuando esté en modo edición
+onMounted(async () => {
+  if (esModoEdicion.value) {
+    await cargarAlergia()
+  }
+})
+
+const cargarAlergia = async () => {
+  try {
+    if (!isAuthenticated.value) {
+      alert('Debe estar autenticado para modificar un tipo de alergia')
+      return
+    }
+
+    const id = route.params.id
+    const response = await axios.get(`/api/tipos-alergia/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`
+      }
+    })
+
+    if (response.data.success) {
+      const datos = response.data.data
+      alergiaId.value = datos.id
+      
+      // Mapear los datos del servidor al objeto reactivo
+      alergia.nombre = datos.nombre || ''
+      alergia.descripcion = datos.descripcion || ''
+      alergia.categoria = datos.categoria || ''
+      alergia.categoriaOtro = datos.categoria_otro || ''
+      alergia.reaccion = datos.reaccion_comun || ''
+      alergia.riesgo = datos.nivel_riesgo || ''
+      alergia.areas = Array.isArray(datos.areas_afectadas) ? datos.areas_afectadas : []
+      alergia.otraArea = datos.otra_area || ''
+      alergia.tratamiento = datos.tratamiento_recomendado || ''
+      alergia.recomendaciones = datos.recomendaciones_clinicas || ''
+      alergia.especie = datos.especie_afectada || 'todos'
+      alergia.desencadenante = datos.desencadenante || ''
+      alergia.conducta = datos.conducta_recomendada || ''
+      alergia.observaciones = datos.observaciones_adicionales || ''
+    } else {
+      throw new Error(response.data.message || 'Error al cargar los datos')
+    }
+  } catch (error) {
+    console.error('Error al cargar alergia:', error)
+    alert(error.response?.data?.message || 'Error al cargar el tipo de alergia')
+    router.back()
+  }
+}
 
 const cancelar = () => {
   if (confirm('¿Está seguro que desea cancelar? Los datos no guardados se perderán.')) {
@@ -234,16 +294,107 @@ const cancelar = () => {
   }
 }
 
-const registrarAlergia = () => {
-  const payload = {
-    ...alergia,
-    categoriaFinal: alergia.categoria === 'otra' ? alergia.categoriaOtro : alergia.categoria,
-    areasAfectadas: [...alergia.areas, alergia.otraArea].filter(Boolean).join(', ')
+const registrarAlergia = async () => {
+  try {
+    if (!isAuthenticated.value) {
+      alert('Debe estar autenticado para registrar un tipo de alergia')
+      return
+    }
+
+    const payload = {
+      nombre: alergia.nombre,
+      descripcion: alergia.descripcion,
+      categoria: alergia.categoria,
+      categoria_otro: alergia.categoria === 'otra' ? alergia.categoriaOtro : null,
+      reaccion_comun: alergia.reaccion,
+      nivel_riesgo: alergia.riesgo,
+      areas_afectadas: alergia.areas,
+      otra_area: alergia.otraArea || null,
+      tratamiento_recomendado: alergia.tratamiento || null,
+      recomendaciones_clinicas: alergia.recomendaciones || null,
+      especie_afectada: alergia.especie || 'todos',
+      desencadenante: alergia.desencadenante || null,
+      conducta_recomendada: alergia.conducta || null,
+      observaciones_adicionales: alergia.observaciones || null
+    }
+
+    console.log('Datos a enviar:', payload)
+    
+    const response = await axios.post('/api/tipos-alergia', payload, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (response.data.success) {
+      alert('Tipo de alergia/sensibilidad registrado correctamente')
+      router.push('/veterinarios/tipos/alergias')
+    } else {
+      throw new Error(response.data.message || 'Error al registrar')
+    }
+    
+  } catch (error) {
+    console.error('Error al registrar alergia:', error)
+    
+    if (error.response?.data?.errors) {
+      const errors = Object.values(error.response.data.errors).flat()
+      alert('Errores de validación:\n' + errors.join('\n'))
+    } else {
+      alert(error.response?.data?.message || 'Error al registrar el tipo de alergia')
+    }
   }
-  
-  console.log('Datos a enviar:', payload)
-  // Aquí iría la lógica para enviar los datos al servidor
-  alert('Tipo de alergia/sensibilidad registrado correctamente')
-  router.push('/tipos-alergia')
+}
+
+const actualizarAlergia = async () => {
+  try {
+    if (!isAuthenticated.value) {
+      alert('Debe estar autenticado para modificar un tipo de alergia')
+      return
+    }
+
+    const payload = {
+      nombre: alergia.nombre,
+      descripcion: alergia.descripcion,
+      categoria: alergia.categoria,
+      categoria_otro: alergia.categoria === 'otra' ? alergia.categoriaOtro : null,
+      reaccion_comun: alergia.reaccion,
+      nivel_riesgo: alergia.riesgo,
+      areas_afectadas: alergia.areas,
+      otra_area: alergia.otraArea || null,
+      tratamiento_recomendado: alergia.tratamiento || null,
+      recomendaciones_clinicas: alergia.recomendaciones || null,
+      especie_afectada: alergia.especie || 'todos',
+      desencadenante: alergia.desencadenante || null,
+      conducta_recomendada: alergia.conducta || null,
+      observaciones_adicionales: alergia.observaciones || null
+    }
+
+    console.log('Datos a actualizar:', payload)
+    
+    const response = await axios.put(`/api/tipos-alergia/${alergiaId.value}`, payload, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (response.data.success) {
+      alert('Tipo de alergia/sensibilidad actualizado correctamente')
+      router.push('/veterinarios/tipos/alergias')
+    } else {
+      throw new Error(response.data.message || 'Error al actualizar')
+    }
+    
+  } catch (error) {
+    console.error('Error al actualizar alergia:', error)
+    
+    if (error.response?.data?.errors) {
+      const errors = Object.values(error.response.data.errors).flat()
+      alert('Errores de validación:\n' + errors.join('\n'))
+    } else {
+      alert(error.response?.data?.message || 'Error al actualizar el tipo de alergia')
+    }
+  }
 }
 </script>

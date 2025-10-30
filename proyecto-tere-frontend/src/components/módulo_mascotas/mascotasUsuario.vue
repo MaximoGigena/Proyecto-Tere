@@ -39,18 +39,56 @@ import { useRouter } from 'vue-router'
 import { ref, onMounted, watch } from 'vue'
 import axios from 'axios'
 import MascotaCard from '@/components/módulo_mascotas/tarjetaMascota.vue'
-import { useAuthToken } from '@/composables/useAuthToken'
+import { useAuth } from '@/composables/useAuth' // ✅ Usar useAuth en lugar de useAuthToken
 
 const router = useRouter()
-const { accessToken, isAuthenticated, tokenData, loadTokenFromStorage } = useAuthToken()
+const { 
+  user, 
+  accessToken, 
+  isAuthenticated, 
+  checkAuth,
+  logout 
+} = useAuth() // ✅ Nuevo composable
+
 const mascotas = ref([])
 const loading = ref(true)
+const error = ref('')
+
+// ✅ Configurar axios con interceptor
+const axiosAuth = axios.create({
+  baseURL: 'http://localhost:8000'
+})
+
+// Interceptor para agregar el token automáticamente
+axiosAuth.interceptors.request.use(
+  (config) => {
+    if (accessToken.value) {
+      config.headers.Authorization = `Bearer ${accessToken.value}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// Interceptor para manejar errores de autenticación
+axiosAuth.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.warn('Token inválido o expirado, cerrando sesión...')
+      logout()
+    }
+    return Promise.reject(error)
+  }
+)
 
 // Logs para ver el estado del token
 console.log('[MascotasUsuario] Estado inicial del token:', {
-  accessToken: accessToken.value,
+  accessToken: accessToken.value ? `${accessToken.value.substring(0, 10)}...` : 'null',
   isAuthenticated: isAuthenticated.value,
-  tokenData: tokenData.value
+  user: user.value
 })
 
 // Watcher para monitorear cambios en el token
@@ -65,33 +103,30 @@ watch(isAuthenticated, (newAuthStatus) => {
   console.log('[MascotasUsuario] Estado autenticación cambiado:', newAuthStatus)
 })
 
-// Cargar mascotas al montar el componente
+// ✅ Función mejorada para cargar mascotas
 const cargarMascotas = async () => {
   try {
     loading.value = true
+    error.value = ''
     
-    // Verificar autenticación antes de hacer la petición
-    if (!isAuthenticated.value) {
-      console.warn('[MascotasUsuario] Usuario no autenticado, intentando cargar token desde storage')
-      loadTokenFromStorage()
-      
-      if (!isAuthenticated.value) {
-        console.error('[MascotasUsuario] No hay token de autenticación disponible')
-        throw new Error('Usuario no autenticado')
-      }
+    console.log('[MascotasUsuario] Verificando autenticación...')
+    
+    // ✅ Verificar autenticación con el servidor
+    const autenticado = await checkAuth()
+    
+    if (!autenticado) {
+      error.value = 'Debes iniciar sesión para ver tus mascotas'
+      loading.value = false
+      return
     }
 
-    console.log('[MascotasUsuario] Realizando petición a /api/mascotas con token:', {
+    console.log('[MascotasUsuario] Usuario autenticado, realizando petición a /api/mascotas', {
       tokenPresente: !!accessToken.value,
-      tokenInicio: accessToken.value ? `${accessToken.value.substring(0, 10)}...` : 'null'
+      tokenInicio: accessToken.value ? `${accessToken.value.substring(0, 10)}...` : 'null',
+      usuario: user.value?.email
     })
 
-    const response = await axios.get('/api/mascotas', {
-      headers: {
-        'Authorization': `Bearer ${accessToken.value}`,
-        'Content-Type': 'application/json'
-      }
-    })
+    const response = await axiosAuth.get('/api/mascotas')
 
     console.log('[MascotasUsuario] Respuesta del servidor:', {
       success: response.data.success,
@@ -126,18 +161,25 @@ const cargarMascotas = async () => {
       })
 
       console.log('[MascotasUsuario] Mascotas cargadas exitosamente:', mascotas.value.length)
+    } else {
+      throw new Error(response.data.message || 'Error en la respuesta del servidor')
     }
-  } catch (error) {
+  } catch (err) {
     console.error('[MascotasUsuario] Error al cargar mascotas:', {
-      error: error.message,
-      status: error.response?.status,
-      data: error.response?.data
+      error: err.message,
+      status: err.response?.status,
+      data: err.response?.data
     })
 
-    // Manejo específico de errores de autenticación
-    if (error.response?.status === 401) {
-      console.warn('[MascotasUsuario] Token inválido o expirado')
-      // Aquí podrías redirigir al login o intentar refrescar el token
+    // ✅ Manejo mejorado de errores
+    if (err.response?.status === 401) {
+      error.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
+    } else if (err.response?.status === 403) {
+      error.value = 'No tienes permisos para acceder a esta información.'
+    } else if (err.response?.status === 404) {
+      error.value = 'No se encontraron mascotas.'
+    } else {
+      error.value = err.response?.data?.message || err.message || 'Error al cargar las mascotas'
     }
   } finally {
     loading.value = false
@@ -145,11 +187,18 @@ const cargarMascotas = async () => {
   }
 }
 
-onMounted(() => {
-  cargarMascotas()
+// ✅ Mejor manejo del mounted
+onMounted(async () => {
+  await cargarMascotas()
 })
 
 const abrirRegistroMascota = () => {
+  // ✅ Verificar autenticación antes de redirigir
+  if (!isAuthenticated.value) {
+    error.value = 'Debes iniciar sesión para registrar una mascota'
+    return
+  }
+  
   router.push({
     path: '/explorar/perfil/registro',
     query: {
@@ -158,12 +207,17 @@ const abrirRegistroMascota = () => {
   });
 };
 
-
 const abrirDetalleMascota = (id) => {
+  // ✅ Verificar autenticación antes de redirigir
+  if (!isAuthenticated.value) {
+    error.value = 'Debes iniciar sesión para ver los detalles'
+    return
+  }
+  
   router.push({
     path: `/explorar/perfil/mascota/${id}`,
     query: {
-      from: '/explorar/perfil/mascotas' // Ruta exacta a la que quieres volver
+      from: '/explorar/perfil/mascotas'
     }
   });
 };
@@ -178,9 +232,13 @@ const bgColors = [
   'bg-emerald-200 hover:bg-emerald-400'
 ];
 
-
-// En tu componente que lista las mascotas
 const editarMascota = (id) => {
+  // ✅ Verificar autenticación antes de redirigir
+  if (!isAuthenticated.value) {
+    error.value = 'Debes iniciar sesión para editar mascotas'
+    return
+  }
+  
   router.push({ 
     path: `/explorar/perfil/mascotas/editar/${id}`,
     query: {
@@ -190,12 +248,26 @@ const editarMascota = (id) => {
 }
 
 const eliminarMascota = (id) => {
+  // ✅ Verificar autenticación antes de redirigir
+  if (!isAuthenticated.value) {
+    error.value = 'Debes iniciar sesión para eliminar mascotas'
+    return
+  }
+  
   router.push({
-    name: "darBajaMascota", // 👉 definiremos esta ruta
+    name: "darBajaMascota",
     params: { id },
     query: { from: "/explorar/perfil/mascotas" }
   })
 }
+
+// ✅ Recargar mascotas cuando cambie el estado de autenticación
+watch(isAuthenticated, async (newVal) => {
+  if (newVal) {
+    console.log('[MascotasUsuario] Usuario re-autenticado, recargando mascotas...')
+    await cargarMascotas()
+  }
+})
 </script>
 
 <style scoped>
