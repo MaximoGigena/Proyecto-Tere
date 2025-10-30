@@ -16,25 +16,51 @@ class MascotaController extends Controller
 {
     public function store(Request $request)
     {
+        
         // Validar los datos obligatorios
         $request->validate([
             'nombre' => 'required|string|max:255',
-            'especie' => 'required|in:perro,gato,otro',
-            'edad' => 'required|integer|min:0',
-            'unidad_edad' => 'required|in:Dias,Meses,Años',
+            'especie' => 'required|in:canino,felino,equino,bovino,ave,pez,otro',
+            'fecha_nacimiento' => 'required|date|before:today',
             'sexo' => 'required|in:macho,hembra',
             'fotos.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp'
         ]);
 
         $usuario = Auth::user()->userable;
 
+        // Calcular edad antes de crear la mascota - CORREGIDO
+        $edadCalculada = null;
+        if ($request->fecha_nacimiento) {
+            $nacimiento = \Carbon\Carbon::parse($request->fecha_nacimiento);
+            $hoy = \Carbon\Carbon::now();
+            
+            // CORREGIDO: Orden correcto para obtener diferencia positiva
+            $diffDias = $nacimiento->diffInDays($hoy);
+            
+            if ($diffDias < 30) {
+                $edadCalculada = "{$diffDias} días";
+            } else if ($diffDias < 365) {
+                $meses = $nacimiento->diffInMonths($hoy); // CORREGIDO
+                $edadCalculada = "{$meses} " . ($meses === 1 ? 'mes' : 'meses');
+            } else {
+                $años = $nacimiento->diffInYears($hoy); // CORREGIDO
+                $mesesRestantes = $nacimiento->diffInMonths($hoy) % 12; // CORREGIDO
+                
+                if ($mesesRestantes > 0) {
+                    $edadCalculada = "{$años} " . ($años === 1 ? 'año' : 'años') . " y {$mesesRestantes} " . ($mesesRestantes === 1 ? 'mes' : 'meses');
+                } else {
+                    $edadCalculada = "{$años} " . ($años === 1 ? 'año' : 'años');
+                }
+            }
+        }
+
         // Crear la mascota
         $mascota = Mascota::create([
             'nombre' => $request->nombre,
             'especie' => $request->especie,
-            'edad' => $request->edad,
-            'unidad_edad' => $request->unidad_edad,
             'sexo' => $request->sexo,
+            'fecha_nacimiento' => $request->fecha_nacimiento, 
+            'edad_actual' => $edadCalculada,
             'usuario_id' => $usuario->id
         ]);
 
@@ -95,9 +121,8 @@ class MascotaController extends Controller
         // Validar datos
         $request->validate([
             'nombre' => 'required|string|max:255',
-            'especie' => 'required|in:perro,gato,otro',
-            'edad' => 'required|integer|min:0',
-            'unidad_edad' => 'required|in:Dias,Meses,Años',
+            'especie' => 'required|in:canino,felino,equino,bovino,ave,pez,otro',
+            'fecha_nacimiento' => 'required|date|before:today',
             'sexo' => 'required|in:macho,hembra',
             'nuevas_fotos.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp',
             'fotos_eliminar.*' => 'nullable|integer'
@@ -110,13 +135,39 @@ class MascotaController extends Controller
             ->where('usuario_id', $usuario->id)
             ->firstOrFail();
 
+        // Recalcular la edad al actualizar - CORREGIDO
+        $edadCalculada = null;
+        if ($request->fecha_nacimiento) {
+            $nacimiento = \Carbon\Carbon::parse($request->fecha_nacimiento);
+            $hoy = \Carbon\Carbon::now();
+            
+            // CORREGIDO: Orden correcto
+            $diffDias = $nacimiento->diffInDays($hoy);
+            
+            if ($diffDias < 30) {
+                $edadCalculada = "{$diffDias} días";
+            } else if ($diffDias < 365) {
+                $meses = $nacimiento->diffInMonths($hoy);
+                $edadCalculada = "{$meses} " . ($meses === 1 ? 'mes' : 'meses');
+            } else {
+                $años = $nacimiento->diffInYears($hoy);
+                $mesesRestantes = $nacimiento->diffInMonths($hoy) % 12;
+                
+                if ($mesesRestantes > 0) {
+                    $edadCalculada = "{$años} " . ($años === 1 ? 'año' : 'años') . " y {$mesesRestantes} " . ($mesesRestantes === 1 ? 'mes' : 'meses');
+                } else {
+                    $edadCalculada = "{$años} " . ($años === 1 ? 'año' : 'años');
+                }
+            }
+        }
+
         // Actualizar datos básicos
         $mascota->update([
             'nombre' => $request->nombre,
             'especie' => $request->especie,
-            'edad' => $request->edad,
-            'unidad_edad' => $request->unidad_edad,
+            'fecha_nacimiento' => $request->fecha_nacimiento,
             'sexo' => $request->sexo,
+            'edad_actual' => $edadCalculada,
         ]);
 
         // Actualizar características
@@ -285,5 +336,82 @@ class MascotaController extends Controller
                 'motivos' => $motivosPorDefecto
             ]);
         }
+    }
+
+    public function buscar(Request $request)
+    {
+        $request->validate([
+            'termino' => 'required|string|min:1|max:255',
+            'tipo' => 'nullable|in:nombre,tutor,especie'
+        ]);
+
+        $termino = $request->termino;
+        $tipo = $request->tipo ?? 'nombre';
+
+        $query = Mascota::with([
+            'usuario.contacto', 
+            'fotos', // Esto carga las fotos
+            'caracteristicas'
+        ])->whereNull('deleted_at');
+
+        switch ($tipo) {
+            case 'nombre':
+                $query->where('nombre', 'LIKE', "%{$termino}%");
+                break;
+                
+            case 'tutor':
+                $query->whereHas('usuario', function($q) use ($termino) {
+                    $q->where('nombre', 'LIKE', "%{$termino}%")
+                    ->orWhereHas('contacto', function($q2) use ($termino) {
+                        $q2->where('email', 'LIKE', "%{$termino}%");
+                    });
+                });
+                break;
+                
+            case 'especie':
+                $query->where('especie', 'LIKE', "%{$termino}%");
+                break;
+        }
+
+        $mascotas = $query->limit(50)->get();
+
+        // Forzar la inclusión de los accessors en la respuesta
+        $mascotasTransformadas = $mascotas->map(function($mascota) {
+            // Obtener los datos base de la mascota
+            $mascotaData = $mascota->toArray();
+            
+            // Agregar los accessors manualmente si no se incluyen automáticamente
+            $mascotaData['foto_principal_url'] = $mascota->foto_principal_url;
+            
+            // También transformar las fotos para incluir URLs completas
+            if (isset($mascotaData['fotos']) && is_array($mascotaData['fotos'])) {
+                $mascotaData['fotos'] = array_map(function($foto) {
+                    $foto['url_completa'] = asset('storage/' . $foto['ruta_foto']);
+                    return $foto;
+                }, $mascotaData['fotos']);
+            }
+            
+            return $mascotaData;
+        });
+
+        // Log para debuggear
+        Log::info('Mascotas encontradas:', [
+            'total' => $mascotas->count(),
+            'mascotas' => $mascotasTransformadas->map(function($mascota) {
+                return [
+                    'id' => $mascota['id'],
+                    'nombre' => $mascota['nombre'],
+                    'fotos_count' => count($mascota['fotos'] ?? []),
+                    'foto_principal_url' => $mascota['foto_principal_url'] ?? 'No disponible',
+                    'fotos' => $mascota['fotos'] ?? []
+                ];
+            })->toArray()
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'mascotas' => $mascotasTransformadas,
+            'total' => $mascotas->count()
+        ]);
     }
 }

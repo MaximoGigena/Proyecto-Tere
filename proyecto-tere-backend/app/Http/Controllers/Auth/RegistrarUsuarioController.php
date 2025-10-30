@@ -187,6 +187,7 @@ class RegistrarUsuarioController extends Controller
                     'fotos' => $usuario->fotos->map(function($foto) {
                         return [
                             'ruta_foto' => $foto->ruta_foto,
+                            'url_foto' => $foto->url_foto, // ← AGREGAR URL COMPLETA
                             'es_principal' => $foto->es_principal
                         ];
                     })
@@ -214,10 +215,35 @@ class RegistrarUsuarioController extends Controller
         DB::beginTransaction();
 
         try {
-            Log::info('🔧 Iniciando actualización de usuario', ['usuario_id' => $id, 'datos' => $request->all()]);
+            Log::info('🔧 ===== INICIANDO ACTUALIZACIÓN DE USUARIO =====', ['usuario_id' => $id]);
+            Log::info('🔧 Datos recibidos del frontend:', $request->all());
+            Log::info('🔧 Headers:', $request->headers->all());
+
+            Log::info('🎯 ===== DEBUG COMPLETO DEL FORM DATA =====');
+        
+            // DEBUG: Ver el contenido RAW del request
+            Log::info('🎯 CONTENIDO RAW:', ['content' => $request->getContent()]);
+            
+            // DEBUG: Ver todos los parámetros del FormData
+            $allParams = [];
+            foreach ($request->all() as $key => $value) {
+                $allParams[$key] = $value;
+            }
+            Log::info('🎯 PARÁMETROS FORM DATA:', $allParams);
+            
+            // DEBUG: Ver archivos
+            Log::info('🎯 ARCHIVOS:', $request->allFiles());
+            
+            // DEBUG: Ver método y headers
+            Log::info('🎯 MÉTODO:', ['method' => $request->method()]);
+            Log::info('🎯 CONTENT TYPE:', ['content_type' => $request->header('Content-Type')]);
 
             $usuario = Usuario::findOrFail($id);
-            Log::info('🔧 Usuario encontrado', ['usuario' => $usuario]);
+            Log::info('🔧 Usuario encontrado en BD:', [
+                'id' => $usuario->id,
+                'nombre' => $usuario->nombre,
+                'edad_actual' => $usuario->edad
+            ]);
 
             // Validación
             $validatedData = $request->validate([
@@ -235,26 +261,35 @@ class RegistrarUsuarioController extends Controller
                 'foto_perfil' => 'nullable|image|max:2048',
             ]);
 
-            Log::info('🔧 Datos validados', ['validatedData' => $validatedData]);
+            Log::info('🔧 Datos validados:', $validatedData);
+
+            // DEBUG: Verificar qué campos se están enviando realmente
+            Log::info('🔧 Campos recibidos en request:', array_keys($request->all()));
+            
+            // Verificar si hay archivos
+            Log::info('🔧 ¿Tiene archivo foto_perfil?: ' . ($request->hasFile('foto_perfil') ? 'SÍ' : 'NO'));
 
             // Actualizar usuario
             $usuario->update([
                 'edad' => $validatedData['edad'] ?? $usuario->edad,
             ]);
-            Log::info('🔧 Usuario actualizado', ['nueva_edad' => $usuario->edad]);
+            Log::info('🔧 Usuario actualizado - Nueva edad:', ['nueva_edad' => $usuario->edad]);
 
             // Actualizar o crear características
             if ($usuario->caracteristicas) {
-                $usuario->caracteristicas->update([
+                $caracteristicasActualizadas = [
                     'ocupacion' => $validatedData['ocupacion'] ?? $usuario->caracteristicas->ocupacion,
                     'tipoVivienda' => $validatedData['tipoVivienda'] ?? $usuario->caracteristicas->tipoVivienda,
                     'experiencia' => $validatedData['experiencia'] ?? $usuario->caracteristicas->experiencia,
                     'convivenciaNiños' => $validatedData['convivenciaNiños'] ?? $usuario->caracteristicas->convivenciaNiños,
                     'convivenciaMascotas' => $validatedData['convivenciaMascotas'] ?? $usuario->caracteristicas->convivenciaMascotas,
                     'descripción' => $validatedData['descripcion'] ?? $usuario->caracteristicas->descripción,
-                ]);
-                Log::info('🔧 Características actualizadas');
+                ];
+                
+                $usuario->caracteristicas->update($caracteristicasActualizadas);
+                Log::info('🔧 Características actualizadas:', $caracteristicasActualizadas);
             } else {
+                Log::info('🔧 Creando nuevas características...');
                 CaracteristicasUsuario::create([
                     'usuario_id' => $usuario->id,
                     'ocupacion' => $validatedData['ocupacion'] ?? null,
@@ -269,14 +304,17 @@ class RegistrarUsuarioController extends Controller
 
             // Actualizar o crear contacto
             if ($usuario->contacto) {
-                $usuario->contacto->update([
+                $contactoActualizado = [
                     'dni' => $validatedData['dni'] ?? $usuario->contacto->dni,
                     'telefono' => $validatedData['telefono_contacto'] ?? $usuario->contacto->telefono,
                     'email' => $validatedData['email_contacto'] ?? $usuario->contacto->email,
                     'nombre_completo' => $validatedData['nombre_completo'] ?? $usuario->contacto->nombre_completo,
-                ]);
-                Log::info('🔧 Contacto actualizado');
+                ];
+                
+                $usuario->contacto->update($contactoActualizado);
+                Log::info('🔧 Contacto actualizado:', $contactoActualizado);
             } else {
+                Log::info('🔧 Creando nuevo contacto...');
                 ContactoUsuario::create([
                     'usuario_id' => $usuario->id,
                     'dni' => $validatedData['dni'] ?? null,
@@ -289,9 +327,13 @@ class RegistrarUsuarioController extends Controller
 
             // Guardar foto de perfil si se envía
             if ($request->hasFile('foto_perfil')) {
+                Log::info('🔧 Procesando nueva foto de perfil...');
+                
                 // Eliminar foto principal anterior si existe
                 $fotoAnterior = $usuario->fotos()->where('es_principal', true)->first();
                 if ($fotoAnterior) {
+                    Log::info('🔧 Eliminando foto anterior:', ['ruta' => $fotoAnterior->ruta_foto]);
+                    
                     // Eliminar archivo físico
                     if (Storage::disk('public')->exists($fotoAnterior->ruta_foto)) {
                         Storage::disk('public')->delete($fotoAnterior->ruta_foto);
@@ -301,15 +343,19 @@ class RegistrarUsuarioController extends Controller
                 }
 
                 $path = $request->file('foto_perfil')->store('perfiles', 'public');
+                Log::info('🔧 Nueva foto guardada en:', ['ruta' => $path]);
+                
                 $usuario->fotos()->create([
                     'ruta_foto' => $path,
                     'es_principal' => true
                 ]);
-                Log::info('🔧 Foto de perfil actualizada');
+                Log::info('🔧 Foto de perfil actualizada en BD');
+            } else {
+                Log::info('🔧 No se envió nueva foto de perfil');
             }
 
             DB::commit();
-            Log::info('✅ Usuario actualizado exitosamente');
+            Log::info('✅ ===== USUARIO ACTUALIZADO EXITOSAMENTE =====');
 
             // Recargar relaciones actualizadas
             $usuario->load(['caracteristicas', 'contacto', 'fotos']);
@@ -322,7 +368,10 @@ class RegistrarUsuarioController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('❌ Error al modificar usuario: ' . $e->getMessage());
+            Log::error('❌ ===== ERROR AL MODIFICAR USUARIO =====');
+            Log::error('❌ Error message: ' . $e->getMessage());
+            Log::error('❌ Stack trace: ' . $e->getTraceAsString());
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error al modificar usuario',

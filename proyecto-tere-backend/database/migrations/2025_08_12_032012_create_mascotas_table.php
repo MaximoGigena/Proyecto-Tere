@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('mascotas', function (Blueprint $table) {
             $table->id();
             $table->string('nombre');
-            $table->enum('especie', ['perro', 'gato', 'otro']);
-            $table->integer('edad');
-            $table->enum('unidad_edad', ['Dias', 'Meses', 'Años']);
+            $table->enum('especie', ['canino', 'felino', 'equino', 'bovino', 'ave', 'pez', 'otro']);
+            $table->date('fecha_nacimiento')->nullable();
+            $table->string('edad_actual')->nullable();
             $table->enum('sexo', ['macho', 'hembra']);
             $table->timestamp('deleted_at')->nullable();
             $table->foreignId('usuario_id')

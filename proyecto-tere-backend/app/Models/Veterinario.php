@@ -2,6 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\TiposProcedimientos\TipoAlergia;
+use App\Models\TiposProcedimientos\TipoDesparasitacion;
+use App\Models\TiposProcedimientos\TipoRevision;
+use App\Models\TiposProcedimientos\TipoVacuna;
+use App\Models\CaracteristicasVeterinario;
+use App\Models\TiposProcedimientos\TipoCirugia;
+use App\Models\TiposProcedimientos\TipoTerapia;
+use App\Models\TiposProcedimientos\TipoDiagnostico;
+use App\Models\TiposProcedimientos\TipoFarmaco;
+use App\Models\ContactoVeterinario;
+use App\Models\CentroVeterinario;
+use App\Models\TiposProcedimientos\TipoPaliativo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -126,4 +138,54 @@ class Veterinario extends Model
     {
         return $this->user ? $this->user->email : null;
     }
+
+    public function tiposVacuna(): HasMany
+    {
+        return $this->hasMany(TipoVacuna::class, 'veterinario_id');
+    }
+
+    public function tiposDesparasitacion(): HasMany
+    {
+        return $this->hasMany(TipoDesparasitacion::class, 'veterinario_id');
+    }
+
+    public function tiposRevision(): HasMany
+    {
+        return $this->hasMany(TipoRevision::class, 'veterinario_id');
+    }
+
+    public function tiposAlergias(): HasMany
+    {
+        return $this->hasMany(TipoAlergia::class, 'veterinario_id');
+    }
+
+    public function tiposCirugia(): HasMany
+    {
+        return $this->hasMany(TipoCirugia::class, 'veterinario_id');
+    } 
+
+    public function tiposTerapia(): HasMany
+    {
+        return $this->hasMany(TipoTerapia::class, 'veterinario_id');
+    } 
+
+    public function tiposFarmaco(): HasMany
+    {
+        return $this->hasMany(TipoFarmaco::class, 'veterinario_id');
+    }   
+
+    public function tiposDiagnostico(): HasMany
+    {
+        return $this->hasMany(TipoDiagnostico::class, 'veterinario_id');
+    } 
+
+    public function tiposPaliativo(): HasMany
+    {
+        return $this->hasMany(TipoPaliativo::class, 'veterinario_id');
+    } 
+
+    public function centroVeterinario(): HasMany
+    {
+        return $this->hasMany(CentroVeterinario::class, 'veterinario_id');
+    } 
 }

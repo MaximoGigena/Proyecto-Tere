@@ -19,11 +19,15 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'name',
         'email',
         'password',
         'userable_type',
         'userable_id',
         'estado',
+        'google_id', 
+        'facebook_id',
+        'avatar',
     ];
 
     /**
@@ -47,6 +51,20 @@ class User extends Authenticatable
     public function userable()
     {
         return $this->morphTo();
+    }
+
+    // ✅ NUEVO: Método para determinar si es login social
+    public function isSocialLogin()
+    {
+        return !is_null($this->google_id) || !is_null($this->facebook_id);
+    }
+
+    // ✅ NUEVO: Método para obtener el provider
+    public function getSocialProvider()
+    {
+        if ($this->google_id) return 'google';
+        if ($this->facebook_id) return 'facebook';
+        return null;
     }
 
     // Métodos helper
@@ -93,6 +111,11 @@ class User extends Authenticatable
     // ✅ Accesor para obtener el nombre según el tipo de usuario
     public function getNombreAttribute()
     {
+        // Si ya tenemos name (de login social), usarlo
+        if ($this->name) {
+            return $this->name;
+        }
+        
         if (!$this->userable) return null;
 
         if ($this->isVeterinario() || $this->isAdministrador()) {

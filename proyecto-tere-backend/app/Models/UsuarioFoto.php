@@ -12,6 +12,17 @@ class UsuarioFoto extends Model
         'es_principal',
     ];
 
+    /**
+     * Accessor para obtener la URL completa de la foto
+     */
+    public function getUrlFotoAttribute()
+    {
+        if ($this->ruta_foto) {
+            return asset('storage/' . $this->ruta_foto);
+        }
+        return null;
+    }
+
     public function usuario()
     {
         return $this->belongsTo(Usuario::class);
