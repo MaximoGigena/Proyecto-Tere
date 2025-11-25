@@ -81,20 +81,20 @@
               <option value="otra">Otra</option>
             </select>
           </div>
+
+           <div>
+            <label class="block font-medium mb-2">Especie objetivo</label>
+            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
+            <p v-if="!especiesSeleccionadas.length" class="text-sm text-gray-500 mt-1">
+              Seleccione una o más especies objetivo
+            </p>
+          </div>
+
         </div>
 
         <!-- Columna derecha -->
         <div class="space-y-4">
-          <div>
-            <label class="block font-medium">Especies a las que aplica</label>
-            <select v-model="desparasitacion.especies" multiple class="w-full border rounded p-2 h-[120px]">
-              <option value="canino">Canino</option>
-              <option value="felino">Felino</option>
-              <option value="ave">Ave</option>
-              <option value="roedor">Roedor</option>
-              <option value="exotico">Exótico</option>
-            </select>
-          </div>
+
 
           <div>
             <label class="block font-medium">Edad mínima de aplicación</label>
@@ -226,9 +226,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
+const especiesSeleccionadas = ref([])
+
+watch(especiesSeleccionadas, (val) => {
+  // Asignar el array directamente a desparasitacion.especies
+  desparasitacion.especies = [...val] // o simplemente val
+}, { deep: true, flush: 'post' })
 
 const router = useRouter()
 const route = useRoute()
@@ -300,7 +307,6 @@ const cargarDatosDesparasitacion = async () => {
       desparasitacion.parasitos = Array.isArray(tipo.parasitos) ? tipo.parasitos : []
       desparasitacion.otrosParasitos = tipo.otros_parasitos || ''
       desparasitacion.via = tipo.via_administracion || ''
-      desparasitacion.especies = Array.isArray(tipo.especies) ? tipo.especies : []
       desparasitacion.edadMinima = tipo.edad_minima || ''
       desparasitacion.edadUnidad = tipo.edad_unidad || 'semanas'
       desparasitacion.frecuencia = tipo.frecuencia || ''
@@ -308,6 +314,11 @@ const cargarDatosDesparasitacion = async () => {
       desparasitacion.recomendaciones = tipo.recomendaciones || ''
       desparasitacion.riesgos = tipo.riesgos || ''
       desparasitacion.dosis = tipo.dosis_recomendada || ''
+      
+      // Cargar especies en el carrusel
+      if (Array.isArray(tipo.especies)) {
+        especiesSeleccionadas.value = [...tipo.especies]
+      }
     }
   } catch (error) {
     console.error('Error cargando datos:', error)

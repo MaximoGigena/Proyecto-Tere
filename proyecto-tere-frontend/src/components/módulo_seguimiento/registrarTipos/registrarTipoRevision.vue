@@ -69,6 +69,14 @@
               placeholder="Especifique la frecuencia"
             />
           </div>
+          
+          <div>
+            <label class="block font-medium mb-2">Especie objetivo</label>
+            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
+            <p v-if="!especiesSeleccionadas.length" class="text-sm text-gray-500 mt-1">
+              Seleccione una o más especies objetivo
+            </p>
+          </div>
         </div>
 
         <!-- Columna derecha -->
@@ -109,18 +117,6 @@
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
-        <div>
-          <label class="block font-medium">Especie objetivo</label>
-          <select v-model="revision.especie_objetivo" class="w-full border rounded p-2">
-            <option value="todos">Todos</option>
-            <option value="canino">Canino</option>
-            <option value="felino">Felino</option>
-            <option value="ave">Ave</option>
-            <option value="roedor">Roedor</option>
-            <option value="exotico">Exótico</option>
-          </select>
-        </div>
-
         <div>
           <label class="block font-medium">Edad sugerida para la revisión</label>
           <div class="flex">
@@ -203,15 +199,23 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch} from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
+
+const especiesSeleccionadas = ref([])
 
 const router = useRouter()
 const route = useRoute()
 const { isVeterinario, isAprobado, accessToken, checkAuth, user } = useAuth()
 const loading = ref(false)
 const mostrarModal = ref(false)
+
+// Solo para debug, no para lógica de negocio
+watch(especiesSeleccionadas, (val) => {
+  console.log('🔄 Especies seleccionadas cambiaron:', val)
+}, { deep: true, flush: 'post' })
 
 // Determinar si estamos en modo edición
 const esEdicion = computed(() => {
@@ -239,7 +243,6 @@ const revision = reactive({
   areas_revisar: [],
   otra_area: '',
   indicadores_clave: '',
-  especie_objetivo: 'todos',
   edad_sugerida: null,
   edad_unidad: 'meses',
   recomendaciones_profesionales: '',
@@ -310,13 +313,21 @@ const cargarDatosEdicion = async () => {
         revision.areas_revisar = Array.isArray(datos.areas_revisar) ? datos.areas_revisar : []
         revision.otra_area = datos.otra_area || ''
         revision.indicadores_clave = datos.indicadores_clave || ''
-        revision.especie_objetivo = datos.especie_objetivo || 'todos'
         revision.edad_sugerida = datos.edad_sugerida || null
         revision.edad_unidad = datos.edad_unidad || 'meses'
         revision.recomendaciones_profesionales = datos.recomendaciones_profesionales || ''
         revision.riesgos_clinicos = datos.riesgos_clinicos || ''
         
+        // Cargar las especies objetivo - IMPORTANTE
+        if (datos.especies_objetivo && Array.isArray(datos.especies_objetivo)) {
+          especiesSeleccionadas.value = datos.especies_objetivo
+        } else if (datos.especie_objetivo) {
+          // Para compatibilidad con versiones anteriores
+          especiesSeleccionadas.value = [datos.especie_objetivo]
+        }
+        
         console.log('Datos asignados al formulario:', revision)
+        console.log('Especies cargadas:', especiesSeleccionadas.value)
       } else {
         throw new Error(result.message || 'Error en la respuesta del servidor')
       }
@@ -352,7 +363,7 @@ const registrarRevision = async () => {
   try {
     loading.value = true
 
-    console.log('Datos actuales de revision:', revision)
+    console.log('Especies seleccionadas:', especiesSeleccionadas.value)
 
     // Validaciones básicas
     if (!revision.nombre.trim()) {
@@ -380,6 +391,12 @@ const registrarRevision = async () => {
       return
     }
 
+    // Validar que se hayan seleccionado especies
+    if (especiesSeleccionadas.value.length === 0) {
+      alert('Debe seleccionar al menos una especie objetivo')
+      return
+    }
+
     // Preparar datos para enviar
     const datosEnvio = {
       nombre: revision.nombre,
@@ -389,7 +406,7 @@ const registrarRevision = async () => {
       areas_revisar: revision.areas_revisar,
       otra_area: revision.otra_area || null,
       indicadores_clave: revision.indicadores_clave || null,
-      especie_objetivo: revision.especie_objetivo,
+      especies_objetivo: especiesSeleccionadas.value, // ← AQUÍ EL CAMBIO IMPORTANTE
       edad_sugerida: revision.edad_sugerida ? parseFloat(revision.edad_sugerida) : null,
       edad_unidad: revision.edad_sugerida ? revision.edad_unidad : null,
       recomendaciones_profesionales: revision.recomendaciones_profesionales || null,
@@ -413,7 +430,6 @@ const registrarRevision = async () => {
     if (!response.ok) {
       console.error('Error del servidor:', data)
       
-      // Mostrar errores de validación específicos
       if (data.errors) {
         const errores = Object.values(data.errors).flat().join('\n')
         throw new Error(`Errores de validación:\n${errores}`)
@@ -441,7 +457,7 @@ const actualizarRevision = async () => {
   try {
     loading.value = true
 
-    // Validaciones básicas (las mismas que para registro)
+    // Validaciones básicas
     if (!revision.nombre.trim()) {
       alert('El nombre es obligatorio')
       mostrarModal.value = false
@@ -472,6 +488,13 @@ const actualizarRevision = async () => {
       return
     }
 
+    // Validar que se hayan seleccionado especies
+    if (especiesSeleccionadas.value.length === 0) {
+      alert('Debe seleccionar al menos una especie objetivo')
+      mostrarModal.value = false
+      return
+    }
+
     // Preparar datos para enviar
     const datosEnvio = {
       nombre: revision.nombre,
@@ -481,7 +504,7 @@ const actualizarRevision = async () => {
       areas_revisar: revision.areas_revisar,
       otra_area: revision.otra_area || null,
       indicadores_clave: revision.indicadores_clave || null,
-      especie_objetivo: revision.especie_objetivo,
+      especies_objetivo: especiesSeleccionadas.value, // ← AQUÍ EL CAMBIO IMPORTANTE
       edad_sugerida: revision.edad_sugerida ? parseFloat(revision.edad_sugerida) : null,
       edad_unidad: revision.edad_sugerida ? revision.edad_unidad : null,
       recomendaciones_profesionales: revision.recomendaciones_profesionales || null,

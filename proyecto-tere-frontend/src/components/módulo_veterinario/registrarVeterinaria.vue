@@ -228,14 +228,15 @@ const registrarCentro = async () => {
     formData.append('telefono', centro.telefono)
     formData.append('email', centro.email)
     formData.append('especialidades_medicas', centro.especialidades)
-    formData.append('matricula_establecimiento', centro.matricula || '') // Cambiado
-    formData.append('horarios_atencion', centro.horarios || '') // Cambiado
-    formData.append('web_redes_sociales', centro.web || '') // Cambiado
+    formData.append('matricula_establecimiento', centro.matricula || '')
+    formData.append('horarios_atencion', centro.horarios || '')
+    formData.append('web_redes_sociales', centro.web || '')
     if (centro.logo) {
       formData.append('logo', centro.logo)
     }
 
-    const response = await fetch('http://localhost:8000/api/registrar-centro', {
+    // USAR LA NUEVA RUTA ESPECÍFICA PARA REGISTRO
+    const response = await fetch('http://localhost:8000/api/centros-veterinarios/registrar', {
       method: 'POST',
       body: formData,
       headers: {
@@ -263,7 +264,6 @@ const registrarCentro = async () => {
     loading.value = false
   }
 }
-
 const actualizarCentro = async () => {
   loading.value = true
   errorMessage.value = ''

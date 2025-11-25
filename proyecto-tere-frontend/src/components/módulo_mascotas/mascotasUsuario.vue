@@ -135,30 +135,26 @@ const cargarMascotas = async () => {
 
     if (response.data.success) {
       mascotas.value = response.data.mascotas.map(mascota => {
-        console.log('[MascotasUsuario] Procesando mascota:', {
-          id: mascota.id,
-          nombre: mascota.nombre,
-          cantidadFotos: mascota.fotos?.length || 0
-        })
-        
-        let imagenUrl = 'https://cdn.pixabay.com/photo/2017/08/18/06/49/capybara-2653996_1280.jpg';
-        
-        if (mascota.fotos && mascota.fotos.length > 0) {
-          const foto = mascota.fotos[0];
-          imagenUrl = foto.url;
-          console.log('[MascotasUsuario] URL de imagen desde accessor:', imagenUrl)
-        } else {
-          console.log('[MascotasUsuario] Usando imagen por defecto para mascota:', mascota.nombre)
-        }
-        
-        return {
-          id: mascota.id,
-          nombre: mascota.nombre,
-          edad: `${mascota.edad} ${mascota.unidad_edad}`,
-          sexo: mascota.sexo === 'macho' ? 'Macho' : 'Hembra',
-          imagen: imagenUrl
-        }
+      console.log('[MascotasUsuario] Procesando mascota:', {
+        id: mascota.id,
+        nombre: mascota.nombre,
+        edad_formateada: mascota.edad_formateada, // ← Agregar esto para debug
+        cantidadFotos: mascota.fotos?.length || 0
       })
+      
+      // Solo agregar la URL de imagen si no existe
+      if (!mascota.imagen && mascota.fotos && mascota.fotos.length > 0) {
+        mascota.imagen = mascota.fotos[0].url;
+        console.log('[MascotasUsuario] URL de imagen asignada:', mascota.imagen)
+      } else if (!mascota.imagen) {
+        mascota.imagen = 'https://cdn.pixabay.com/photo/2017/08/18/06/49/capybara-2653996_1280.jpg';
+        console.log('[MascotasUsuario] Usando imagen por defecto para mascota:', mascota.nombre)
+      }
+      
+      // Devolver la mascota completa, no sobrescribir
+      return mascota;
+    })
+      
 
       console.log('[MascotasUsuario] Mascotas cargadas exitosamente:', mascotas.value.length)
     } else {

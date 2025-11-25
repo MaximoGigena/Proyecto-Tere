@@ -29,14 +29,69 @@
               </div>
 
               <div>
-                <label class="block font-medium">Fecha de Nacimiento Aproximada</label>
-                <input
-                    v-model="mascota.fechaNacimiento"
-                    type="date"
-                    class="w-full border rounded p-2"
-                    required
-                />
-            </div>
+                <label class="block font-medium mb-2">Fecha de Nacimiento Aproximada</label>
+                <div class="flex gap-2">
+                  <!-- Día -->
+                  <div class="flex-1">
+                    <label class="block text-sm text-gray-600 mb-1">Día</label>
+                    <input
+                      v-model.number="fechaNacimiento.dia"
+                      type="number"
+                      min="1"
+                      max="31"
+                      placeholder="DD"
+                      required
+                      class="w-full border rounded p-2 text-center"
+                      @blur="validarFecha"
+                    />
+                  </div>
+
+                  <!-- Mes -->
+                  <div class="flex-1">
+                    <label class="block text-sm text-gray-600 mb-1">Mes</label>
+                    <select
+                      v-model="fechaNacimiento.mes"
+                      required
+                      class="w-full border rounded p-2"
+                      @change="validarFecha"
+                    >
+                      <option disabled value="">MM</option>
+                      <option value="1">Enero</option>
+                      <option value="2">Febrero</option>
+                      <option value="3">Marzo</option>
+                      <option value="4">Abril</option>
+                      <option value="5">Mayo</option>
+                      <option value="6">Junio</option>
+                      <option value="7">Julio</option>
+                      <option value="8">Agosto</option>
+                      <option value="9">Septiembre</option>
+                      <option value="10">Octubre</option>
+                      <option value="11">Noviembre</option>
+                      <option value="12">Diciembre</option>
+                    </select>
+                  </div>
+
+                  <!-- Año -->
+                  <div class="flex-1">
+                    <label class="block text-sm text-gray-600 mb-1">Año</label>
+                    <input
+                      v-model.number="fechaNacimiento.anio"
+                      type="number"
+                      min="1900"
+                      :max="new Date().getFullYear()"
+                      placeholder="AAAA"
+                      required
+                      class="w-full border rounded p-2 text-center"
+                      @blur="validarFecha"
+                    />
+                  </div>
+                </div>
+                <p class="text-sm text-gray-600 mt-1">
+                  <span v-if="fechaValida && fechaFormateada">Fecha seleccionada: {{ fechaFormateada }}</span>
+                  <span v-else-if="errorFecha" class="text-red-500">{{ errorFecha }}</span>
+                  <span v-else>Formato: día/mes/año</span>
+                </p>
+              </div>
 
               <div>
                   <label class="block font-medium">Sexo</label>
@@ -53,7 +108,6 @@
 
               <div>
                 <label class="block font-medium mb-2">Especie</label>
-
                  <EspecieSelector v-model="mascota.especie" />
               </div>
           </div>
@@ -140,7 +194,6 @@
               <option value="corto">Corto</option>
               <option value="medio">Medio</option>
               <option value="largo">Largo</option>
-
             </select>
           </div>
 
@@ -255,11 +308,10 @@
   </div>
 </template>
 
-
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuthToken } from '@/composables/useAuthToken' // Importar el composable
+import { useAuthToken } from '@/composables/useAuthToken'
 import axios from "axios"
 import EspecieSelector from '@/components/ElementosGraficos/CarruselEspecie.vue'
 
@@ -268,32 +320,198 @@ axios.defaults.baseURL = 'http://localhost:8000'
 
 const router = useRouter()
 const route = useRoute()
-const { accessToken, isAuthenticated } = useAuthToken() // Usar el composable
+const { accessToken, isAuthenticated } = useAuthToken()
 
 const cargando = ref(false)
 const mensaje = ref('')
 const mensajeExito = ref(false)
 
+const mascota = ref({
+  nombre: '',
+  especie: '',
+  fechaNacimiento: '', // String en formato dd/mm/yyyy
+  sexo: '',
+  tamaño: '',
+  pelaje: '', 
+  alimentacion: '',
+  energia: '',
+  comportamientoAnimales: '',
+  comportamientoNiños: '',
+  personalidad: '',
+  descripcion: ''
+})
+
+// Variables para manejar la fecha separada
+const fechaNacimiento = ref({
+  dia: '',
+  mes: '',
+  anio: ''
+})
+
+const fechaValida = ref(false)
+const errorFecha = ref('')
+const fechaFormateada = ref('')
+
 // Determinar si estamos en modo edición
 const esEdicion = computed(() => route.name === 'editar-mascota' || !!route.params.id)
 const mascotaId = ref(null)
 
+// Función para validar la fecha
+const validarFecha = () => {
+  const { dia, mes, anio } = fechaNacimiento.value
+  
+  // Validar que todos los campos estén completos
+  if (!dia || !mes || !anio) {
+    errorFecha.value = 'Todos los campos de fecha son requeridos'
+    fechaValida.value = false
+    fechaFormateada.value = ''
+    mascota.value.fechaNacimiento = ''
+    return false
+  }
+
+  // Convertir a números
+  const diaNum = parseInt(dia)
+  const mesNum = parseInt(mes)
+  const anioNum = parseInt(anio)
+
+  // Validar rangos básicos
+  if (diaNum < 1 || diaNum > 31) {
+    errorFecha.value = 'Día inválido (debe ser entre 1 y 31)'
+    fechaValida.value = false
+    fechaFormateada.value = ''
+    mascota.value.fechaNacimiento = ''
+    return false
+  }
+
+  if (mesNum < 1 || mesNum > 12) {
+    errorFecha.value = 'Mes inválido'
+    fechaValida.value = false
+    fechaFormateada.value = ''
+    mascota.value.fechaNacimiento = ''
+    return false
+  }
+
+  const añoActual = new Date().getFullYear()
+  if (anioNum < 1900 || anioNum > añoActual) {
+    errorFecha.value = `Año inválido (debe ser entre 1900 y ${añoActual})`
+    fechaValida.value = false
+    fechaFormateada.value = ''
+    mascota.value.fechaNacimiento = ''
+    return false
+  }
+
+  // Validar días según el mes
+  const diasEnMes = new Date(anioNum, mesNum, 0).getDate()
+  if (diaNum > diasEnMes) {
+    errorFecha.value = `Día inválido para ${getNombreMes(mesNum)} (máximo ${diasEnMes} días)`
+    fechaValida.value = false
+    fechaFormateada.value = ''
+    mascota.value.fechaNacimiento = ''
+    return false
+  }
+
+  // Validar que no sea fecha futura
+  const fecha = new Date(anioNum, mesNum - 1, diaNum)
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  
+  if (fecha > hoy) {
+    errorFecha.value = 'La fecha no puede ser futura'
+    fechaValida.value = false
+    fechaFormateada.value = ''
+    mascota.value.fechaNacimiento = ''
+    return false
+  }
+
+  // Si pasa todas las validaciones
+  errorFecha.value = ''
+  fechaValida.value = true
+  
+  // Formatear fecha como dd/mm/yyyy
+  const diaFormateado = String(diaNum).padStart(2, '0')
+  const mesFormateado = String(mesNum).padStart(2, '0')
+  fechaFormateada.value = `${diaFormateado}/${mesFormateado}/${anioNum}`
+  mascota.value.fechaNacimiento = fechaFormateada.value
+  
+  return true
+}
+
+// Función para obtener nombre del mes
+const getNombreMes = (mes) => {
+  const meses = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ]
+  return meses[mes - 1] || ''
+}
+
+// Función para parsear fecha string a objeto
+const parsearFechaString = (fechaString) => {
+  if (!fechaString) return { dia: '', mes: '', anio: '' }
+  
+  // Intentar formato dd/mm/yyyy
+  const partes = fechaString.split('/')
+  if (partes.length === 3) {
+    return {
+      dia: parseInt(partes[0]),
+      mes: parseInt(partes[1]),
+      anio: parseInt(partes[2])
+    }
+  }
+  
+  // Intentar formato YYYY-MM-DD (para compatibilidad)
+  const partesISO = fechaString.split('-')
+  if (partesISO.length === 3) {
+    return {
+      dia: parseInt(partesISO[2]),
+      mes: parseInt(partesISO[1]),
+      anio: parseInt(partesISO[0])
+    }
+  }
+  
+  return { dia: '', mes: '', anio: '' }
+}
+
+// Watcher para cuando se cargan datos de edición
+watch(() => mascota.value.fechaNacimiento, (nuevoValor) => {
+  if (nuevoValor) {
+    fechaNacimiento.value = parsearFechaString(nuevoValor)
+    // Validar automáticamente cuando se carga la fecha
+    setTimeout(() => validarFecha(), 100)
+  } else {
+    fechaNacimiento.value = { dia: '', mes: '', anio: '' }
+    fechaValida.value = false
+    fechaFormateada.value = ''
+  }
+})
+
 const edadMascota = computed(() => {
-    if (!mascota.value.fechaNacimiento) return null;
+    if (!mascota.value.fechaNacimiento || !fechaValida.value) return null;
     
-    const nacimiento = new Date(mascota.value.fechaNacimiento);
-    const hoy = new Date();
-    const diffTime = Math.abs(hoy - nacimiento);
-    const diffDias = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Parsear fecha en formato dd/mm/yyyy
+    const partes = mascota.value.fechaNacimiento.split('/')
+    if (partes.length !== 3) return null;
+    
+    const dia = parseInt(partes[0])
+    const mes = parseInt(partes[1]) - 1
+    const anio = parseInt(partes[2])
+    
+    const nacimiento = new Date(anio, mes, dia)
+    const hoy = new Date()
+    
+    if (isNaN(nacimiento.getTime())) return null;
+    
+    const diffTime = Math.abs(hoy - nacimiento)
+    const diffDias = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     
     if (diffDias < 30) {
-        return { valor: diffDias, unidad: 'Dias' };
+        return { valor: diffDias, unidad: 'Dias' }
     } else if (diffDias < 365) {
-        return { valor: Math.floor(diffDias / 30), unidad: 'Meses' };
+        return { valor: Math.floor(diffDias / 30), unidad: 'Meses' }
     } else {
-        return { valor: Math.floor(diffDias / 365), unidad: 'Años' };
+        return { valor: Math.floor(diffDias / 365), unidad: 'Años' }
     }
-});
+})
 
 // Función para verificar autenticación
 const verificarAutenticacion = () => {
@@ -305,17 +523,9 @@ const verificarAutenticacion = () => {
   return true
 }
 
-
-
 // Cargar datos de la mascota si estamos editando
 onMounted(async () => {
   if (!verificarAutenticacion()) return
-
-  // Si ya hay una especie seleccionada (carrusel de especies), actualizar el índice
-  if (mascota.value.especie) {
-    const index = especies.findIndex(e => e.value === mascota.value.especie)
-    if (index !== -1) especieIndex.value = index
-  }
 
   // Determinar si estamos en modo edición
   const esEdicionMode = route.name === 'editar-mascota' || !!route.params.id
@@ -326,14 +536,13 @@ onMounted(async () => {
   }
 })
 
-
 // Cargar datos de la mascota para editar
 const cargarMascota = async () => {
   try {
     cargando.value = true
     const response = await axios.get(`/api/mascotas/${mascotaId.value}`, {
       headers: {
-        'Authorization': `Bearer ${accessToken.value}`, // Usar accessToken del composable
+        'Authorization': `Bearer ${accessToken.value}`,
       }
     })
 
@@ -344,7 +553,7 @@ const cargarMascota = async () => {
       mascota.value = {
         nombre: mascotaData.nombre,
         especie: mascotaData.especie,
-        fechaNacimiento: mascotaData.fechaNacimiento,
+        fechaNacimiento: mascotaData.fecha_nacimiento, // Usar el campo correcto de la API
         sexo: mascotaData.sexo,
         tamaño: mascotaData.caracteristicas?.tamano || '',
         pelaje: mascotaData.caracteristicas?.pelaje || '',
@@ -358,7 +567,6 @@ const cargarMascota = async () => {
 
       // Cargar fotos existentes
       if (mascotaData.fotos && mascotaData.fotos.length > 0) {
-        // Resetear el array de fotos primero
         fotos.value = Array.from({ length: 6 }, () => ({
           archivo: null,
           preview: null,
@@ -376,7 +584,6 @@ const cargarMascota = async () => {
               esExistente: true,
               paraEliminar: false
             }
-            console.log('Foto cargada:', foto.url);
           }
         })
       }
@@ -386,7 +593,6 @@ const cargarMascota = async () => {
   } catch (error) {
     console.error('Error al cargar mascota:', error)
     
-    // Manejar errores de autenticación
     if (error.response?.status === 401) {
       alert('Tu sesión ha expirado. Por favor inicia sesión nuevamente.')
       router.push('/login')
@@ -399,7 +605,6 @@ const cargarMascota = async () => {
     cargando.value = false
   }
 }
-
 
 function confirmarCancelar() {
   if (window.confirm("¿Estás seguro de que deseas cancelar y volver?")) {
@@ -414,21 +619,6 @@ const cerrar = () => {
     router.back()
   }
 }
-
-const mascota = ref({
-  nombre: '',
-  especie: '',
-  fechaNacimiento: null,
-  sexo: '',
-  tamaño: '',
-  pelaje: '', 
-  alimentacion: '',
-  energia: '',
-  comportamientoAnimales: '',
-  comportamientoNiños: '',
-  personalidad: '',
-  descripcion: ''
-})
 
 const fotos = ref(Array.from({ length: 6 }, () => ({
   archivo: null,
@@ -451,7 +641,6 @@ const activarInput = (index) => {
 
 const quitarFoto = (index) => {
   if (fotos.value[index].esExistente) {
-    // Marcar para eliminación en lugar de quitarla inmediatamente
     fotos.value[index].paraEliminar = true
     fotos.value[index].preview = null
   } else {
@@ -460,10 +649,18 @@ const quitarFoto = (index) => {
   }
 }
 
+// Función para validar antes de enviar
+const validarAntesDeEnviar = () => {
+  if (!validarFecha()) {
+    alert('Por favor corrige la fecha de nacimiento')
+    return false
+  }
+  return true
+}
+
 // Función para actualizar mascota
 const actualizarMascota = async () => {
-  // Verificar autenticación antes de proceder
-  if (!verificarAutenticacion()) return
+  if (!verificarAutenticacion() || !validarAntesDeEnviar()) return
   
   cargando.value = true
   mensaje.value = ''
@@ -475,7 +672,7 @@ const actualizarMascota = async () => {
     // Datos obligatorios
     formData.append('nombre', mascota.value.nombre)
     formData.append('especie', mascota.value.especie)
-    formData.append('fecha_nacimiento', mascota.value.fechaNacimiento)
+    formData.append('fecha_nacimiento', mascota.value.fechaNacimiento) // String dd/mm/yyyy
     formData.append('sexo', mascota.value.sexo)
     formData.append('_method', 'PUT')
 
@@ -507,7 +704,7 @@ const actualizarMascota = async () => {
       headers: {
         'Content-Type': 'multipart/form-data',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${accessToken.value}`, // Usar accessToken del composable
+        'Authorization': `Bearer ${accessToken.value}`,
       }
     })
 
@@ -520,7 +717,6 @@ const actualizarMascota = async () => {
   } catch (error) {
     console.error('Error al actualizar:', error)
     
-    // Manejar errores de autenticación
     if (error.response?.status === 401) {
       mensaje.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
       router.push('/login')
@@ -545,23 +741,20 @@ const actualizarMascota = async () => {
   }
 }
 
-
 const registrarMascota = async () => {
-  // Verificar autenticación antes de proceder
-  if (!verificarAutenticacion()) return
+  if (!verificarAutenticacion() || !validarAntesDeEnviar()) return
   
   cargando.value = true
   mensaje.value = ''
   mensajeExito.value = false
 
   try {
-    console.log('Iniciando registro de mascota...')
     const formData = new FormData()
 
     // Datos obligatorios
     formData.append('nombre', mascota.value.nombre)
     formData.append('especie', mascota.value.especie)
-    formData.append('fecha_nacimiento', mascota.value.fechaNacimiento)
+    formData.append('fecha_nacimiento', mascota.value.fechaNacimiento) // String dd/mm/yyyy
     formData.append('sexo', mascota.value.sexo)
 
     // Opcionales
@@ -581,16 +774,11 @@ const registrarMascota = async () => {
       }
     })
 
-    // DEBUG: Mostrar lo que se envía
-    for (let [key, value] of formData.entries()) {
-      console.log(key, value)
-    }
-
     const response = await axios.post('/api/mascotas', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${accessToken.value}`, // Usar accessToken del composable
+        'Authorization': `Bearer ${accessToken.value}`,
       }
     })
 
@@ -603,7 +791,6 @@ const registrarMascota = async () => {
   } catch (error) {
     console.error('Error completo:', error)
     
-    // Manejar errores de autenticación
     if (error.response?.status === 401) {
       mensaje.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
       router.push('/login')
@@ -611,7 +798,6 @@ const registrarMascota = async () => {
     }
     
     if (error.response?.status === 422) {
-      console.error('Errores de validación DETALLADOS:', error.response.data)
       const errores = error.response.data.errors
       let mensajeError = 'Errores de validación:\n'
       

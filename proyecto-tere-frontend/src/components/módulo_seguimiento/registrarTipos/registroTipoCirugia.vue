@@ -60,16 +60,8 @@
           </div>
 
           <div>
-            <label class="block font-medium">Especie objetivo</label>
-            <select v-model="cirugia.especie" required class="w-full border rounded p-2" :disabled="loading">
-              <option value="">Seleccione una opción</option>
-              <option value="canino">Canino</option>
-              <option value="felino">Felino</option>
-              <option value="ave">Ave</option>
-              <option value="roedor">Roedor</option>
-              <option value="exotico">Exótico</option>
-              <option value="todos">Todos</option>
-            </select>
+            <label class="block font-medium mb-2">Especie objetivo</label>
+            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
           </div>
         </div>
 
@@ -241,7 +233,10 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
 import axios from 'axios'
+
+const especiesSeleccionadas = ref([])
 
 const router = useRouter()
 const route = useRoute() // AÑADIDO: para obtener el ID de la ruta
@@ -285,12 +280,13 @@ const equipamientoTemporal = ref('')
 const formularioValido = computed(() => {
   return cirugia.nombre.trim() !== '' &&
          cirugia.descripcion.trim() !== '' &&
-         cirugia.especie !== '' &&
+         especiesSeleccionadas.value.length > 0 && // ← Cambio aquí
          cirugia.frecuencia !== '' &&
          cirugia.duracion !== '' &&
          cirugia.riesgos.trim() !== '' &&
          cirugia.recomendaciones_preoperatorias.trim() !== ''
 })
+
 
 // Verificar permisos y cargar datos si es edición
 onMounted(async () => {
@@ -337,6 +333,16 @@ const cargarDatosCirugia = async () => {
           }
         }
       })
+
+      // AÑADIDO: Cargar las especies seleccionadas
+      if (datos.especies && Array.isArray(datos.especies)) {
+        especiesSeleccionadas.value = datos.especies
+      } else if (datos.especie) {
+        // Si viene como string individual (backward compatibility)
+        especiesSeleccionadas.value = [datos.especie]
+      }
+      
+      console.log('Especies cargadas:', especiesSeleccionadas.value) // Para debug
     } else {
       mostrarMensaje('Error al cargar los datos de la cirugía', false)
     }
@@ -390,7 +396,7 @@ const actualizarCirugia = async () => {
     const datosEnvio = {
       nombre: cirugia.nombre.trim(),
       descripcion: cirugia.descripcion.trim(),
-      especie: cirugia.especie,
+      especies: especiesSeleccionadas.value,
       frecuencia: cirugia.frecuencia,
       duracion: parseInt(cirugia.duracion),
       duracion_unidad: cirugia.duracion_unidad,
@@ -453,7 +459,7 @@ const registrarCirugia = async () => {
     const datosEnvio = {
       nombre: cirugia.nombre.trim(),
       descripcion: cirugia.descripcion.trim(),
-      especie: cirugia.especie,
+      especies: especiesSeleccionadas.value,
       frecuencia: cirugia.frecuencia,
       duracion: parseInt(cirugia.duracion),
       duracion_unidad: cirugia.duracion_unidad,
@@ -464,6 +470,8 @@ const registrarCirugia = async () => {
       equipamiento: cirugia.equipamiento.length > 0 ? cirugia.equipamiento : null,
       observaciones: cirugia.observaciones?.trim() || null
     }
+
+     console.log('Datos a enviar:', datosEnvio)
 
     const response = await axios.post('/api/tipos-cirugia', datosEnvio, {
       headers: {
@@ -486,6 +494,7 @@ const registrarCirugia = async () => {
           cirugia[key] = ''
         }
       })
+      especiesSeleccionadas.value = []
       
       setTimeout(() => {
         router.push('/veterinarios/tipos/cirugias')
@@ -499,16 +508,16 @@ const registrarCirugia = async () => {
     
     let errorMessage = 'Error al registrar el tipo de cirugía'
     
-    if (error.response?.data?.message) {
-      errorMessage = error.response.data.message
-    } else if (error.response?.data?.errors) {
-      const firstError = Object.values(error.response.data.errors)[0]
-      errorMessage = Array.isArray(firstError) ? firstError[0] : firstError
-    } else if (error.message) {
-      errorMessage = error.message
+    if (error.response?.data?.errors) {
+      console.log('Errores de validación:', error.response.data.errors)
+      const errores = error.response.data.errors
+      const primerError = Object.values(errores)[0]
+      mostrarMensaje(Array.isArray(primerError) ? primerError[0] : primerError, false)
+    } else if (error.response?.data?.message) {
+      mostrarMensaje(error.response.data.message, false)
+    } else {
+      mostrarMensaje('Error al registrar el tipo de cirugía', false)
     }
-    
-    mostrarMensaje(errorMessage, false)
   } finally {
     loading.value = false
   }

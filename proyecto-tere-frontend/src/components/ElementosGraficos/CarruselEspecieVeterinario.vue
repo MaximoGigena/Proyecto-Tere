@@ -3,6 +3,7 @@
     <div class="flex items-center justify-center gap-4">
       <!-- Botón anterior -->
       <button
+        type="button"
         @click="prev"
         class="w-10 h-10 flex items-center justify-center rounded-full text-white transition-all duration-300 transform hover:scale-110 shadow-lg"
         :class="getBtnColor(currentIndex)"
@@ -14,22 +15,34 @@
           <div
             v-for="(esp, i) in especies"
             :key="esp.value"
-            class="absolute flex-shrink-0 w-24 h-24 flex flex-col items-center justify-center rounded-2xl cursor-pointer transition-all duration-500 mx-2"
+            class="absolute flex-shrink-0 w-24 h-24 flex flex-col items-center justify-center rounded-2xl cursor-pointer transition-all duration-500 mx-2 border-2"
             :class="[
-              getColor(i),
+              isSelected(esp.value)
+                ? getColor(i) + ' ring-4 ring-offset-2 ring-white shadow-2xl scale-125'
+                : 'bg-gray-200 text-gray-500 hover:brightness-90',
               getPositionClass(i)
             ]"
             :style="getPositionStyle(i)"
-            @click="select(i)"
+            @click="toggleSelection(esp.value)"
           >
-            <font-awesome-icon :icon="esp.icon" class="text-3xl mb-1 text-white drop-shadow-md" />
-            <span class="text-white font-semibold text-xs text-center drop-shadow-md">{{ esp.label }}</span>
+            <font-awesome-icon
+              :icon="esp.icon"
+              class="text-3xl mb-1 drop-shadow-md"
+              :class="isSelected(esp.value) ? 'text-white' : 'text-gray-500'"
+            />
+            <span
+              class="font-semibold text-xs text-center drop-shadow-md"
+              :class="isSelected(esp.value) ? 'text-white' : 'text-gray-600'"
+            >
+              {{ esp.label }}
+            </span>
           </div>
         </div>
       </div>
 
       <!-- Botón siguiente -->
       <button
+        type="button"
         @click="next"
         class="w-10 h-10 flex items-center justify-center rounded-full text-white transition-all duration-300 transform hover:scale-110 shadow-lg"
         :class="getBtnColor(currentIndex)"
@@ -41,19 +54,25 @@
       <button
         v-for="(esp, i) in especies"
         :key="i"
-        @click="currentIndex = i"
+        @click="goToIndex(i)"
         class="w-3 h-3 rounded-full transition-all duration-300"
-        :class="i === currentIndex ? getDot(i) + ' scale-125' : 'bg-gray-300'"
+        :class="[
+          i === currentIndex ? getDot(i) + ' scale-125' : 'bg-gray-300',
+          isSelected(esp.value) ? getDot(i) + ' ring-2 ring-white' : ''
+        ]"
       ></button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 
 const props = defineProps({
-  modelValue: { type: Array, default: () => [] },
+  modelValue: { 
+    type: Array, 
+    default: () => [] 
+  },
   especies: {
     type: Array,
     default: () => [
@@ -87,21 +106,14 @@ const getBtnColor = i => `bg-gradient-to-r ${colors[i] || colors[0]} hover:brigh
 
 const getPositionClass = (i) => {
   const diff = i - currentIndex.value
-  
-  if (diff === 0) {
-    return 'scale-125 opacity-100 ring-4 ring-white ring-opacity-50 shadow-2xl z-20' // Centro - resaltado
-  } else if (Math.abs(diff) === 1) {
-    return 'scale-100 opacity-80 z-10' // Laterales - visibles
-  } else {
-    return 'scale-90 opacity-30 z-0' // Lejanos - opacados
-  }
+  if (diff === 0) return 'opacity-100 z-20'
+  else if (Math.abs(diff) === 1) return 'opacity-90 z-10'
+  else return 'opacity-40 z-0'
 }
 
 const getPositionStyle = (i) => {
   const diff = i - currentIndex.value
-  let translateX = diff * 120 // Ajusta este valor para el espaciado
-  
-  // Si está muy lejos, ocultarlo completamente
+  let translateX = diff * 120
   if (Math.abs(diff) > 2) {
     return {
       transform: `translateX(${translateX}px) scale(0.8)`,
@@ -109,26 +121,12 @@ const getPositionStyle = (i) => {
       pointerEvents: 'none'
     }
   }
-  
-  return {
-    transform: `translateX(${translateX}px)`
-  }
+  return { transform: `translateX(${translateX}px)` }
 }
 
-const select = (i) => {
-  currentIndex.value = i
-  toggle(props.especies[i].value)
-}
-
-const toggle = (val) => {
-  const copy = [...props.modelValue]
-  const i = copy.indexOf(val)
-  if (i === -1) {
-    copy.push(val)
-  } else {
-    copy.splice(i, 1)
-  }
-  emit('update:modelValue', copy)
+// Navegación independiente
+const goToIndex = (index) => {
+  currentIndex.value = index
 }
 
 const prev = () => {
@@ -138,10 +136,26 @@ const prev = () => {
 const next = () => {
   currentIndex.value = (currentIndex.value + 1) % props.especies.length
 }
+
+// Selección controlada - solo emite cambios explícitos
+const toggleSelection = (especieValue) => {
+  const copy = [...props.modelValue]
+  const index = copy.indexOf(especieValue)
+  
+  if (index === -1) {
+    copy.push(especieValue)
+  } else {
+    copy.splice(index, 1)
+  }
+  
+  // Emitir el nuevo array de selecciones
+  emit('update:modelValue', copy)
+}
+
+const isSelected = (especieValue) => props.modelValue.includes(especieValue)
 </script>
 
 <style scoped>
-/* Transiciones suaves */
 div[class*='flex-shrink-0'] {
   transition: all 0.5s ease;
 }

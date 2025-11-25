@@ -67,6 +67,15 @@
               placeholder="Especifique la categoría"
             />
           </div>
+
+          <div>
+              <label class="block font-medium mb-2">Especie objetivo</label>
+              <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
+              <p v-if="!especiesSeleccionadas.length" class="text-sm text-gray-500 mt-1">
+                Seleccione una o más especies objetivo
+              </p>
+          </div>
+
         </div>
 
         <!-- Columna derecha -->
@@ -140,19 +149,6 @@
         </div>
 
         <div>
-          <label class="block font-medium">Especie afectada</label>
-          <select v-model="alergia.especie" class="w-full border rounded p-2">
-            <option value="">Seleccione una opción</option>
-            <option value="canino">Canino</option>
-            <option value="felino">Felino</option>
-            <option value="ave">Ave</option>
-            <option value="roedor">Roedor</option>
-            <option value="exotico">Exótico</option>
-            <option value="todos">Todos</option>
-          </select>
-        </div>
-
-        <div>
           <label class="block font-medium">Sustancia/factor desencadenante</label>
           <input 
             v-model="alergia.desencadenante" 
@@ -198,10 +194,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import { useAuth } from '@/composables/useAuth'
+import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
+
+const especiesSeleccionadas = ref([])
 
 const router = useRouter()
 const route = useRoute()
@@ -274,7 +273,7 @@ const cargarAlergia = async () => {
       alergia.otraArea = datos.otra_area || ''
       alergia.tratamiento = datos.tratamiento_recomendado || ''
       alergia.recomendaciones = datos.recomendaciones_clinicas || ''
-      alergia.especie = datos.especie_afectada || 'todos'
+      especiesSeleccionadas.value = Array.isArray(datos.especies) ? datos.especies : []
       alergia.desencadenante = datos.desencadenante || ''
       alergia.conducta = datos.conducta_recomendada || ''
       alergia.observaciones = datos.observaciones_adicionales || ''
@@ -312,7 +311,7 @@ const registrarAlergia = async () => {
       otra_area: alergia.otraArea || null,
       tratamiento_recomendado: alergia.tratamiento || null,
       recomendaciones_clinicas: alergia.recomendaciones || null,
-      especie_afectada: alergia.especie || 'todos',
+      especies: especiesSeleccionadas.value.length > 0 ? especiesSeleccionadas.value : ['todos'], // Cambio aquí
       desencadenante: alergia.desencadenante || null,
       conducta_recomendada: alergia.conducta || null,
       observaciones_adicionales: alergia.observaciones || null
@@ -364,7 +363,7 @@ const actualizarAlergia = async () => {
       otra_area: alergia.otraArea || null,
       tratamiento_recomendado: alergia.tratamiento || null,
       recomendaciones_clinicas: alergia.recomendaciones || null,
-      especie_afectada: alergia.especie || 'todos',
+      especies: especiesSeleccionadas.value.length > 0 ? especiesSeleccionadas.value : ['todos'],
       desencadenante: alergia.desencadenante || null,
       conducta_recomendada: alergia.conducta || null,
       observaciones_adicionales: alergia.observaciones || null

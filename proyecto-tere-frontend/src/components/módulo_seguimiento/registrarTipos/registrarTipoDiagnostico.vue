@@ -50,6 +50,15 @@
           </div>
 
           <div>
+            <label class="block font-medium mb-2">Especie objetivo</label>
+            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
+          </div>
+        </div>
+
+        <!-- Columna derecha -->
+        <div class="space-y-4">
+
+          <div>
             <label class="block font-medium">Clasificación</label>
             <select v-model="diagnostico.clasificacion" required class="w-full border rounded p-2">
               <option value="">Seleccione una opción</option>
@@ -69,23 +78,6 @@
               class="w-full border rounded p-2 mt-2"
               placeholder="Especifique la clasificación"
             />
-          </div>
-        </div>
-
-        <!-- Columna derecha -->
-        <div class="space-y-4">
-          <div>
-            <label class="block font-medium">Especie afectada</label>
-            <select v-model="diagnostico.especie" class="w-full border rounded p-2">
-              <option value="">Seleccione una opción</option>
-              <option value="canino">Canino</option>
-              <option value="felino">Felino</option>
-              <option value="ave">Ave</option>
-              <option value="roedor">Roedor</option>
-              <option value="exotico">Exótico</option>
-              <option value="todos">Todos</option>
-              <option value="ninguna">No aplica</option>
-            </select>
           </div>
 
           <div>
@@ -202,9 +194,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
+
+const especiesSeleccionadas = ref([])
 
 const router = useRouter()
 const route = useRoute()
@@ -219,7 +214,7 @@ const esEdicion = computed(() => {
 const diagnostico = reactive({
   nombre: '',
   descripcion: '',
-  especie: '',
+  especies: [],
   clasificacion: '',
   clasificacion_otro: '', // CAMBIADO: de clasificacionOtro a clasificacion_otro
   criterios_diagnosticos: '', 
@@ -228,6 +223,11 @@ const diagnostico = reactive({
   recomendaciones_clinicas: '', 
   riesgos_complicaciones: '', 
   observaciones: ''
+})
+
+// Watch para sincronizar especiesSeleccionadas con diagnostico.especies
+watch(especiesSeleccionadas, (newEspecies) => {
+  diagnostico.especies = [...newEspecies]
 })
 
 // Verificar autenticación y cargar datos si es edición
@@ -273,7 +273,7 @@ const cargarDiagnostico = async () => {
           Object.assign(diagnostico, {
             nombre: datos.nombre || '',
             descripcion: datos.descripcion || '',
-            especie: datos.especie || '',
+            especies: datos.especies || [], 
             clasificacion: datos.clasificacion || '',
             clasificacion_otro: datos.clasificacion_otro || '', // CAMBIADO
             criterios_diagnosticos: datos.criterios_diagnosticos || '',
@@ -283,6 +283,11 @@ const cargarDiagnostico = async () => {
             riesgos_complicaciones: datos.riesgos_complicaciones || '',
             observaciones: datos.observaciones || ''
           })
+
+          // Sincronizar especies seleccionadas
+          if (datos.especies && Array.isArray(datos.especies)) {
+            especiesSeleccionadas.value = [...datos.especies]
+          }
           
           console.log('Datos asignados al formulario:', diagnostico)
         } else {
@@ -301,6 +306,11 @@ const cargarDiagnostico = async () => {
 }
 
 const confirmarAccion = () => {
+  if (!diagnostico.especies || diagnostico.especies.length === 0) {
+    alert('Debe seleccionar al menos una especie objetivo')
+    return
+  }
+  
   showModal.value = true
 }
 

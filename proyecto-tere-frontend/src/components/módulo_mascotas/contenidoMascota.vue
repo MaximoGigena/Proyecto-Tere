@@ -30,7 +30,7 @@
               </div>
 
               <div class="absolute top-13 left-4 bg-blue-500 text-white text-xs px-2 py-1 rounded-md w-fit">
-                Edad: {{ mascotaComputed.edad }} {{ mascotaComputed.unidad_edad || '' }}
+                Edad: {{ edadDisplay }}
               </div>
 
                   <button  
@@ -469,5 +469,46 @@ const openGallery = (index) => {
     console.error('Error al abrir galería:', error)
   }
 }
+
+// Computed para mostrar la edad correctamente
+const edadDisplay = computed(() => {
+  const mascota = mascotaComputed.value
+  
+  // 1. Primero intentar con edad_formateada
+  if (mascota.edad_formateada && mascota.edad_formateada !== 'Edad no disponible') {
+    return mascota.edad_formateada
+  }
+  
+  // 2. Si existe la relación edad_relacion
+  if (mascota.edad_relacion && mascota.edad_relacion.edad_formateada) {
+    return mascota.edad_relacion.edad_formateada
+  }
+  
+  // 3. Si la edad es un objeto con campos numéricos (fallback)
+  if (mascota.edad && typeof mascota.edad === 'object') {
+    const edadObj = mascota.edad
+    if (edadObj.dias !== null && edadObj.dias !== undefined) {
+      if (edadObj.dias < 30) {
+        return `${edadObj.dias} ${edadObj.dias === 1 ? 'día' : 'días'}`
+      } else if (edadObj.dias < 365) {
+        return `${edadObj.meses} ${edadObj.meses === 1 ? 'mes' : 'meses'}`
+      } else {
+        const mesesRestantes = edadObj.meses % 12
+        if (mesesRestantes > 0) {
+          return `${edadObj.años} ${edadObj.años === 1 ? 'año' : 'años'} y ${mesesRestantes} ${mesesRestantes === 1 ? 'mes' : 'meses'}`
+        }
+        return `${edadObj.años} ${edadObj.años === 1 ? 'año' : 'años'}`
+      }
+    }
+  }
+  
+  // 4. Para datos de demo
+  if (mascota.edad && mascota.unidad_edad) {
+    return `${mascota.edad} ${mascota.unidad_edad}`
+  }
+  
+  // 5. Fallback final
+  return 'Edad no disponible'
+})
 </script>
   

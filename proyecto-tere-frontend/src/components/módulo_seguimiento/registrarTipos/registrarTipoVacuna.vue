@@ -268,10 +268,10 @@ import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselE
 
 const especiesSeleccionadas = ref([])
 
+// Solo para debug, no para lógica de negocio
 watch(especiesSeleccionadas, (val) => {
-  // Convierte el array de valores a string separado por comas
-  vacuna.especie = val.join(', ')
-}, { deep: true })
+  console.log('🔄 Especies seleccionadas cambiaron:', val)
+}, { deep: true, flush: 'post' }) // 'flush: post' ayuda a evitar efectos secundarios
 
 const route = useRoute()
 const router = useRouter()
@@ -349,7 +349,6 @@ const cargarVacuna = async () => {
     const result = await response.json()
     console.log('✅ Datos recibidos del backend:', result)
 
-    // ✅ CORRECCIÓN: Los datos vienen dentro de result.data
     if (result.success && result.data) {
       const data = result.data
       
@@ -357,7 +356,7 @@ const cargarVacuna = async () => {
       Object.assign(vacuna, {
         nombre: data.nombre || '',
         enfermedades: data.enfermedades || '',
-        especie: data.especie || '',
+        // especie: data.especie || '', // ❌ ESTO ESTÁ MAL
         edadMinima: data.edad_minima || '',
         edadUnidad: data.edad_unidad || 'semanas',
         dosis: data.dosis || '',
@@ -373,14 +372,28 @@ const cargarVacuna = async () => {
         lote: data.lote || ''
       })
 
-      // Convertir el string de especies a array
-      if (data.especie) {
-        especiesSeleccionadas.value = data.especie.split(',').map(esp => esp.trim())
+      // ✅ CORRECCIÓN: Convertir el JSON de especies a array
+      if (data.especies) {
+        console.log('🐾 Especies recibidas del backend:', data.especies)
+        
+        // Si ya es un array, úsalo directamente
+        if (Array.isArray(data.especies)) {
+          especiesSeleccionadas.value = data.especies
+        } else {
+          // Si es string JSON, parsearlo
+          try {
+            especiesSeleccionadas.value = JSON.parse(data.especies)
+          } catch (e) {
+            console.error('❌ Error parseando especies JSON:', e)
+            especiesSeleccionadas.value = []
+          }
+        }
       } else {
         especiesSeleccionadas.value = []
       }
 
       console.log('📝 Datos mapeados al formulario:', vacuna)
+      console.log('🐾 Especies cargadas en el carrusel:', especiesSeleccionadas.value)
     } else {
       throw new Error(result.message || 'No se pudieron cargar los datos de la vacuna')
     }
@@ -409,20 +422,23 @@ const cancelar = () => {
 
 const prepararEnvio = () => {
   // Validaciones básicas
-  if (!vacuna.nombre || !vacuna.enfermedades || !vacuna.especie || 
+  if (!vacuna.nombre || !vacuna.enfermedades || !especiesSeleccionadas.value.length || 
       !vacuna.edadMinima || !vacuna.dosis || !vacuna.via || 
       !vacuna.frecuencia || !vacuna.obligatoria) {
     showMessage('Por favor complete todos los campos obligatorios', 'error')
     return null
   }
 
+  console.log('🐾 Especies seleccionadas para enviar:', especiesSeleccionadas.value)
+
+  // Convertir el Proxy de Vue a un array simple
+  const especiesArray = [...especiesSeleccionadas.value]
+
   // Mapear los datos para que coincidan con el controlador Laravel
   return {
     nombre: vacuna.nombre,
     enfermedades: vacuna.enfermedades,
-    especie: Array.isArray(especiesSeleccionadas.value)
-      ? especiesSeleccionadas.value.join(',')
-      : vacuna.especie,
+    especies: especiesArray, // ← Envía el array de especies
     edad_minima: parseFloat(vacuna.edadMinima),
     edad_unidad: vacuna.edadUnidad,
     dosis: parseFloat(vacuna.dosis),

@@ -92,29 +92,15 @@
               required
             />
           </div>
+
+          <div>
+            <label class="block font-medium mb-2">Especie objetivo</label>
+            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
+          </div>
         </div>
 
         <!-- Columna derecha -->
         <div class="space-y-4">
-          <div>
-            <label class="block font-medium">Especie objetivo</label>
-            <select 
-              v-model="farmaco.especie" 
-              class="w-full border rounded p-2"
-              :disabled="loading"
-              required
-            >
-              <option value="">Seleccione una opción</option>
-              <option value="canino">Canino</option>
-              <option value="felino">Felino</option>
-              <option value="ave">Ave</option>
-              <option value="roedor">Roedor</option>
-              <option value="exotico">Exótico</option>
-              <option value="todos">Todos</option>
-              <option value="ninguna">No aplica</option>
-            </select>
-          </div>
-
           <div>
             <label class="block font-medium">Dosis terapéutica recomendada</label>
             <div class="flex">
@@ -293,9 +279,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
+
+const especiesSeleccionadas = ref([])
 
 const router = useRouter()
 const route = useRoute()
@@ -325,7 +314,7 @@ const farmaco = reactive({
   composicion: '',
   categoria: '',
   categoria_otro: '',
-  especie: '',
+  especies: [],
   dosis: '',
   unidad: 'mg',
   frecuencia_unidad: 'kg',
@@ -338,6 +327,11 @@ const farmaco = reactive({
   fabricante: '',
   recomendaciones_clinicas: '',
   observaciones: ''
+})
+
+// Watch para sincronizar especiesSeleccionadas con farmaco.especies
+watch(especiesSeleccionadas, (newEspecies) => {
+  farmaco.especies = [...newEspecies]
 })
 
 onMounted(async () => {
@@ -382,6 +376,12 @@ const cargarFarmaco = async () => {
           farmaco[key] = data.data[key]
         }
       })
+
+      // Sincronizar especies seleccionadas
+      if (data.data.especies && Array.isArray(data.data.especies)) {
+        especiesSeleccionadas.value = [...data.data.especies]
+      }
+
     } else {
       throw new Error(data.message || 'Error al cargar el fármaco')
     }
@@ -424,6 +424,12 @@ const registrarFarmaco = async () => {
 
   if (farmaco.categoria === 'otro' && !farmaco.categoria_otro) {
     mostrarMensaje('Debe especificar la categoría cuando selecciona "Otro"', 'error')
+    return
+  }
+
+  // Validar que se haya seleccionado al menos una especie
+  if (!farmaco.especies || farmaco.especies.length === 0) {
+    mostrarMensaje('Debe seleccionar al menos una especie objetivo', 'error')
     return
   }
 
@@ -488,6 +494,12 @@ const actualizarFarmaco = async () => {
 
   if (farmaco.categoria === 'otro' && !farmaco.categoria_otro) {
     mostrarMensaje('Debe especificar la categoría cuando selecciona "Otro"', 'error')
+    return
+  }
+
+  // Validar que se haya seleccionado al menos una especie
+  if (!farmaco.especies || farmaco.especies.length === 0) {
+    mostrarMensaje('Debe seleccionar al menos una especie objetivo', 'error')
     return
   }
 

@@ -50,16 +50,8 @@
           </div>
 
           <div>
-            <label class="block font-medium">Especie objetivo</label>
-            <select v-model="terapia.especie" required class="w-full border rounded p-2">
-              <option value="">Seleccione una opción</option>
-              <option value="canino">Canino</option>
-              <option value="felino">Felino</option>
-              <option value="ave">Ave</option>
-              <option value="roedor">Roedor</option>
-              <option value="exotico">Exótico</option>
-              <option value="todos">Todos</option>
-            </select>
+            <label class="block font-medium mb-2">Especie objetivo</label>
+            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
           </div>
         </div>
 
@@ -188,6 +180,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
+
+const especiesSeleccionadas = ref([])
 
 const router = useRouter()
 const route = useRoute()
@@ -263,6 +258,10 @@ const cargarTerapia = async () => {
           recomendaciones: terapiaData.recomendaciones_clinicas || '',
           observaciones: terapiaData.observaciones || ''
         })
+
+        // Cargar especies seleccionadas
+        especiesSeleccionadas.value = terapiaData.especies || []
+
       }
     } else {
       throw new Error('Error al cargar los datos de la terapia')
@@ -284,7 +283,7 @@ const cancelar = () => {
 const guardarTerapia = async () => {
   try {
     // Validar datos obligatorios
-    if (!terapia.nombre || !terapia.descripcion || !terapia.especie || !terapia.duracionValor || !terapia.frecuencia || !terapia.requisitos || !terapia.indicaciones) {
+    if (!terapia.nombre || !terapia.descripcion || especiesSeleccionadas.value.length === 0 || !terapia.duracionValor || !terapia.frecuencia || !terapia.requisitos || !terapia.indicaciones) {
       alert('Por favor complete todos los campos obligatorios')
       return
     }
@@ -295,7 +294,7 @@ const guardarTerapia = async () => {
     const datosEnvio = {
       nombre: terapia.nombre,
       descripcion: terapia.descripcion,
-      especie: terapia.especie,
+      especies: especiesSeleccionadas.value,
       duracion_valor: parseInt(terapia.duracionValor),
       duracion_unidad: terapia.duracionUnidad,
       frecuencia: terapia.frecuencia,

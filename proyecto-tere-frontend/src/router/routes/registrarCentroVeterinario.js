@@ -1,14 +1,14 @@
 import RegistrarCentro from '@/components/módulo_veterinario/registrarVeterinaria.vue'
 
 export const registrarVeterinaria = [
-   {
-    path: '/registro/registroCentroVeterinario',
+  {
+    path: '/registro/registroCentroVeterinario/editar/:id',  // ← RUTA ESPECÍFICA PARA EDITAR
     component: RegistrarCentro,
-    name: 'RegistrarCentroVeterinario',
+    name: 'editarCentroVeterinario',
   },
   {
-  path: '/registro/registroCentroVeterinario/:id?',
-  component: RegistrarCentro,
-  name: 'registroCentroVeterinario',
+    path: '/registro/registroCentroVeterinario',  // ← RUTA ESPECÍFICA PARA REGISTRO (SIN PARÁMETROS)
+    component: RegistrarCentro,
+    name: 'registrarCentroVeterinario',
   }
 ]

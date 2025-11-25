@@ -50,16 +50,8 @@
           </div>
 
           <div>
-            <label class="block font-medium">Especie objetivo</label>
-            <select v-model="procedimiento.especie" required class="w-full border rounded p-2">
-              <option value="">Seleccione una opción</option>
-              <option value="canino">Canino</option>
-              <option value="felino">Felino</option>
-              <option value="ave">Ave</option>
-              <option value="roedor">Roedor</option>
-              <option value="exotico">Exótico</option>
-              <option value="todos">Todos</option>
-            </select>
+            <label class="block font-medium mb-2">Especie objetivo</label>
+            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
           </div>
         </div>
 
@@ -208,9 +200,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router' // ¡Agregar useRoute!
 import { useAuth } from '@/composables/useAuth'
+import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
+
+const especiesSeleccionadas = ref([])
 
 const router = useRouter()
 const route = useRoute() // ¡Agregar esta línea!
@@ -218,6 +213,11 @@ const { accessToken, isAuthenticated, checkAuth } = useAuth()
 
 const esEdicion = ref(false)
 const procedimientoId = ref(null) // Variable para almacenar el ID
+
+// Watch para sincronizar especiesSeleccionadas con procedimiento.especies
+watch(especiesSeleccionadas, (newEspecies) => {
+  procedimiento.especies = [...newEspecies]
+})
 
 // Verificar autenticación y cargar datos si es edición
 onMounted(async () => {
@@ -243,7 +243,7 @@ onMounted(async () => {
 const procedimiento = reactive({
   nombre: '',
   descripcion: '',
-  especie: '',
+  especies: [],
   objetivo: '',
   objetivoOtro: '',
   indicaciones: '',
@@ -280,7 +280,7 @@ const cargarPaliativo = async () => {
       // Mapear los datos del API al formulario
       procedimiento.nombre = datos.nombre || ''
       procedimiento.descripcion = datos.descripcion || ''
-      procedimiento.especie = datos.especie || ''
+      procedimiento.especies = datos.especies || [] // Cambiado de 'especie' a 'especies'
       procedimiento.objetivo = datos.objetivo_terapeutico || ''
       procedimiento.objetivoOtro = datos.objetivo_otro || ''
       procedimiento.indicaciones = datos.indicaciones_clinicas || ''
@@ -291,6 +291,11 @@ const cargarPaliativo = async () => {
       procedimiento.recursos = datos.recursos_necesarios || []
       procedimiento.recomendaciones = datos.recomendaciones_clinicas || ''
       procedimiento.observaciones = datos.observaciones || ''
+
+      // ¡IMPORTANTE! Sincronizar especies seleccionadas después de cargar los datos
+      if (datos.especies && Array.isArray(datos.especies)) {
+        especiesSeleccionadas.value = [...datos.especies]
+      }
       
     } else {
       throw new Error(result.message || 'Error al cargar los datos')
@@ -327,7 +332,7 @@ const registrarProcedimiento = async () => {
     const datosEnvio = {
       nombre: procedimiento.nombre,
       descripcion: procedimiento.descripcion,
-      especie: procedimiento.especie,
+       especies: procedimiento.especies,
       objetivo_terapeutico: procedimiento.objetivo,
       objetivo_otro: procedimiento.objetivo === 'otro' ? procedimiento.objetivoOtro : null,
       frecuencia_valor: parseInt(procedimiento.frecuenciaValor),
@@ -372,11 +377,17 @@ const registrarProcedimiento = async () => {
 
 const actualizarProcedimiento = async () => {
   try {
+
+    if (!procedimiento.especies || procedimiento.especies.length === 0) {
+      alert('Debe seleccionar al menos una especie objetivo')
+      return
+    }
+
     // Preparar datos según el modelo
     const datosEnvio = {
       nombre: procedimiento.nombre,
       descripcion: procedimiento.descripcion,
-      especie: procedimiento.especie,
+      especies: procedimiento.especies, // Cambiado de 'especie' a 'especies'
       objetivo_terapeutico: procedimiento.objetivo,
       objetivo_otro: procedimiento.objetivo === 'otro' ? procedimiento.objetivoOtro : null,
       frecuencia_valor: parseInt(procedimiento.frecuenciaValor),

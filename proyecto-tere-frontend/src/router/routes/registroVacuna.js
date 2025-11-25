@@ -2,7 +2,8 @@ import RegistrarVacuna from '@/components/módulo_seguimiento/registrarVacuna.vu
 
 export const registrarVacuna = [
    {
-    path: '/registro/vacuna',
+    path: '/registro/vacuna/:mascotaId?',
+    name: 'registrarVacuna',
     component: RegistrarVacuna
   }
 ]
