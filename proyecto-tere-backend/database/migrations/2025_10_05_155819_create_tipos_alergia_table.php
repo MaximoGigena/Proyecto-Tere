@@ -34,14 +34,7 @@ return new class extends Migration
             $table->string('otra_area')->nullable();
             $table->text('tratamiento_recomendado')->nullable();
             $table->text('recomendaciones_clinicas')->nullable();
-            $table->enum('especie_afectada', [
-                'canino',
-                'felino',
-                'ave',
-                'roedor',
-                'exotico',
-                'todos'
-            ])->default('todos');
+            $table->json('especies'); // Array de especies
             $table->string('desencadenante')->nullable();
             $table->text('conducta_recomendada')->nullable();
             $table->text('observaciones_adicionales')->nullable();
@@ -52,7 +45,6 @@ return new class extends Migration
             // Índices para mejorar el rendimiento
             $table->index(['categoria']);
             $table->index(['nivel_riesgo']);
-            $table->index(['especie_afectada']);
             $table->index(['activo']);
 
             $table->foreignId('veterinario_id')

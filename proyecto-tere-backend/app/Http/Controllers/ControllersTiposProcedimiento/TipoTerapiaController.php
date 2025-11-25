@@ -65,7 +65,7 @@ class TipoTerapiaController extends Controller
             $terapia = TipoTerapia::create([
                 'nombre' => $request->nombre,
                 'descripcion' => $request->descripcion,
-                'especie' => $request->especie,
+                'especies' => $request->especies,
                 'duracion_valor' => $request->duracion_valor,
                 'duracion_unidad' => $request->duracion_unidad,
                 'frecuencia' => $request->frecuencia,
@@ -145,7 +145,7 @@ class TipoTerapiaController extends Controller
             $tipoTerapia->update([
                 'nombre' => $request->nombre,
                 'descripcion' => $request->descripcion,
-                'especie' => $request->especie,
+                'especies' => $request->especies,
                 'duracion_valor' => $request->duracion_valor,
                 'duracion_unidad' => $request->duracion_unidad,
                 'frecuencia' => $request->frecuencia,
@@ -270,10 +270,11 @@ class TipoTerapiaController extends Controller
             'data' => [
                 ['value' => 'canino', 'label' => 'Canino'],
                 ['value' => 'felino', 'label' => 'Felino'],
+                ['value' => 'equino', 'label' => 'Equino'],
+                ['value' => 'bovino', 'label' => 'Bovino'],
                 ['value' => 'ave', 'label' => 'Ave'],
-                ['value' => 'roedor', 'label' => 'Roedor'],
-                ['value' => 'exotico', 'label' => 'Exótico'],
-                ['value' => 'todos', 'label' => 'Todos']
+                ['value' => 'pez', 'label' => 'Pez'],
+                ['value' => 'otro', 'label' => 'Otro']
             ]
         ]);
     }

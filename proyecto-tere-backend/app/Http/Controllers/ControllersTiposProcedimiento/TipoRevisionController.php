@@ -7,6 +7,7 @@ use App\Models\TiposProcedimientos\TipoRevision;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class TipoRevisionController extends Controller
@@ -45,31 +46,15 @@ class TipoRevisionController extends Controller
                 'descripcion' => 'required|string',
                 'frecuencia_recomendada' => [
                     'required',
-                    Rule::in([
-                        'anual', 
-                        'semestral', 
-                        'trimestral', 
-                        'mensual', 
-                        'post_procedimiento', 
-                        'personalizada'
-                    ])
+                    Rule::in(['anual', 'semestral', 'trimestral', 'mensual', 'post_procedimiento', 'personalizada'])
                 ],
                 'frecuencia_personalizada' => 'nullable|string|max:255|required_if:frecuencia_recomendada,personalizada',
                 'areas_revisar' => 'required|array|min:1',
                 'areas_revisar.*' => 'string|max:255',
                 'otra_area' => 'nullable|string|max:255',
                 'indicadores_clave' => 'nullable|string',
-                'especie_objetivo' => [
-                    'nullable',
-                    Rule::in([
-                        'canino',
-                        'felino', 
-                        'ave', 
-                        'roedor', 
-                        'exotico', 
-                        'todos'
-                    ])
-                ],
+                'especies_objetivo' => 'required|array|min:1',
+                'especies_objetivo.*' => ['string', Rule::in(['canino', 'felino', 'equino', 'bovino', 'ave', 'pez', 'otro'])],
                 'edad_sugerida' => 'nullable|numeric|min:0|max:100',
                 'edad_unidad' => 'nullable|in:semanas,meses,años',
                 'recomendaciones_profesionales' => 'nullable|string',
@@ -80,8 +65,7 @@ class TipoRevisionController extends Controller
                 'descripcion.required' => 'La descripción es obligatoria',
                 'frecuencia_recomendada.required' => 'La frecuencia recomendada es obligatoria',
                 'areas_revisar.required' => 'Debe seleccionar al menos un área a revisar',
-                'areas_revisar.array' => 'Las áreas a revisar deben ser un array válido',
-                'frecuencia_personalizada.required_if' => 'Debe especificar la frecuencia personalizada',
+                'especies_objetivo.required' => 'Debe seleccionar al menos una especie objetivo',
             ]);
 
             if ($validator->fails()) {
@@ -92,22 +76,24 @@ class TipoRevisionController extends Controller
                 ], 422);
             }
 
-            // Validar que si se proporciona edad_sugerida, también se proporcione edad_unidad y viceversa
+            // Validar edad_sugerida y edad_unidad
             if (($request->filled('edad_sugerida') && !$request->filled('edad_unidad')) || 
                 (!$request->filled('edad_sugerida') && $request->filled('edad_unidad'))) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Debe proporcionar tanto la edad sugerida como la unidad, o ninguno de los dos',
-                    'errors' => [
-                        'edad_sugerida' => ['La edad sugerida y la unidad deben proporcionarse juntas'],
-                        'edad_unidad' => ['La edad sugerida y la unidad deben proporcionarse juntas']
-                    ]
+                    'message' => 'Debe proporcionar tanto la edad sugerida como la unidad, o ninguno de los dos'
                 ], 422);
             }
 
-             // OBTENER EL ID DEL VETERINARIO AUTENTICADO
+            // OBTENER EL ID DEL VETERINARIO AUTENTICADO
             $user = auth()->user();
-            $validated['veterinario_id'] = $user->userable->id; 
+            $veterinarioId = $user->userable->id; 
+
+            // DEBUG: Ver qué estamos recibiendo
+            Log::info('Datos recibidos para crear tipo revisión:', [
+                'especies_objetivo' => $request->especies_objetivo,
+                'areas_revisar' => $request->areas_revisar
+            ]);
 
             $tipoRevision = TipoRevision::create([
                 'nombre' => $request->nombre,
@@ -117,12 +103,12 @@ class TipoRevisionController extends Controller
                 'areas_revisar' => $request->areas_revisar,
                 'otra_area' => $request->otra_area,
                 'indicadores_clave' => $request->indicadores_clave,
-                'especie_objetivo' => $request->especie_objetivo ?? 'todos',
+                'especies' => $request->especies_objetivo, // Esto se convertirá a JSON automáticamente por el cast
                 'edad_sugerida' => $request->edad_sugerida,
                 'edad_unidad' => $request->edad_unidad,
                 'recomendaciones_profesionales' => $request->recomendaciones_profesionales,
                 'riesgos_clinicos' => $request->riesgos_clinicos,
-                'veterinario_id' => $validated['veterinario_id'],
+                'veterinario_id' => $veterinarioId,
             ]);
 
             return response()->json([
@@ -132,6 +118,9 @@ class TipoRevisionController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
+            Log::error('Error al crear tipo revisión: ' . $e->getMessage());
+            Log::error('Trace: ' . $e->getTraceAsString());
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error al registrar el tipo de revisión: ' . $e->getMessage()
@@ -145,6 +134,9 @@ class TipoRevisionController extends Controller
     public function show(TipoRevision $tipoRevision): JsonResponse
     {
         try {
+            // Asegurarse de que las especies se devuelvan como array
+            $tipoRevision->especies_objetivo = $tipoRevision->especies;
+            
             return response()->json([
                 'success' => true,
                 'data' => $tipoRevision,
@@ -188,16 +180,10 @@ class TipoRevisionController extends Controller
                 'areas_revisar.*' => 'string|max:255',
                 'otra_area' => 'nullable|string|max:255',
                 'indicadores_clave' => 'nullable|string',
-                'especie_objetivo' => [
-                    'nullable',
-                    Rule::in([
-                        'canino',
-                        'felino', 
-                        'ave', 
-                        'roedor', 
-                        'exotico', 
-                        'todos'
-                    ])
+                'especies_objetivo' => 'required|array|min:1', // Cambiado a array
+                'especies_objetivo.*' => [
+                    'string',
+                    Rule::in(['canino', 'felino', 'equino', 'bovino', 'ave', 'pez', 'otro'])
                 ],
                 'edad_sugerida' => 'nullable|numeric|min:0|max:100',
                 'edad_unidad' => 'nullable|in:semanas,meses,años',
@@ -231,7 +217,7 @@ class TipoRevisionController extends Controller
                 'areas_revisar' => $request->areas_revisar,
                 'otra_area' => $request->otra_area,
                 'indicadores_clave' => $request->indicadores_clave,
-                'especie_objetivo' => $request->especie_objetivo ?? 'todos',
+                'especies' => $request->especies_objetivo, // Actualizado
                 'edad_sugerida' => $request->edad_sugerida,
                 'edad_unidad' => $request->edad_unidad,
                 'recomendaciones_profesionales' => $request->recomendaciones_profesionales,

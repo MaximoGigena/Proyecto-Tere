@@ -26,7 +26,7 @@ class TipoTerapia extends Model
     protected $fillable = [
         'nombre',
         'descripcion',
-        'especie',
+        'especies',
         'duracion_valor',
         'duracion_unidad',
         'frecuencia',
@@ -46,6 +46,7 @@ class TipoTerapia extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'especies' => 'array',
         'duracion_valor' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -60,6 +61,7 @@ class TipoTerapia extends Model
     protected function casts(): array
     {
         return [
+            'especies' => 'array',
             'duracion_valor' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -77,8 +79,19 @@ class TipoTerapia extends Model
      */
     public function scopePorEspecie($query, $especie)
     {
-        return $query->where('especie', $especie)
-                    ->orWhere('especie', 'todos');
+        return $query->whereJsonContains('especies', $especie);
+    }
+
+     /**
+     * Scope para filtrar por múltiples especies
+     */
+    public function scopePorEspecies($query, array $especies)
+    {
+        return $query->where(function ($q) use ($especies) {
+            foreach ($especies as $especie) {
+                $q->orWhereJsonContains('especies', $especie);
+            }
+        });
     }
 
     /**
@@ -135,7 +148,8 @@ class TipoTerapia extends Model
         return [
             'nombre' => 'required|string|max:255|unique:tipos_terapia,nombre',
             'descripcion' => 'required|string',
-            'especie' => 'required|in:canino,felino,ave,roedor,exotico,todos',
+            'especies' => 'required|array',
+            'especies.*' => 'in:canino,felino,equino,bovino,ave,pez,otro',
             'duracion_valor' => 'required|integer|min:1',
             'duracion_unidad' => 'required|in:sesiones,dias,semanas,meses',
             'frecuencia' => 'required|in:diaria,semanal,quincenal,mensual,personalizada',
@@ -157,7 +171,9 @@ class TipoTerapia extends Model
             'nombre.required' => 'El nombre del tipo de terapia es obligatorio.',
             'nombre.unique' => 'Ya existe un tipo de terapia con este nombre.',
             'descripcion.required' => 'La descripción general es obligatoria.',
-            'especie.required' => 'La especie objetivo es obligatoria.',
+            'especies.required' => 'Debe seleccionar al menos una especie objetivo.',
+            'especies.array' => 'Las especies deben ser un array válido.',
+            'especies.*.in' => 'Una o más especies seleccionadas no son válidas.',
             'duracion_valor.required' => 'La duración del tratamiento es obligatoria.',
             'duracion_valor.min' => 'La duración debe ser al menos 1.',
             'frecuencia.required' => 'La frecuencia sugerida es obligatoria.',

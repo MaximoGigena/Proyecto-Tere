@@ -99,7 +99,7 @@ class TipoPaliativoController extends Controller
             $procedimientoData = [
                 'nombre' => $validatedData['nombre'],
                 'descripcion' => $validatedData['descripcion'],
-                'especie' => $validatedData['especie'],
+                'especies' => $validatedData['especies'],
                 'objetivo_terapeutico' => $validatedData['objetivo_terapeutico'],
                 'objetivo_otro' => $validatedData['objetivo_otro'] ?? null,
                 'frecuencia_valor' => $validatedData['frecuencia_valor'],
@@ -327,10 +327,11 @@ class TipoPaliativoController extends Controller
                 'especies' => [
                     ['value' => 'canino', 'label' => 'Canino'],
                     ['value' => 'felino', 'label' => 'Felino'],
+                    ['value' => 'equino', 'label' => 'Equino'],
+                    ['value' => 'bovino', 'label' => 'Bovino'],
                     ['value' => 'ave', 'label' => 'Ave'],
-                    ['value' => 'roedor', 'label' => 'Roedor'],
-                    ['value' => 'exotico', 'label' => 'Exótico'],
-                    ['value' => 'todos', 'label' => 'Todos'],
+                    ['value' => 'pez', 'label' => 'Pez'],
+                    ['value' => 'otro', 'label' => 'Otro'],
                 ],
                 'objetivos_terapeuticos' => [
                     ['value' => 'alivio_dolor', 'label' => 'Alivio del dolor'],

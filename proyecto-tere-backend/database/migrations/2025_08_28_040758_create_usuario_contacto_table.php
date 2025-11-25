@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('telefono', 20)->nullable();
             $table->string('email', 100)->nullable()->unique(); 
             $table->string('nombre_completo', 200)->nullable(); 
+            $table->string('telegram_chat_id', 50)->nullable()->unique();
             $table->timestamp('deleted_at')->nullable();
             $table->timestamps();
             
@@ -25,6 +26,7 @@ return new class extends Migration
             $table->index('dni');
             $table->index('email');
             $table->index('nombre_completo');
+            $table->index('telegram_chat_id'); 
         });
     }
 

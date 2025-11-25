@@ -1,9 +1,8 @@
 <?php
-// app/Http/Controllers/ControllersProcedimiento/TipoVacunaController.php
+// app/Http/Controllers/ControllersTiposProcedimiento/TipoVacunaController.php
 
 namespace App\Http\Controllers\ControllersTiposProcedimiento;
 
-// Agrega esta importación
 use App\Http\Controllers\Controller;
 use App\Models\TiposProcedimientos\TipoVacuna;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +18,8 @@ class TipoVacunaController extends Controller
         $validated = $request->validate([
             'nombre' => 'required|string|max:255|unique:tipos_vacuna,nombre',
             'enfermedades' => 'required|string',
-            'especie' => 'required|in:canino,felino,ave,roedor,exotico,todos',
+            'especies' => 'required|array',
+            'especies.*' => 'required|string|in:canino,felino,equino,bovino,ave,pez,otro',
             'edad_minima' => 'required|numeric|min:0',
             'edad_unidad' => 'required|in:semanas,meses,años',
             'dosis' => 'required|numeric|min:0.1',
@@ -37,7 +37,8 @@ class TipoVacunaController extends Controller
             'nombre.required' => 'El nombre de la vacuna es obligatorio',
             'nombre.unique' => 'Ya existe un tipo de vacuna con este nombre',
             'enfermedades.required' => 'Las enfermedades que previene son obligatorias',
-            'especie.required' => 'La especie objetivo es obligatoria',
+            'especies.required' => 'Debe seleccionar al menos una especie',
+            'especies.*.in' => 'La especie seleccionada no es válida',
             'edad_minima.required' => 'La edad mínima de aplicación es obligatoria',
             'dosis.required' => 'La dosis recomendada es obligatoria',
             'via_administracion.required' => 'La vía de administración es obligatoria',
@@ -46,17 +47,21 @@ class TipoVacunaController extends Controller
             'frecuencia_personalizada.required_if' => 'Debe especificar el esquema personalizado'
         ]);
 
+        // Validación adicional para especies
+        $this->validarEspecies($validated['especies']);
+
         try {
-            // Gracias al middleware, sabemos que el usuario es veterinario
-            // Solo necesitamos obtener el veterinario_id correctamente
             $user = auth()->user();
-            $validated['veterinario_id'] = $user->userable->id; // ← Esto ahora es seguro
+            $validated['veterinario_id'] = $user->userable->id;
+
+            // 🔥 CONVERTIR EL ARRAY A JSON MANUALMENTE ANTES DE CREAR
+            $validated['especies'] = json_encode($validated['especies']);
+
+            Log::info('Datos antes de crear:', $validated);
 
             $tipoVacuna = TipoVacuna::create($validated);
 
             Log::info('TipoVacuna creado exitosamente', ['id' => $tipoVacuna->id]);
-
-            Log::info('Datos validados', $validated);
             
             return response()->json([
                 'success' => true,
@@ -66,8 +71,8 @@ class TipoVacunaController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error en store de TipoVacuna', [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             return response()->json([
                 'success' => false,
@@ -108,8 +113,7 @@ class TipoVacunaController extends Controller
         }
     }
 
-    // Método show para obtener un tipo de vacuna específico
-     public function show($id): JsonResponse
+    public function show($id): JsonResponse
     {
         try {
             $user = auth()->user();
@@ -156,7 +160,7 @@ class TipoVacunaController extends Controller
         }
     }
 
-    // Método update para actualizar
+    // También actualiza el método update
     public function update(Request $request, $id): JsonResponse
     {
         try {
@@ -168,7 +172,6 @@ class TipoVacunaController extends Controller
                 'veterinario_id' => $veterinarioId
             ]);
 
-            // Primero verificar que el tipo de vacuna existe y pertenece al veterinario
             $tipoVacuna = TipoVacuna::where('id', $id)
                 ->where('veterinario_id', $veterinarioId)
                 ->where('activo', true)
@@ -184,7 +187,8 @@ class TipoVacunaController extends Controller
             $validated = $request->validate([
                 'nombre' => 'required|string|max:255|unique:tipos_vacuna,nombre,' . $id,
                 'enfermedades' => 'required|string',
-                'especie' => 'required|in:canino,felino,ave,roedor,exotico,todos',
+                'especies' => 'required|array',
+                'especies.*' => 'required|string|in:canino,felino,equino,bovino,ave,pez,otro',
                 'edad_minima' => 'required|numeric|min:0',
                 'edad_unidad' => 'required|in:semanas,meses,años',
                 'dosis' => 'required|numeric|min:0.1',
@@ -202,7 +206,8 @@ class TipoVacunaController extends Controller
                 'nombre.required' => 'El nombre de la vacuna es obligatorio',
                 'nombre.unique' => 'Ya existe un tipo de vacuna con este nombre',
                 'enfermedades.required' => 'Las enfermedades que previene son obligatorias',
-                'especie.required' => 'La especie objetivo es obligatoria',
+                'especies.required' => 'Debe seleccionar al menos una especie',
+                'especies.*.in' => 'La especie seleccionada no es válida',
                 'edad_minima.required' => 'La edad mínima de aplicación es obligatoria',
                 'dosis.required' => 'La dosis recomendada es obligatoria',
                 'via_administracion.required' => 'La vía de administración es obligatoria',
@@ -210,6 +215,11 @@ class TipoVacunaController extends Controller
                 'obligatoriedad.required' => 'La obligatoriedad es obligatoria',
                 'frecuencia_personalizada.required_if' => 'Debe especificar el esquema personalizado'
             ]);
+
+            $this->validarEspecies($validated['especies']);
+
+            // 🔥 CONVERTIR EL ARRAY A JSON MANUALMENTE ANTES DE ACTUALIZAR
+            $validated['especies'] = json_encode($validated['especies']);
 
             $tipoVacuna->update($validated);
 
@@ -233,6 +243,7 @@ class TipoVacunaController extends Controller
             ], 500);
         }
     }
+
 
     public function destroy($id): JsonResponse
     {
@@ -286,4 +297,28 @@ class TipoVacunaController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Valida las especies recibidas (ahora como array)
+     */
+    private function validarEspecies($especies): void
+        {
+            $especiesPermitidas = ['canino', 'felino', 'equino', 'bovino', 'ave', 'pez', 'otro'];
+            
+            if (is_string($especies)) {
+                $especiesArray = array_map('trim', explode(',', $especies));
+            } else {
+                $especiesArray = (array)$especies;
+            }
+            
+            foreach ($especiesArray as $especie) {
+                if (!in_array($especie, $especiesPermitidas)) {
+                    throw new \InvalidArgumentException("La especie '$especie' no es válida. Especies permitidas: " . implode(', ', $especiesPermitidas));
+                }
+            }
+            
+            if (empty($especiesArray)) {
+                throw new \InvalidArgumentException('Debe seleccionar al menos una especie');
+            }
+        }
 }

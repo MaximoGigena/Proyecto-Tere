@@ -17,7 +17,7 @@ class TipoVacuna extends Model
     protected $fillable = [
         'nombre',
         'enfermedades',
-        'especie',
+        'especies',
         'edad_minima',
         'edad_unidad',
         'dosis',
@@ -38,7 +38,8 @@ class TipoVacuna extends Model
     protected $casts = [
         'edad_minima' => 'decimal:2',
         'dosis' => 'decimal:2',
-        'activo' => 'boolean'
+        'activo' => 'boolean',
+        'especies' => 'array' 
     ];
 
     // Relación con Veterinario

@@ -17,7 +17,7 @@ return new class extends Migration
             // Datos obligatorios
             $table->string('nombre');
             $table->text('descripcion');
-            $table->enum('especie', ['canino', 'felino', 'ave', 'roedor', 'exotico', 'todos']);
+            $table->json('especies'); // Array de especies
             $table->enum('frecuencia', ['unica', 'potencial_repetible', 'multiple']);
             $table->integer('duracion');
             $table->enum('duracion_unidad', ['minutos', 'horas']);
@@ -42,7 +42,6 @@ return new class extends Migration
                   ->onDelete('cascade');
             
             // Índices
-            $table->index('especie');
             $table->index('frecuencia');
             $table->unique('nombre');
             $table->index('activo');

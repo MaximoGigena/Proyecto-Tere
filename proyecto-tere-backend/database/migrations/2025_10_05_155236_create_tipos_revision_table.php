@@ -27,14 +27,7 @@ return new class extends Migration
             $table->json('areas_revisar'); // Array de áreas a revisar
             $table->string('otra_area')->nullable();
             $table->text('indicadores_clave')->nullable();
-            $table->enum('especie_objetivo', [
-                'canino',
-                'felino', 
-                'ave', 
-                'roedor', 
-                'exotico', 
-                'todos'
-            ])->default('todos');
+            $table->json('especies'); // Array de especies
             $table->decimal('edad_sugerida', 5, 2)->nullable();
             $table->enum('edad_unidad', ['semanas', 'meses', 'años'])->nullable();
             $table->text('recomendaciones_profesionales')->nullable();
@@ -45,7 +38,6 @@ return new class extends Migration
 
             // Índices para mejorar el rendimiento
             $table->index(['frecuencia_recomendada']);
-            $table->index(['especie_objetivo']);
             $table->index(['edad_sugerida', 'edad_unidad']);
             $table->index(['activo']);
 

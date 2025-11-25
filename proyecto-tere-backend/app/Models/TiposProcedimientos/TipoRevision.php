@@ -21,7 +21,7 @@ class TipoRevision extends Model
         'areas_revisar',
         'otra_area',
         'indicadores_clave',
-        'especie_objetivo',
+        'especies',
         'edad_sugerida',
         'edad_unidad',
         'recomendaciones_profesionales',
@@ -32,6 +32,7 @@ class TipoRevision extends Model
 
     protected $casts = [
         'areas_revisar' => 'array',
+        'especies' => 'array',
         'edad_sugerida' => 'decimal:2',
         'activo' => 'boolean'
     ];
@@ -98,8 +99,8 @@ class TipoRevision extends Model
             return $query;
         }
         
-        return $query->where('especie_objetivo', $especie)
-                    ->orWhere('especie_objetivo', 'todos');
+        return $query->where('especies', $especie)
+                    ->orWhere('especies', 'todos');
     }
 
     public function scopePorFrecuencia($query, $frecuencia)

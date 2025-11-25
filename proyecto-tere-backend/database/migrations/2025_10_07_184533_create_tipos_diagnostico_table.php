@@ -28,15 +28,7 @@ return new class extends Migration
                 'otro'
             ]);
             $table->string('clasificacion_otro')->nullable();
-            $table->enum('especie', [
-                'canino', 
-                'felino', 
-                'ave', 
-                'roedor', 
-                'exotico', 
-                'todos', 
-                'ninguna'
-            ]);
+            $table->json('especies'); // Array de especies
             $table->enum('evolucion', [
                 'aguda',
                 'cronica', 
@@ -64,7 +56,6 @@ return new class extends Migration
             
             // Índices
             $table->index('clasificacion');
-            $table->index('especie');
             $table->index('evolucion');
             $table->unique('nombre');
             $table->index('activo');

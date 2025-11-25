@@ -24,7 +24,7 @@ class TipoAlergia extends Model
         'otra_area',
         'tratamiento_recomendado',
         'recomendaciones_clinicas',
-        'especie_afectada',
+        'especies',
         'desencadenante',
         'conducta_recomendada',
         'observaciones_adicionales',
@@ -33,7 +33,8 @@ class TipoAlergia extends Model
     ];
 
     protected $casts = [
-        'areas_afectadas' => 'array'
+        'areas_afectadas' => 'array',
+        'especies' => 'array',
     ];
 
     public function veterinario()

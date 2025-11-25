@@ -16,10 +16,13 @@ class Mascota extends Model
     protected $fillable = [
         'nombre',
         'especie',
-        'fecha_nacimiento',
-        'edad_actual',
+        'fecha_nacimiento', // Ahora es string dd/mm/yyyy
         'sexo',
         'usuario_id'
+    ];
+
+    protected $casts = [
+        // Remover el casting date para fecha_nacimiento
     ];
 
     public function baja(): HasOne
@@ -40,6 +43,18 @@ class Mascota extends Model
     public function fotos()
     {
         return $this->hasMany(MascotaFoto::class);
+    }
+
+    // RELACIÓN PRINCIPAL - usar este nombre para evitar conflictos
+    public function edadRelacion(): HasOne
+    {
+        return $this->hasOne(EdadMascota::class);
+    }
+
+    // ALIAS para compatibilidad (opcional) - PERO CUIDADO CON LOS ACCESSORS
+    public function edad(): HasOne
+    {
+        return $this->hasOne(EdadMascota::class);
     }
 
     // Método para dar de baja
@@ -65,9 +80,110 @@ class Mascota extends Model
         return $this->baja !== null;
     }
 
+    /**
+     * Accessor para obtener la edad formateada
+     */
     public function getEdadFormateadaAttribute()
     {
-        return "{$this->edad} años";
+        if ($this->relationLoaded('edadRelacion') && $this->edadRelacion) {
+            return $this->edadRelacion->edad_formateada ?? 'Edad no disponible';
+        }
+        
+        // Si no está cargada la relación, calcular directamente desde string dd/mm/yyyy
+        if ($this->fecha_nacimiento) {
+            return $this->calcularEdadDirectamente($this->fecha_nacimiento);
+        }
+        
+        return 'Edad no disponible';
+    }
+
+    /**
+     * ELIMINAR ESTE ACCESSOR - CAUSA CONFLICTO
+     * Comenta o elimina este método para evitar el bucle infinito
+     */
+    /*
+    public function getEdadAttribute()
+    {
+        return $this->edad_formateada;
+    }
+    */
+
+    /**
+     * Método para actualizar la edad
+     */
+    public function actualizarEdad(): void
+    {
+        $relacionEdad = $this->edadRelacion()->first();
+        
+        if (!$relacionEdad) {
+            // Crear registro de edad si no existe
+            $relacionEdad = EdadMascota::create(['mascota_id' => $this->id]);
+        }
+
+        if ($relacionEdad->necesitaActualizacion()) {
+            $relacionEdad->actualizarDesdeFechaNacimiento($this->fecha_nacimiento);
+        }
+    }
+    
+    /**
+     * Calcular edad directamente desde string dd/mm/yyyy - CORREGIDO
+     */
+    private function calcularEdadDirectamente($fechaNacimiento): string
+    {
+        if (!$fechaNacimiento) {
+            return 'Edad no disponible';
+        }
+
+        try {
+            // Usar el mismo método de parseo que en EdadMascota
+            $partes = [];
+            
+            // Intentar formato DD/MM/YYYY
+            if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $fechaNacimiento, $partes)) {
+                $dia = (int) $partes[1];
+                $mes = (int) $partes[2];
+                $anio = (int) $partes[3];
+            }
+            // Intentar formato YYYY-MM-DD
+            else if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $fechaNacimiento, $partes)) {
+                $anio = (int) $partes[1];
+                $mes = (int) $partes[2];
+                $dia = (int) $partes[3];
+            }
+            else {
+                return 'Formato de fecha inválido';
+            }
+
+            // Validar fecha
+            if (!checkdate($mes, $dia, $anio)) {
+                return 'Fecha inválida';
+            }
+
+            $nacimiento = Carbon::createFromDate($anio, $mes, $dia);
+            $hoy = Carbon::now();
+            
+            if ($nacimiento->isFuture()) {
+                return 'Fecha futura';
+            }
+
+            $dias = $nacimiento->diffInDays($hoy);
+            $años = $nacimiento->diffInYears($hoy);
+            $mesesTotales = $nacimiento->diffInMonths($hoy);
+            $mesesRestantes = $mesesTotales - ($años * 12);
+            
+            if ($dias < 30) {
+                return "{$dias} días";
+            } else if ($dias < 365) {
+                return "{$mesesTotales} " . ($mesesTotales === 1 ? 'mes' : 'meses');
+            } else {
+                if ($mesesRestantes > 0) {
+                    return "{$años} " . ($años === 1 ? 'año' : 'años') . " y {$mesesRestantes} " . ($mesesRestantes === 1 ? 'mes' : 'meses');
+                }
+                return "{$años} " . ($años === 1 ? 'año' : 'años');
+            }
+        } catch (\Exception $e) {
+            return 'Error calculando edad';
+        }
     }
 
     /**
@@ -103,57 +219,44 @@ class Mascota extends Model
         return asset('storage/' . $foto->ruta_foto);
     }
 
-    
-
     /**
-     * Accessor para la edad (usa el campo calculado)
+     * Boot del modelo para actualizar edad automáticamente
      */
-    public function getEdadAttribute()
+    protected static function boot()
     {
-        return $this->edad_actual;
-    }
+        parent::boot();
 
-    /**
-     * Método para actualizar la edad actual
-     */
-    public function actualizarEdad()
-    {
-        if (!$this->fecha_nacimiento) {
-            $this->edad_actual = null;
-            return;
-        }
-
-        // Solo calcular la edad sin hacer save() para evitar bucles
-        $this->edad_actual = $this->calcularEdadDesdeFecha($this->fecha_nacimiento);
-    }
-
-    /**
-     * Calcula la edad desde la fecha de nacimiento
-     */
-    private function calcularEdadDesdeFecha($fechaNacimiento)
-    {
-        $nacimiento = Carbon::parse($fechaNacimiento);
-        $hoy = Carbon::now();
-        
-        // CORREGIDO: Cambiar el orden para que sea positivo
-        $diffDias = $nacimiento->diffInDays($hoy); // Ahora es positivo
-        
-        if ($diffDias < 30) {
-            return "{$diffDias} días";
-        } else if ($diffDias < 365) {
-            $meses = $nacimiento->diffInMonths($hoy); // CORREGIDO: mismo orden
-            return "{$meses} " . ($meses === 1 ? 'mes' : 'meses');
-        } else {
-            $años = $nacimiento->diffInYears($hoy); // CORREGIDO: mismo orden
-            $mesesRestantes = $nacimiento->diffInMonths($hoy) % 12; // CORREGIDO: mismo orden
-            
-            if ($mesesRestantes > 0) {
-                return "{$años} " . ($años === 1 ? 'año' : 'años') . " y {$mesesRestantes} " . ($mesesRestantes === 1 ? 'mes' : 'meses');
+        // Actualizar edad cuando se crea o actualiza la fecha de nacimiento
+        static::saved(function ($mascota) {
+            if ($mascota->isDirty('fecha_nacimiento')) {
+                $mascota->actualizarEdad();
             }
-            
-            return "{$años} " . ($años === 1 ? 'año' : 'años');
-        }
+        });
+
+        // Crear registro de edad cuando se crea la mascota
+        static::created(function ($mascota) {
+            if ($mascota->fecha_nacimiento) {
+                $mascota->actualizarEdad();
+            }
+        });
     }
 
-    protected $with = ['caracteristicas', 'fotos'];
+    public function procesosMedicos()
+    {
+        return $this->hasMany(ProcesoMedico::class);
+    }
+
+    // También sería útil un método para obtener procesos por categoría
+    public function procesosPreventivos()
+    {
+        return $this->hasMany(ProcesoMedico::class)->where('categoria', 'preventivo');
+    }
+
+    public function procesosClinicos()
+    {
+        return $this->hasMany(ProcesoMedico::class)->where('categoria', 'clinico');
+    }
+
+    // NO cargar automáticamente la relación de edad para evitar conflictos
+    // protected $with = ['caracteristicas', 'fotos'];
 }
