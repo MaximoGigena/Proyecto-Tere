@@ -3,11 +3,13 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\FacebookAuthController;
+use App\Http\Controllers\TelegramWebhookController;
 use Illuminate\Http\Request;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
 
 Route::prefix('auth/google')->group(function () {
     Route::get('/', [GoogleAuthController::class, 'redirectToGoogle'])->name('google.login');

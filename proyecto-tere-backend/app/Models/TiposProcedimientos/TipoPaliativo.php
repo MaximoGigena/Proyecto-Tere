@@ -26,7 +26,7 @@ class TipoPaliativo extends Model
     protected $fillable = [
         'nombre',
         'descripcion',
-        'especie',
+        'especies',
         'objetivo_terapeutico',
         'objetivo_otro',
         'frecuencia_valor',
@@ -47,6 +47,7 @@ class TipoPaliativo extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'especies' => 'array',
         'frecuencia_valor' => 'integer',
         'recursos_necesarios' => 'array',
         'created_at' => 'datetime',
@@ -61,6 +62,7 @@ class TipoPaliativo extends Model
     protected function casts(): array
     {
         return [
+            'especies' => 'array',
             'frecuencia_valor' => 'integer',
             'recursos_necesarios' => 'array',
             'created_at' => 'datetime',
@@ -77,8 +79,7 @@ class TipoPaliativo extends Model
      */
     public function scopePorEspecie($query, $especie)
     {
-        return $query->where('especie', $especie)
-                    ->orWhere('especie', 'todos');
+        return $query->whereJsonContains('especies', $especie);
     }
 
     /**
@@ -168,17 +169,26 @@ class TipoPaliativo extends Model
     /**
      * Get especie en texto legible
      */
-    public function getEspecieTextoAttribute(): string
+    public function getEspeciesTextoAttribute(): string
     {
-        return match($this->especie) {
-            'canino' => 'Canino',
-            'felino' => 'Felino',
-            'ave' => 'Ave',
-            'roedor' => 'Roedor',
-            'exotico' => 'Exótico',
-            'todos' => 'Todos',
-            default => $this->especie,
-        };
+        if (empty($this->especies)) {
+            return 'No especificado';
+        }
+
+        $nombres = array_map(function($especie) {
+            return match($especie) {
+                'canino' => 'Canino',
+                'felino' => 'Felino',
+                'equino' => 'Equino',
+                'bovino' => 'Bovino',
+                'ave' => 'Ave',
+                'pez' => 'Pez',
+                'otro' => 'Otro',
+                default => $especie,
+            };
+        }, $this->especies);
+
+        return implode(', ', $nombres);
     }
 
     /**
@@ -220,7 +230,8 @@ class TipoPaliativo extends Model
         return [
             'nombre' => 'required|string|max:255|unique:tipos_paliativo,nombre',
             'descripcion' => 'required|string',
-            'especie' => 'required|in:canino,felino,ave,roedor,exotico,todos',
+            'especies' => 'required|array|min:1', // Cambiado a array
+            'especies.*' => 'in:canino,felino,equino,bovino,ave,pez,otro', // Validación para cada elemento
             'objetivo_terapeutico' => 'required|in:alivio_dolor,mejora_movilidad,soporte_respiratorio,soporte_nutricional,acompañamiento,otro',
             'objetivo_otro' => 'nullable|required_if:objetivo_terapeutico,otro|string|max:255',
             'frecuencia_valor' => 'required|integer|min:1',
@@ -244,7 +255,8 @@ class TipoPaliativo extends Model
             'nombre.required' => 'El nombre del procedimiento paliativo es obligatorio.',
             'nombre.unique' => 'Ya existe un procedimiento paliativo con este nombre.',
             'descripcion.required' => 'La descripción general es obligatoria.',
-            'especie.required' => 'La especie objetivo es obligatoria.',
+            'especies.required' => 'Debe seleccionar al menos una especie objetivo.', // Mensaje actualizado
+            'especies.min' => 'Debe seleccionar al menos una especie objetivo.',
             'objetivo_terapeutico.required' => 'El objetivo terapéutico es obligatorio.',
             'objetivo_otro.required_if' => 'Debe especificar el objetivo cuando selecciona "Otro".',
             'frecuencia_valor.required' => 'La frecuencia o duración es obligatoria.',

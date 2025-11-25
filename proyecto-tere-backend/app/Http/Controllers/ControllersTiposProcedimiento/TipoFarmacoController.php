@@ -60,18 +60,8 @@ class TipoFarmacoController extends Controller
                     ])
                 ],
                 'categoria_otro' => 'nullable|required_if:categoria,otro|string|max:255',
-                'especie' => [
-                    'required',
-                    Rule::in([
-                        'canino',
-                        'felino', 
-                        'ave', 
-                        'roedor', 
-                        'exotico', 
-                        'todos', 
-                        'ninguna'
-                    ])
-                ],
+                'especies' => 'required|array|min:1',
+                'especies.*' => 'in:canino,felino,equino,bovino,ave,pez,otro',
                 'dosis' => 'required|numeric|min:0.1',
                 'unidad' => [
                     'required',
@@ -144,7 +134,7 @@ class TipoFarmacoController extends Controller
                 'composicion' => $request->composicion,
                 'categoria' => $request->categoria,
                 'categoria_otro' => $request->categoria_otro,
-                'especie' => $request->especie,
+                'especies' => $request->especies,
                 'dosis' => $request->dosis,
                 'unidad' => $request->unidad,
                 'frecuencia_unidad' => $request->frecuencia_unidad,
@@ -218,18 +208,8 @@ class TipoFarmacoController extends Controller
                     ])
                 ],
                 'categoria_otro' => 'nullable|required_if:categoria,otro|string|max:255',
-                'especie' => [
-                    'required',
-                    Rule::in([
-                        'canino',
-                        'felino', 
-                        'ave', 
-                        'roedor', 
-                        'exotico', 
-                        'todos', 
-                        'ninguna'
-                    ])
-                ],
+                'especies' => 'required|array|min:1',
+                'especies.*' => 'in:canino,felino,equino,bovino,ave,pez,otro',
                 'dosis' => 'required|numeric|min:0.1',
                 'unidad' => [
                     'required',
@@ -299,7 +279,7 @@ class TipoFarmacoController extends Controller
                 'composicion' => $request->composicion,
                 'categoria' => $request->categoria,
                 'categoria_otro' => $request->categoria_otro,
-                'especie' => $request->especie,
+                'especies' => $request->especies,
                 'dosis' => $request->dosis,
                 'unidad' => $request->unidad,
                 'frecuencia_unidad' => $request->frecuencia_unidad,
@@ -506,11 +486,11 @@ class TipoFarmacoController extends Controller
                 'especies' => [
                     ['value' => 'canino', 'label' => 'Canino'],
                     ['value' => 'felino', 'label' => 'Felino'],
+                    ['value' => 'equino', 'label' => 'Equino'],
+                    ['value' => 'bovino', 'label' => 'Bovino'],
                     ['value' => 'ave', 'label' => 'Ave'],
-                    ['value' => 'roedor', 'label' => 'Roedor'],
-                    ['value' => 'exotico', 'label' => 'Exótico'],
-                    ['value' => 'todos', 'label' => 'Todos'],
-                    ['value' => 'ninguna', 'label' => 'No aplica'],
+                    ['value' => 'pez', 'label' => 'Pez'],
+                    ['value' => 'otro', 'label' => 'Otro'],
                 ],
                 'unidades' => [
                     ['value' => 'mg', 'label' => 'mg'],

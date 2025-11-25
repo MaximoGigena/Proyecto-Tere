@@ -26,7 +26,7 @@ class TipoCirugia extends Model
     protected $fillable = [
         'nombre',
         'descripcion',
-        'especie',
+        'especies',
         'frecuencia',
         'duracion',
         'duracion_unidad',
@@ -46,6 +46,7 @@ class TipoCirugia extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'especies' => 'array',
         'equipamiento' => 'array',
         'duracion' => 'integer',
     ];
@@ -58,6 +59,7 @@ class TipoCirugia extends Model
     protected function casts(): array
     {
         return [
+            'especies' => 'array',
             'equipamiento' => 'array',
             'duracion' => 'integer',
             'created_at' => 'datetime',
@@ -75,9 +77,10 @@ class TipoCirugia extends Model
      */
     public function scopePorEspecie($query, $especie)
     {
-        return $query->where('especie', $especie)
-                    ->orWhere('especie', 'todos');
+        return $query->whereJsonContains('especies', $especie) // ← Cambiado para JSON
+                    ->orWhereJsonContains('especies', 'todos');
     }
+
 
     /**
      * Scope para filtrar por frecuencia
@@ -121,6 +124,21 @@ class TipoCirugia extends Model
         }
     }
 
+     /**
+     * Set especies desde array o string
+     */
+    public function setEspeciesAttribute($value): void
+    {
+        if (is_string($value)) {
+            // Si es un string individual, convertirlo a array
+            $this->attributes['especies'] = json_encode([$value]);
+        } elseif (is_array($value)) {
+            $this->attributes['especies'] = json_encode($value);
+        } else {
+            $this->attributes['especies'] = json_encode([]);
+        }
+    }
+
     /**
      * Validación para crear un nuevo tipo de cirugía
      */
@@ -129,7 +147,8 @@ class TipoCirugia extends Model
         return [
             'nombre' => 'required|string|max:255|unique:tipos_cirugia,nombre',
             'descripcion' => 'required|string',
-            'especie' => 'required|in:canino,felino,ave,roedor,exotico,todos',
+            'especies' => 'required|array', // ← Cambiado a array
+            'especies.*' => 'string|in:canino,felino,equino,bovino,ave,pez,otro,multiple', // ← Validación de cada elemento
             'frecuencia' => 'required|in:unica,potencial_repetible,multiple',
             'duracion' => 'required|integer|min:1',
             'duracion_unidad' => 'required|in:minutos,horas',
@@ -152,7 +171,7 @@ class TipoCirugia extends Model
             'nombre.required' => 'El nombre del tipo de cirugía es obligatorio.',
             'nombre.unique' => 'Ya existe un tipo de cirugía con este nombre.',
             'descripcion.required' => 'La descripción general es obligatoria.',
-            'especie.required' => 'La especie objetivo es obligatoria.',
+            'especies.required' => 'La especie objetivo es obligatoria.',
             'frecuencia.required' => 'La frecuencia esperada es obligatoria.',
             'duracion.required' => 'La duración estimada es obligatoria.',
             'riesgos.required' => 'Los riesgos comunes son obligatorios.',

@@ -103,7 +103,7 @@ class TipoCirugiaController extends Controller
             $tipoCirugia = TipoCirugia::create([
                 'nombre' => $request->nombre,
                 'descripcion' => $request->descripcion,
-                'especie' => $request->especie,
+                'especies' => $request->especies,
                 'frecuencia' => $request->frecuencia,
                 'duracion' => $request->duracion,
                 'duracion_unidad' => $request->duracion_unidad,
@@ -220,7 +220,7 @@ class TipoCirugiaController extends Controller
             $tipoCirugia->update([
                 'nombre' => $request->nombre,
                 'descripcion' => $request->descripcion,
-                'especie' => $request->especie,
+                'especies' => $request->especies,
                 'frecuencia' => $request->frecuencia,
                 'duracion' => $request->duracion,
                 'duracion_unidad' => $request->duracion_unidad,
@@ -347,10 +347,12 @@ class TipoCirugiaController extends Controller
             'data' => [
                 'canino',
                 'felino', 
+                'equino',
+                'bovino',
                 'ave',
-                'roedor',
-                'exotico',
-                'todos'
+                'pez',
+                'otro',
+                'todos',
             ]
         ]);
     }

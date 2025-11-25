@@ -27,8 +27,8 @@ class RegistrarUsuarioController extends Controller
                 'nombre' => 'required|string|max:100',
                 'email' => 'required|email|unique:users,email|max:100',
                 'password' => 'required|string|min:8',
-                'edad' => 'nullable|integer|min:18',
-                'foto_perfil' => 'nullable|image|max:2048',
+                'edad' => 'nullable|integer|min:14',
+                'foto_perfil' => 'required|image|max:2048',
                 
                 // Características
                 'tipoVivienda' => 'nullable|string',
@@ -375,6 +375,156 @@ class RegistrarUsuarioController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al modificar usuario',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+     /**
+     * Actualizar solo datos opcionales
+     */
+    public function actualizarDatosOpcionales(Request $request)
+    {
+        DB::beginTransaction();
+        
+        try {
+            Log::info('📝 Actualizando datos opcionales', $request->all());
+            
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            $usuario = $user->userable;
+            if (!$usuario) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado'
+                ], 404);
+            }
+            
+            // Validación de datos opcionales
+            $validatedData = $request->validate([
+                'ocupacion' => 'nullable|string|max:100',
+                'tipoVivienda' => 'nullable|string|max:50',
+                'experienciaMascotas' => 'nullable|string|max:50',
+                'conviveConNiños' => 'nullable|string|max:10',
+                'conviveConMascotas' => 'nullable|string|max:10',
+                'descripcion' => 'nullable|string|max:500',
+            ]);
+            
+            Log::info('📝 Datos validados para características', $validatedData);
+            
+            // Mapear nombres de campos del frontend a la base de datos
+            $datosCaracteristicas = [
+                'ocupacion' => $validatedData['ocupacion'] ?? null,
+                'tipoVivienda' => $validatedData['tipoVivienda'] ?? null,
+                'experiencia' => $validatedData['experienciaMascotas'] ?? null,
+                'convivenciaNiños' => $validatedData['conviveConNiños'] ?? null,
+                'convivenciaMascotas' => $validatedData['conviveConMascotas'] ?? null,
+                'descripción' => $validatedData['descripcion'] ?? null,
+            ];
+            
+            // Actualizar o crear características
+            if ($usuario->caracteristicas) {
+                $usuario->caracteristicas->update($datosCaracteristicas);
+                Log::info('✅ Características actualizadas', $datosCaracteristicas);
+            } else {
+                CaracteristicasUsuario::create(array_merge($datosCaracteristicas, [
+                    'usuario_id' => $usuario->id
+                ]));
+                Log::info('✅ Características creadas', $datosCaracteristicas);
+            }
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Datos opcionales guardados exitosamente'
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('❌ Error al guardar datos opcionales: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al guardar datos opcionales',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Actualizar solo datos de contacto
+     */
+    public function actualizarDatosContacto(Request $request)
+    {
+        DB::beginTransaction();
+        
+        try {
+            Log::info('📞 Actualizando datos de contacto', $request->all());
+            
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            $usuario = $user->userable;
+            if (!$usuario) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado'
+                ], 404);
+            }
+            
+            // Validación de datos de contacto
+            $validatedData = $request->validate([
+                'dni' => 'nullable|string|max:20|unique:usuario_contacto,dni,' . ($usuario->contacto ? $usuario->contacto->id : 'NULL'),
+                'telefono_contacto' => 'nullable|string|max:20',
+                'email_contacto' => 'nullable|email|max:100|unique:usuario_contacto,email,' . ($usuario->contacto ? $usuario->contacto->id : 'NULL'),
+                'nombre_completo' => 'nullable|string|max:200',
+            ]);
+            
+            Log::info('📞 Datos validados para contacto', $validatedData);
+            
+            // Mapear nombres de campos del frontend a la base de datos
+            $datosContacto = [
+                'dni' => $validatedData['dni'] ?? null,
+                'telefono' => $validatedData['telefono_contacto'] ?? null,
+                'email' => $validatedData['email_contacto'] ?? null,
+                'nombre_completo' => $validatedData['nombre_completo'] ?? null,
+            ];
+            
+            // Actualizar o crear contacto
+            if ($usuario->contacto) {
+                $usuario->contacto->update($datosContacto);
+                Log::info('✅ Contacto actualizado', $datosContacto);
+            } else {
+                ContactoUsuario::create(array_merge($datosContacto, [
+                    'usuario_id' => $usuario->id
+                ]));
+                Log::info('✅ Contacto creado', $datosContacto);
+            }
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Datos de contacto guardados exitosamente'
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('❌ Error al guardar datos de contacto: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al guardar datos de contacto',
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -29,15 +29,7 @@ return new class extends Migration
                 'otro'
             ]);
             $table->string('categoria_otro')->nullable();
-            $table->enum('especie', [
-                'canino', 
-                'felino', 
-                'ave', 
-                'roedor', 
-                'exotico', 
-                'todos', 
-                'ninguna'
-            ]);
+            $table->json('especies'); // Array de especies
             $table->decimal('dosis', 8, 2);
             $table->enum('unidad', ['mg', 'ml', 'UI', 'mcg', 'gotas']);
             $table->enum('frecuencia_unidad', ['kg', 'dosis']);
@@ -74,7 +66,6 @@ return new class extends Migration
             
             // Índices
             $table->index('categoria');
-            $table->index('especie');
             $table->index('via_administracion');
             $table->index('nombre_comercial');
             $table->index('nombre_generico');

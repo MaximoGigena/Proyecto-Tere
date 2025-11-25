@@ -12,7 +12,7 @@ class CreateTiposVacunaTable extends Migration
             $table->id();
             $table->string('nombre');
             $table->text('enfermedades');
-            $table->enum('especie', ['canino', 'felino', 'ave', 'roedor', 'exotico', 'todos']);
+            $table->json('especies')->default('[]');
             $table->decimal('edad_minima', 5, 2);
             $table->enum('edad_unidad', ['semanas', 'meses', 'años']);
             $table->decimal('dosis', 5, 2);

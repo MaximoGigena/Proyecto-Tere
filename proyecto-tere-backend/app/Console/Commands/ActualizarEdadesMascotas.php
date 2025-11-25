@@ -4,37 +4,48 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Mascota;
+use App\Models\EdadMascota;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class ActualizarEdadesMascotas extends Command
 {
     protected $signature = 'mascotas:actualizar-edades';
-    protected $description = 'Actualiza las edades calculadas de las mascotas cada hora';
+    protected $description = 'Actualiza las edades calculadas de las mascotas';
 
     public function handle()
     {
         $this->info('Iniciando actualización de edades de mascotas...');
-        Log::info('Iniciando job diario: ActualizarEdadesMascotas');
+        Log::info('Iniciando job: ActualizarEdadesMascotas');
 
-        $mascotas = Mascota::withTrashed()->get(); // Incluye mascotas dadas de baja si quieres
+        $mascotas = Mascota::withTrashed()->with('edadRelacion')->get();
         $contador = 0;
 
         foreach ($mascotas as $mascota) {
             try {
                 if ($mascota->fecha_nacimiento) {
-                    $edadCalculada = $this->calcularEdadDesdeFecha($mascota->fecha_nacimiento);
+                    // Obtener o crear la relación de edad usando el método correcto
+                    $edadMascota = $mascota->edadRelacion;
                     
-                    // ✅ GUARDAR EN LA BD
-                    $mascota->edad_actual = $edadCalculada;
-                    $mascota->save();
+                    if (!$edadMascota) {
+                        // Crear registro si no existe
+                        $edadMascota = EdadMascota::create(['mascota_id' => $mascota->id]);
+                    }
+                    
+                    // Actualizar usando el método del modelo
+                    $edadMascota->actualizarDesdeFechaNacimiento($mascota->fecha_nacimiento);
                     
                     $contador++;
-                    $this->info("Mascota ID {$mascota->id}: {$edadCalculada}");
-            }
-            }catch (\Exception $e) {
+                    $this->info("Mascota ID {$mascota->id}: {$edadMascota->edad_formateada}");
+                } else {
+                    // Si no tiene fecha de nacimiento, limpiar el registro de edad
+                    EdadMascota::where('mascota_id', $mascota->id)->delete();
+                    $this->info("Mascota ID {$mascota->id}: Sin fecha de nacimiento - registro de edad eliminado");
+                }
+            } catch (\Exception $e) {
                 Log::error("Error actualizando edad mascota ID {$mascota->id}: " . $e->getMessage());
                 $this->error("Error en mascota ID {$mascota->id}: " . $e->getMessage());
+                $this->error("Detalles: " . $e->getFile() . ":" . $e->getLine());
             }
         }
 
@@ -43,32 +54,5 @@ class ActualizarEdadesMascotas extends Command
         Log::info($mensaje);
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * Calcula la edad formateada a partir de la fecha de nacimiento
-     */
-    private function calcularEdadDesdeFecha($fechaNacimiento)
-    {
-        $nacimiento = Carbon::parse($fechaNacimiento);
-        $hoy = Carbon::now();
-        
-        $diffDias = $hoy->diffInDays($nacimiento);
-        
-        if ($diffDias < 30) {
-            return "{$diffDias} días";
-        } else if ($diffDias < 365) {
-            $meses = $hoy->diffInMonths($nacimiento);
-            return "{$meses} " . ($meses === 1 ? 'mes' : 'meses');
-        } else {
-            $años = $hoy->diffInYears($nacimiento);
-            $mesesRestantes = $hoy->diffInMonths($nacimiento) % 12;
-            
-            if ($mesesRestantes > 0) {
-                return "{$años} " . ($años === 1 ? 'año' : 'años') . " y {$mesesRestantes} " . ($mesesRestantes === 1 ? 'mes' : 'meses');
-            }
-            
-            return "{$años} " . ($años === 1 ? 'año' : 'años');
-        }
     }
 }

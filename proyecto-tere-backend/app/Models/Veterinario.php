@@ -188,4 +188,9 @@ class Veterinario extends Model
     {
         return $this->hasMany(CentroVeterinario::class, 'veterinario_id');
     } 
+
+    public function procesosMedicos()
+    {
+        return $this->hasMany(ProcesoMedico::class, 'veterinario_id');
+    }
 }

@@ -16,14 +16,73 @@ use App\Http\Controllers\ControllersTiposProcedimiento\TipoDiagnosticoController
 use App\Http\Controllers\ControllersTiposProcedimiento\TipoCirugiaController;
 use App\Http\Controllers\ControllersTiposProcedimiento\TipoPaliativoController;
 use App\Http\Controllers\ControllersTiposProcedimiento\TipoFarmacoController;
+use App\Http\Controllers\ControllersProcedimientos\DesparasitacionController;
 use App\Http\Controllers\CentroVeterinarioController;
+use App\Http\Controllers\ControllersProcedimientos\VacunaController;
+use App\Http\Controllers\TelegramController;
+use App\Http\Controllers\UsuarioContactoController;
+use App\Http\Controllers\TelegramWebhookController;
+use App\Models\ContactoUsuario;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
-// Registros públicos y sin autentificación
+// =============================================
+// RUTAS DE TELEGRAM - EN API (SIN MIDDLEWARE WEB)
+// =============================================
+Route::prefix('telegram')->group(function () {
+    // Webhook principal
+    Route::post('/webhook', [TelegramWebhookController::class, 'handleWebhook']);
+    
+    // Configuración
+    Route::post('/set-webhook', [TelegramWebhookController::class, 'setWebhook']);
+    Route::post('/remove-webhook', [TelegramWebhookController::class, 'removeWebhook']);
+    
+    // ✅ CORREGIDO: Ruta para verificar por email
+    Route::get('/verificar-por-email', [TelegramController::class, 'verificarChatIdPorEmail']);
+    
+    // Rutas protegidas
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/guardar-chat-id', [TelegramController::class, 'guardarChatId']);
+        Route::get('/usuarios/{usuarioId}/telegram-chat-id', [TelegramController::class, 'obtenerChatId']);
+    });
+});
+
+// En api.php - agregar esto temporalmente
+Route::get('/telegram/debug-test', function() {
+    Log::info('✅ DEBUG: Ruta API de Telegram funcionando');
+    return response()->json([
+        'status' => 'success',
+        'message' => 'API Telegram route working',
+        'timestamp' => now()
+    ]);
+});
+
+// Rutas temporales de prueba en API
+Route::get('/test-simple', function () {
+    return response()->json([
+        'status' => 'success', 
+        'message' => '✅ Simple test route working in API',
+        'timestamp' => now()
+    ]);
+});
+
+Route::post('/test-post', function () {
+    return response()->json([
+        'status' => 'success',
+        'message' => '✅ Test POST route working in API',
+        'timestamp' => now()
+    ]);
+});
+
+// =============================================
+// RUTAS PÚBLICAS - SIN AUTENTICACIÓN
+// =============================================
+
+// Registros públicos
 Route::post('registrar-usuario', [RegistrarUsuarioController::class, 'register']);
 Route::post('/registrar-veterinario', [VeterinarioController::class, 'store']);
+
 
 // Rutas de autenticación de Google
 Route::get('/auth/google', [GoogleAuthController::class, 'redirectToGoogle']);
@@ -46,9 +105,15 @@ Route::get('/user-debug', function (Request $request) {
     ]);
 })->middleware('auth:sanctum');
 
-// Todas las rutas protegidas en un solo grupo
+// =============================================
+// RUTAS PROTEGIDAS - CON AUTENTICACIÓN
+// =============================================
 Route::middleware('auth:sanctum')->group(function () {
-    // Rutas para la gestión de usuarios - SOLO UNA VEZ
+    // Rutas para la gestión de usuarios
+
+    Route::post('/actualizar-datos-opcionales', [RegistrarUsuarioController::class, 'actualizarDatosOpcionales']);
+    Route::post('/actualizar-datos-contacto', [RegistrarUsuarioController::class, 'actualizarDatosContacto']);
+
     Route::get('/usuarios/{id}', [RegistrarUsuarioController::class, 'show']);
     Route::post('/usuarios/{id}', [RegistrarUsuarioController::class, 'update']);
     
@@ -204,16 +269,38 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::post('/registrar-centro', [CentroVeterinarioController::class, 'registrar']);
+    Route::post('/centros-veterinarios/registrar', [CentroVeterinarioController::class, 'registrar']);
     Route::get('/centros-veterinarios', [CentroVeterinarioController::class, 'index']);
     Route::get('/centros-veterinarios/{id}', [CentroVeterinarioController::class, 'show']);
     Route::put('/centros-veterinarios/{id}', [CentroVeterinarioController::class, 'update']);
     Route::delete('/centros-veterinarios/{id}', [CentroVeterinarioController::class, 'destroy']);
+
+    Route::prefix('mascotas/{mascota}')->group(function () {
+        // Vacunas
+        Route::get('/vacunas/crear', [VacunaController::class, 'create'])->name('vacunas.create');
+        Route::post('/vacunas', [VacunaController::class, 'store'])->name('vacunas.store');
+        Route::get('/vacunas/{vacuna}', [VacunaController::class, 'show'])->name('vacunas.show');
+        Route::get('/vacunas/{vacuna}/editar', [VacunaController::class, 'edit'])->name('vacunas.edit');
+        Route::put('/vacunas/{vacuna}', [VacunaController::class, 'update'])->name('vacunas.update');
+
+        Route::get('/desparasitaciones', [DesparasitacionController::class, 'index']);
+        Route::post('/desparasitaciones', [DesparasitacionController::class, 'store']);
+    });
+    
+    // Listar todas las vacunas de una mascota
+    Route::get('/mascotas/{mascotaId}/vacunas', [VacunaController::class, 'index']);
+
+    // Rutas para obtener medios de contacto de un usuario
+    Route::get('/usuarios/{usuarioId}/medios', [UsuarioContactoController::class, 'obtenerMedios']);
+
+    // Rutas para la integración con Telegram (estas SÍ necesitan autenticación)
+    Route::post('/send-document', [TelegramController::class, 'sendDocument']);
+    Route::get('/send-stored-document/{filename}', [TelegramController::class, 'sendStoredDocument']);
 });
 
-// Ruta pública para testing de ubicación
-Route::post('/registro-ubicacion', function (Request $request) {
-    return response()->json(['ok' => true]);
-});
+// =============================================
+// RUTAS PÚBLICAS ADICIONALES
+// =============================================
 
 // Ruta pública para testing de ubicación
 Route::post('/registro-ubicacion', function (Request $request) {
@@ -223,3 +310,4 @@ Route::post('/registro-ubicacion', function (Request $request) {
     ]);
     return response()->json(['ok' => true]);
 });
+

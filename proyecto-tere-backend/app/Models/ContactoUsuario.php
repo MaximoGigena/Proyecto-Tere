@@ -17,7 +17,8 @@ class ContactoUsuario extends Model
         'dni',
         'telefono',
         'email',
-        'nombre_completo'
+        'nombre_completo',
+        'telegram_chat_id'
     ];
 
     protected $casts = [

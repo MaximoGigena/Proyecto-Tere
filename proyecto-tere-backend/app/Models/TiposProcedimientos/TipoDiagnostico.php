@@ -28,7 +28,7 @@ class TipoDiagnostico extends Model
         'descripcion',
         'clasificacion',
         'clasificacion_otro',
-        'especie',
+        'especies',
         'evolucion',
         'criterios_diagnosticos',
         'tratamiento_sugerido',
@@ -45,6 +45,7 @@ class TipoDiagnostico extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'especies' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -57,6 +58,7 @@ class TipoDiagnostico extends Model
     protected function casts(): array
     {
         return [
+            'especies' => 'array',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -80,9 +82,7 @@ class TipoDiagnostico extends Model
      */
     public function scopePorEspecie($query, $especie)
     {
-        return $query->where('especie', $especie)
-                    ->orWhere('especie', 'todos')
-                    ->orWhere('especie', 'ninguna');
+        return $query->whereJsonContains('especies', $especie);
     }
 
     /**
@@ -157,18 +157,26 @@ class TipoDiagnostico extends Model
     /**
      * Get especie en texto legible
      */
-    public function getEspecieTextoAttribute(): string
+    public function getEspeciesTextoAttribute(): string
     {
-        return match($this->especie) {
-            'canino' => 'Canino',
-            'felino' => 'Felino',
-            'ave' => 'Ave',
-            'roedor' => 'Roedor',
-            'exotico' => 'Exótico',
-            'todos' => 'Todos',
-            'ninguna' => 'No aplica',
-            default => $this->especie,
-        };
+        if (empty($this->especies)) {
+            return 'No especificado';
+        }
+
+        $nombres = array_map(function($especie) {
+            return match($especie) {
+                'canino' => 'Canino',
+                'felino' => 'Felino',
+                'equino' => 'Equino',
+                'bovino' => 'Bovino',
+                'ave' => 'Ave',
+                'pez' => 'Pez',
+                'otro' => 'Otro',
+                default => $especie,
+            };
+        }, $this->especies);
+
+        return implode(', ', $nombres);
     }
 
     /**
@@ -236,7 +244,8 @@ class TipoDiagnostico extends Model
             'descripcion' => 'required|string',
             'clasificacion' => 'required|in:infeccioso,genetico,nutricional,ambiental,traumatico,degenerativo,neoplasico,otro',
             'clasificacion_otro' => 'nullable|required_if:clasificacion,otro|string|max:255',
-            'especie' => 'required|in:canino,felino,ave,roedor,exotico,todos,ninguna',
+            'especies' => 'required|array|min:1', // Cambiado a array
+            'especies.*' => 'in:canino,felino,equino,bovino,ave,pez,otro', // Validación para cada elemento
             'evolucion' => 'required|in:aguda,cronica,recurrente,autolimitada,progresiva',
             'criterios_diagnosticos' => 'required|string',
             'tratamiento_sugerido' => 'nullable|string',
@@ -257,7 +266,8 @@ class TipoDiagnostico extends Model
             'descripcion.required' => 'La descripción general es obligatoria.',
             'clasificacion.required' => 'La clasificación es obligatoria.',
             'clasificacion_otro.required_if' => 'Debe especificar la clasificación cuando selecciona "Otro".',
-            'especie.required' => 'La especie afectada es obligatoria.',
+            'especies.required' => 'Debe seleccionar al menos una especie objetivo.', // Mensaje actualizado
+            'especies.min' => 'Debe seleccionar al menos una especie objetivo.',
             'evolucion.required' => 'La evolución típica es obligatoria.',
             'criterios_diagnosticos.required' => 'Los criterios diagnósticos son obligatorios.',
         ];
@@ -276,7 +286,7 @@ class TipoDiagnostico extends Model
      */
     public function getAplicaATodasEspeciesAttribute(): bool
     {
-        return $this->especie === 'todos';
+        return in_array('todos', $this->especies ?? []);
     }
 
     /**
@@ -284,6 +294,6 @@ class TipoDiagnostico extends Model
      */
     public function getSinEspecieEspecificaAttribute(): bool
     {
-        return $this->especie === 'ninguna';
+        return in_array('ninguna', $this->especies ?? []);
     }
 }

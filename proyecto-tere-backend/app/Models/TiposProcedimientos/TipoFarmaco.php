@@ -29,7 +29,7 @@ class TipoFarmaco extends Model
         'composicion',
         'categoria',
         'categoria_otro',
-        'especie',
+        'especies',
         'dosis',
         'unidad',
         'frecuencia_unidad',
@@ -52,6 +52,7 @@ class TipoFarmaco extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'especies' => 'array',
         'dosis' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -65,6 +66,7 @@ class TipoFarmaco extends Model
     protected function casts(): array
     {
         return [
+            'especies' => 'array',
             'dosis' => 'decimal:2',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -86,11 +88,9 @@ class TipoFarmaco extends Model
     /**
      * Scope para filtrar por especie
      */
-    public function scopePorEspecie($query, $especie)
+     public function scopePorEspecie($query, $especie)
     {
-        return $query->where('especie', $especie)
-                    ->orWhere('especie', 'todos')
-                    ->orWhere('especie', 'ninguna');
+        return $query->whereJsonContains('especies', $especie);
     }
 
     /**
@@ -175,18 +175,26 @@ class TipoFarmaco extends Model
     /**
      * Get especie en texto legible
      */
-    public function getEspecieTextoAttribute(): string
+    public function getEspeciesTextoAttribute(): string
     {
-        return match($this->especie) {
-            'canino' => 'Canino',
-            'felino' => 'Felino',
-            'ave' => 'Ave',
-            'roedor' => 'Roedor',
-            'exotico' => 'Exótico',
-            'todos' => 'Todos',
-            'ninguna' => 'No aplica',
-            default => $this->especie,
-        };
+        if (empty($this->especies)) {
+            return 'No especificado';
+        }
+
+        $nombres = array_map(function($especie) {
+            return match($especie) {
+                'canino' => 'Canino',
+                'felino' => 'Felino',
+                'equino' => 'Equino',
+                'bovino' => 'Bovino',
+                'ave' => 'Ave',
+                'pez' => 'Pez',
+                'otro' => 'Otro',
+                default => $especie,
+            };
+        }, $this->especies);
+
+        return implode(', ', $nombres);
     }
 
     /**
@@ -208,7 +216,8 @@ class TipoFarmaco extends Model
             'composicion' => 'required|string',
             'categoria' => 'required|in:analgesico,antibiotico,antiparasitario,antiinflamatorio,antifungico,antiviral,anestesico,otro',
             'categoria_otro' => 'nullable|required_if:categoria,otro|string|max:255',
-            'especie' => 'required|in:canino,felino,ave,roedor,exotico,todos,ninguna',
+            'especies' => 'required|array|min:1', // Cambiado a array
+            'especies.*' => 'in:canino,felino,equino,bovino,ave,pez,otro', // Validación para cada especie
             'dosis' => 'required|numeric|min:0.1',
             'unidad' => 'required|in:mg,ml,UI,mcg,gotas',
             'frecuencia_unidad' => 'required|in:kg,dosis',
@@ -235,6 +244,8 @@ class TipoFarmaco extends Model
             'composicion.required' => 'La composición es obligatoria.',
             'categoria.required' => 'La categoría terapéutica es obligatoria.',
             'categoria_otro.required_if' => 'Debe especificar la categoría cuando selecciona "Otro".',
+            'especies.required' => 'Debe seleccionar al menos una especie objetivo.', // Mensaje actualizado
+            'especies.min' => 'Debe seleccionar al menos una especie objetivo.',
             'dosis.required' => 'La dosis terapéutica es obligatoria.',
             'dosis.min' => 'La dosis debe ser al menos 0.1.',
             'frecuencia.required' => 'La frecuencia de administración es obligatoria.',
