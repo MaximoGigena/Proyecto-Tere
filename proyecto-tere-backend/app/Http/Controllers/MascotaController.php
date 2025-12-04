@@ -422,4 +422,136 @@ class MascotaController extends Controller
             'total' => $mascotas->count()
         ]);
     }
+
+    public function misMascotas(Request $request)
+    {
+        $user = Auth::user();
+        $usuario = $user->userable;
+        
+        $mascotas = Mascota::with([
+            'caracteristicas', 
+            'fotos', 
+            'edadRelacion'
+        ])
+        ->where('usuario_id', $usuario->id)
+        ->whereNull('deleted_at')
+        ->get()
+        ->map(function ($mascota) {
+            return [
+                'id' => $mascota->id,
+                'nombre' => $mascota->nombre,
+                'especie' => $mascota->especie,
+                'fecha_nacimiento' => $mascota->fecha_nacimiento,
+                'sexo' => $mascota->sexo,
+                'edad_formateada' => $mascota->edad_formateada,
+                'edad' => $mascota->edadRelacion ? $mascota->edadRelacion->años : null,
+                'descripcion' => $mascota->caracteristicas->descripcion ?? '',
+                'raza' => $mascota->caracteristicas->raza ?? 'No especificada',
+                'foto' => $mascota->foto_principal_url,
+                'foto_url' => $mascota->foto_principal_url,
+                'fotos' => $mascota->fotos,
+                'caracteristicas' => $mascota->caracteristicas
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $mascotas,
+            'count' => $mascotas->count()
+        ]);
+    }
+
+    /**
+     * Obtener mascotas disponibles para adopción (no están en adopción activa)
+     */
+    public function misMascotasDisponibles(Request $request)
+    {
+        $user = Auth::user();
+        $usuario = $user->userable;
+        
+        // 1. Obtener todas las mascotas del usuario
+        $todasLasMascotas = Mascota::with([
+            'caracteristicas', 
+            'fotos', 
+            'edadRelacion'
+        ])
+        ->where('usuario_id', $usuario->id)
+        ->whereNull('deleted_at')
+        ->get();
+        
+        // 2. Obtener IDs de mascotas que ya están en adopción
+        // Necesitas el modelo Adopcion (si no existe, créalo)
+        // Si no tienes el modelo Adopcion aún, puedes hacerlo más simple:
+        $mascotasEnAdopcionIds = []; // Por ahora vacío, lo implementaremos después
+        
+        // 3. Filtrar mascotas que NO están en adopción
+        $mascotasDisponibles = $todasLasMascotas->filter(function($mascota) use ($mascotasEnAdopcionIds) {
+            return !in_array($mascota->id, $mascotasEnAdopcionIds);
+        })->map(function ($mascota) {
+            return [
+                'id' => $mascota->id,
+                'nombre' => $mascota->nombre,
+                'especie' => $mascota->especie,
+                'fecha_nacimiento' => $mascota->fecha_nacimiento,
+                'sexo' => $mascota->sexo,
+                'edad_formateada' => $mascota->edad_formateada,
+                'edad' => $mascota->edadRelacion ? $mascota->edadRelacion->años : null,
+                'descripcion' => $mascota->caracteristicas->descripcion ?? '',
+                'raza' => $mascota->caracteristicas->raza ?? 'No especificada',
+                'foto' => $mascota->foto_principal_url,
+                'foto_url' => $mascota->foto_principal_url,
+                'caracteristicas' => $mascota->caracteristicas
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $mascotasDisponibles->values(),
+            'count' => $mascotasDisponibles->count()
+        ]);
+    }
+
+    /**
+     * Obtener mascotas que están en adopción
+     */
+    public function misMascotasEnAdopcion(Request $request)
+    {
+        $user = Auth::user();
+        $usuario = $user->userable;
+        
+        // Obtener IDs de mascotas en adopción (por ahora vacío)
+        $mascotasEnAdopcionIds = [];
+        
+        $mascotasEnAdopcion = Mascota::with([
+            'caracteristicas', 
+            'fotos', 
+            'edadRelacion'
+        ])
+        ->where('usuario_id', $usuario->id)
+        ->whereNull('deleted_at')
+        ->whereIn('id', $mascotasEnAdopcionIds)
+        ->get()
+        ->map(function ($mascota) {
+            return [
+                'id' => $mascota->id,
+                'nombre' => $mascota->nombre,
+                'especie' => $mascota->especie,
+                'fecha_nacimiento' => $mascota->fecha_nacimiento,
+                'sexo' => $mascota->sexo,
+                'edad_formateada' => $mascota->edad_formateada,
+                'edad' => $mascota->edadRelacion ? $mascota->edadRelacion->años : null,
+                'descripcion' => $mascota->caracteristicas->descripcion ?? '',
+                'raza' => $mascota->caracteristicas->raza ?? 'No especificada',
+                'foto' => $mascota->foto_principal_url,
+                'foto_url' => $mascota->foto_principal_url,
+                'caracteristicas' => $mascota->caracteristicas
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $mascotasEnAdopcion,
+            'count' => $mascotasEnAdopcion->count()
+        ]);
+    }
 }

@@ -97,16 +97,6 @@ class Mascota extends Model
         return 'Edad no disponible';
     }
 
-    /**
-     * ELIMINAR ESTE ACCESSOR - CAUSA CONFLICTO
-     * Comenta o elimina este método para evitar el bucle infinito
-     */
-    /*
-    public function getEdadAttribute()
-    {
-        return $this->edad_formateada;
-    }
-    */
 
     /**
      * Método para actualizar la edad
@@ -257,6 +247,75 @@ class Mascota extends Model
         return $this->hasMany(ProcesoMedico::class)->where('categoria', 'clinico');
     }
 
-    // NO cargar automáticamente la relación de edad para evitar conflictos
-    // protected $with = ['caracteristicas', 'fotos'];
+    public function ofertasAdopcion()
+    {
+        return $this->hasMany(OfertaAdopcion::class, 'id_mascota');
+    }
+
+    // También puedes añadir un helper para verificar si está en adopción
+    public function estaEnAdopcion()
+    {
+        return $this->ofertasAdopcion()
+            ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
+            ->exists();
+    }
+
+    /**
+     * Relación con el historial de transferencias
+     */
+    public function transferencias()
+    {
+        return $this->hasMany(HistorialTransferenciaMascota::class, 'mascota_id')
+                    ->orderBy('fecha_transferencia', 'desc');
+    }
+
+    /**
+     * Obtener todos los tutores históricos
+     */
+    public function getTutoresHistoricosAttribute()
+    {
+        $transferencias = $this->transferencias;
+        $tutoresIds = collect();
+        
+        foreach ($transferencias as $transferencia) {
+            $tutoresIds->push($transferencia->tutor_anterior_id);
+            $tutoresIds->push($transferencia->tutor_nuevo_id);
+        }
+        
+        // Agregar tutor actual
+        $tutoresIds->push($this->usuario_id);
+        
+        return Usuario::whereIn('id', $tutoresIds->unique())->get();
+    }
+
+    /**
+     * Obtener tutor actual
+     */
+    public function tutorActual()
+    {
+        return $this->belongsTo(Usuario::class, 'usuario_id');
+    }
+
+    /**
+     * Verificar si ha sido adoptada
+     */
+    public function getHaSidoAdoptadaAttribute(): bool
+    {
+        return $this->transferencias()
+            ->where('motivo', 'adopcion')
+            ->exists();
+    }
+
+    /**
+     * Obtener fecha de última adopción
+     */
+    public function getFechaUltimaAdopcionAttribute()
+    {
+        $ultimaTransferencia = $this->transferencias()
+            ->where('motivo', 'adopcion')
+            ->latest('fecha_transferencia')
+            ->first();
+        
+        return $ultimaTransferencia->fecha_transferencia ?? null;
+    }
 }
