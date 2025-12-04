@@ -69,6 +69,16 @@
               placeholder="Especifique la frecuencia"
             />
           </div>
+
+          <div>
+            <label class="block font-medium">Indicadores clave esperables</label>
+            <textarea 
+              v-model="revision.indicadores_clave" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Ej: Peso, temperatura, pulso, etc."
+            ></textarea>
+          </div>
           
           <div>
             <label class="block font-medium mb-2">Especie objetivo</label>
@@ -81,30 +91,39 @@
 
         <!-- Columna derecha -->
         <div class="space-y-4">
-          <div>
-            <label class="block font-medium">Áreas para revisar</label>
-            <div class="flex flex-wrap gap-2">
-              <label v-for="area in areasRevisar" :key="area.value" class="flex items-center space-x-2">
-                <input type="checkbox" v-model="revision.areas_revisar" :value="area.value" class="rounded">
-                <span>{{ area.label }}</span>
-              </label>
+          <!-- ÁREAS A REVISAR (ÁRBOL ANATÓMICO) -->
+          <div class="my-8">
+            <div class="flex items-center mb-6">
+              <div class="flex-grow border-t border-gray-600"></div>
+              <h5 class="px-4 text-center font-bold text-gray-800 whitespace-nowrap">
+                Áreas a Revisar
+                <span v-if="areasSeleccionadas.length > 0" class="text-sm text-green-600 ml-2">
+                  ({{ areasSeleccionadas.length }} seleccionadas)
+                </span>
+              </h5>
+              <div class="flex-grow border-t border-gray-600"></div>
             </div>
-            <input 
-              v-model="revision.otra_area"
-              type="text"
-              class="w-full border rounded p-2 mt-2"
-              placeholder="Otra área a revisar (especificar)"
+            
+            <!-- Componente de árbol anatómico -->
+            <ClinicalExaminationTree 
+              ref="arbolAnatomicoRef"
+              :initial-data="revision.areas_revisar"
+              @selection-change="handleArbolSelectionChange"
             />
-          </div>
-
-          <div>
-            <label class="block font-medium">Indicadores clave esperables</label>
-            <textarea 
-              v-model="revision.indicadores_clave" 
-              rows="3" 
-              class="w-full border rounded p-2" 
-              placeholder="Ej: Peso, temperatura, pulso, etc."
-            ></textarea>
+            
+            <!-- Área adicional -->
+            <div class="mt-6">
+              <label class="block font-medium mb-2">Otra área a revisar (opcional)</label>
+              <input 
+                v-model="revision.otra_area"
+                type="text"
+                class="w-full border rounded p-2"
+                placeholder="Agregue otras áreas no incluidas en el árbol anatómico"
+              />
+              <p class="text-sm text-gray-500 mt-1">
+                Use este campo para agregar áreas específicas que no estén en la lista anterior
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -203,8 +222,11 @@ import { ref, reactive, onMounted, computed, watch} from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
+import ClinicalExaminationTree from '@/components/ElementosGraficos/arbolAnatomico.vue' 
 
 const especiesSeleccionadas = ref([])
+const areasSeleccionadas = ref([]) // Nuevo: para almacenar las áreas seleccionadas
+const arbolAnatomicoRef = ref(null)
 
 const router = useRouter()
 const route = useRoute()
@@ -212,35 +234,17 @@ const { isVeterinario, isAprobado, accessToken, checkAuth, user } = useAuth()
 const loading = ref(false)
 const mostrarModal = ref(false)
 
-// Solo para debug, no para lógica de negocio
-watch(especiesSeleccionadas, (val) => {
-  console.log('🔄 Especies seleccionadas cambiaron:', val)
-}, { deep: true, flush: 'post' })
-
 // Determinar si estamos en modo edición
 const esEdicion = computed(() => {
   return route.name === 'editarTipoRevision' || route.params.id
 })
-
-const areasRevisar = [
-  { value: 'piel', label: 'Piel' },
-  { value: 'ojos', label: 'Ojos' },
-  { value: 'oidos', label: 'Oídos' },
-  { value: 'boca', label: 'Boca' },
-  { value: 'corazon', label: 'Corazón' },
-  { value: 'pulmones', label: 'Pulmones' },
-  { value: 'abdomen', label: 'Abdomen' },
-  { value: 'articulaciones', label: 'Articulaciones' },
-  { value: 'comportamiento', label: 'Comportamiento' },
-  { value: 'nutricion', label: 'Nutrición' }
-]
 
 const revision = reactive({
   nombre: '',
   descripcion: '',
   frecuencia_recomendada: '',
   frecuencia_personalizada: '',
-  areas_revisar: [],
+  areas_revisar: [], // Cambiado: ahora almacena las áreas del árbol
   otra_area: '',
   indicadores_clave: '',
   edad_sugerida: null,
@@ -248,6 +252,24 @@ const revision = reactive({
   recomendaciones_profesionales: '',
   riesgos_clinicos: ''
 })
+
+// Función para manejar cambios en la selección del árbol
+const handleArbolSelectionChange = (data) => {
+  areasSeleccionadas.value = data.areas
+  revision.areas_revisar = data.areaNames
+  console.log('Áreas seleccionadas:', revision.areas_revisar)
+}
+
+// Agrega esto después de la definición de la función handleArbolSelectionChange
+watch(() => revision.areas_revisar, (newAreas) => {
+  console.log('🔄 revision.areas_revisar cambió:', newAreas)
+  // Actualizar el conteo de áreas seleccionadas
+  areasSeleccionadas.value = newAreas.map(area => ({
+    nombre: area,
+    id: null,
+    sistema: ''
+  }))
+}, { deep: true })
 
 onMounted(async () => {
   try {
@@ -269,14 +291,10 @@ onMounted(async () => {
       return
     }
 
-    console.log('Usuario autorizado, token:', accessToken.value ? 'Presente' : 'Ausente')
-
     // Si estamos en modo edición, cargar los datos existentes
     if (esEdicion.value && route.params.id) {
       console.log('Cargando datos para edición con ID:', route.params.id)
       await cargarDatosEdicion()
-    } else {
-      console.log('Modo creación o ID no disponible')
     }
 
   } catch (error) {
@@ -305,12 +323,11 @@ const cargarDatosEdicion = async () => {
       if (result.success && result.data) {
         const datos = result.data
         
-        // Asignar los datos uno por uno para mantener la reactividad
+        // Asignar los datos uno por uno
         revision.nombre = datos.nombre || ''
         revision.descripcion = datos.descripcion || ''
         revision.frecuencia_recomendada = datos.frecuencia_recomendada || ''
         revision.frecuencia_personalizada = datos.frecuencia_personalizada || ''
-        revision.areas_revisar = Array.isArray(datos.areas_revisar) ? datos.areas_revisar : []
         revision.otra_area = datos.otra_area || ''
         revision.indicadores_clave = datos.indicadores_clave || ''
         revision.edad_sugerida = datos.edad_sugerida || null
@@ -318,16 +335,43 @@ const cargarDatosEdicion = async () => {
         revision.recomendaciones_profesionales = datos.recomendaciones_profesionales || ''
         revision.riesgos_clinicos = datos.riesgos_clinicos || ''
         
-        // Cargar las especies objetivo - IMPORTANTE
+        // Cargar las especies objetivo
         if (datos.especies_objetivo && Array.isArray(datos.especies_objetivo)) {
           especiesSeleccionadas.value = datos.especies_objetivo
+        } else if (datos.especies && Array.isArray(datos.especies)) {
+          especiesSeleccionadas.value = datos.especies
         } else if (datos.especie_objetivo) {
-          // Para compatibilidad con versiones anteriores
           especiesSeleccionadas.value = [datos.especie_objetivo]
         }
         
-        console.log('Datos asignados al formulario:', revision)
-        console.log('Especies cargadas:', especiesSeleccionadas.value)
+        // Cargar las áreas de revisión - ESTO ES LO IMPORTANTE
+        if (datos.areas_revisar && Array.isArray(datos.areas_revisar)) {
+          revision.areas_revisar = datos.areas_revisar
+          areasSeleccionadas.value = datos.areas_revisar.map(area => ({
+            nombre: area,
+            id: null,
+            sistema: ''
+          }))
+          
+          console.log('📋 Áreas cargadas para el árbol:', datos.areas_revisar)
+          console.log('📋 Número de áreas:', datos.areas_revisar.length)
+          
+          // Forzar una actualización después de cargar los datos
+          await new Promise(resolve => setTimeout(resolve, 100))
+          
+          // Si el árbol está disponible, llamar a loadInitialData directamente
+          if (arbolAnatomicoRef.value) {
+            console.log('📋 Llamando a loadInitialData directamente')
+            arbolAnatomicoRef.value.loadInitialData(datos.areas_revisar)
+          }
+        } else {
+          revision.areas_revisar = []
+          areasSeleccionadas.value = []
+        }
+        
+        console.log('✅ Datos asignados al formulario:', revision)
+        console.log('✅ Especies cargadas:', especiesSeleccionadas.value)
+        console.log('✅ Áreas cargadas en revision.areas_revisar:', revision.areas_revisar)
       } else {
         throw new Error(result.message || 'Error en la respuesta del servidor')
       }
@@ -363,8 +407,6 @@ const registrarRevision = async () => {
   try {
     loading.value = true
 
-    console.log('Especies seleccionadas:', especiesSeleccionadas.value)
-
     // Validaciones básicas
     if (!revision.nombre.trim()) {
       alert('El nombre es obligatorio')
@@ -386,6 +428,7 @@ const registrarRevision = async () => {
       return
     }
 
+    // Validar que se hayan seleccionado áreas
     if (revision.areas_revisar.length === 0 && !revision.otra_area.trim()) {
       alert('Debe seleccionar al menos un área a revisar')
       return
@@ -403,10 +446,10 @@ const registrarRevision = async () => {
       descripcion: revision.descripcion,
       frecuencia_recomendada: revision.frecuencia_recomendada,
       frecuencia_personalizada: revision.frecuencia_recomendada === 'personalizada' ? revision.frecuencia_personalizada : null,
-      areas_revisar: revision.areas_revisar,
+      areas_revisar: revision.areas_revisar, // Áreas del árbol anatómico
       otra_area: revision.otra_area || null,
       indicadores_clave: revision.indicadores_clave || null,
-      especies_objetivo: especiesSeleccionadas.value, // ← AQUÍ EL CAMBIO IMPORTANTE
+      especies_objetivo: especiesSeleccionadas.value,
       edad_sugerida: revision.edad_sugerida ? parseFloat(revision.edad_sugerida) : null,
       edad_unidad: revision.edad_sugerida ? revision.edad_unidad : null,
       recomendaciones_profesionales: revision.recomendaciones_profesionales || null,
@@ -482,6 +525,7 @@ const actualizarRevision = async () => {
       return
     }
 
+    // Validar que se hayan seleccionado áreas
     if (revision.areas_revisar.length === 0 && !revision.otra_area.trim()) {
       alert('Debe seleccionar al menos un área a revisar')
       mostrarModal.value = false
@@ -504,7 +548,7 @@ const actualizarRevision = async () => {
       areas_revisar: revision.areas_revisar,
       otra_area: revision.otra_area || null,
       indicadores_clave: revision.indicadores_clave || null,
-      especies_objetivo: especiesSeleccionadas.value, // ← AQUÍ EL CAMBIO IMPORTANTE
+      especies_objetivo: especiesSeleccionadas.value,
       edad_sugerida: revision.edad_sugerida ? parseFloat(revision.edad_sugerida) : null,
       edad_unidad: revision.edad_sugerida ? revision.edad_unidad : null,
       recomendaciones_profesionales: revision.recomendaciones_profesionales || null,

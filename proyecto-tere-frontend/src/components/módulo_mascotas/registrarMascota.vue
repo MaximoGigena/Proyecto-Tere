@@ -328,7 +328,7 @@ const mensajeExito = ref(false)
 
 const mascota = ref({
   nombre: '',
-  especie: '',
+  especie: 'canino',
   fechaNacimiento: '', // String en formato dd/mm/yyyy
   sexo: '',
   tamaño: '',
@@ -340,6 +340,11 @@ const mascota = ref({
   personalidad: '',
   descripcion: ''
 })
+
+// Watcher para sincronizar especieIndex cuando cambia mascota.especie
+watch(() => mascota.value.especie, (nuevoValor) => {
+  console.log('Especie cambiada a:', nuevoValor)
+}, { immediate: true })
 
 // Variables para manejar la fecha separada
 const fechaNacimiento = ref({

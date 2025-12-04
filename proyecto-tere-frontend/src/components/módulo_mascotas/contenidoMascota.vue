@@ -213,7 +213,12 @@
                   >
                     <font-awesome-icon :icon="['fas','heart']" class="text-black text-4xl hover:text-green-400"/>
                   </button>
-                  <AdvertenciaAdopcion ref="advertenciaRef" @continue="continuarAdopcion" />
+                  <AdvertenciaAdopcion 
+                    ref="advertenciaRef" 
+                    @close="handleAdopcionClose"
+                    @success="onAdopcionSuccess"
+                    @error="onAdopcionError"
+                  />
                 </div>
 
                 <div class="h-20"></div>
@@ -257,7 +262,7 @@ onMounted(async () => {
   if (!isAuthenticated.value) {
     const isAuth = await checkAuth()
     if (!isAuth) {
-      showMessage('Debe iniciar sesión para acceder a esta página', 'error')
+      mostrarNotificacion('Debe iniciar sesión para acceder a esta página', 'error')
       setTimeout(() => {
         router.push('/')
       }, 2000)
@@ -267,13 +272,64 @@ onMounted(async () => {
 })
 
 function abrirAdvertencia() {
+  console.log('=== abrirAdvertencia llamado ===')
+  console.log('Ruta actual:', route.path)
+  console.log('Ruta completa:', route.fullPath)
+  console.log('Parámetros:', route.params)
+  console.log('Query:', route.query)
+  console.log('Mascota computada:', mascotaComputed.value)
+  console.log('Mascota computada ID:', mascotaComputed.value?.id)
+  
   if (advertenciaRef.value) {
-    advertenciaRef.value.open()
+    // Verificar si estamos en una ruta de oferta
+    if (route.path.startsWith('/explorar/cerca/') && route.params.id) {
+      console.log('Contexto: Estamos en una oferta de adopción')
+      console.log('ID de oferta:', route.params.id)
+      advertenciaRef.value.open(route.params.id, null)
+    } 
+    // Verificar si tenemos un ID de mascota directo
+    else if (mascotaComputed.value?.id && mascotaComputed.value.id !== 'demo-burro') {
+      console.log('Contexto: Tenemos ID de mascota directo')
+      console.log('ID de mascota:', mascotaComputed.value.id)
+      advertenciaRef.value.open(null, mascotaComputed.value.id)
+    } 
+    // Verificar si hay un query parameter de mascota_id
+    else if (route.query.mascota_id) {
+      console.log('Contexto: Tenemos mascota_id en query')
+      console.log('mascota_id:', route.query.mascota_id)
+      advertenciaRef.value.open(null, route.query.mascota_id)
+    }
+    // Verificar si hay un query parameter de oferta_id
+    else if (route.query.oferta_id) {
+      console.log('Contexto: Tenemos oferta_id en query')
+      console.log('oferta_id:', route.query.oferta_id)
+      advertenciaRef.value.open(route.query.oferta_id, null)
+    }
+    else {
+      console.error('No se pudo determinar el contexto para la adopción')
+      mostrarNotificacion('No se pudo identificar la mascota para adopción', 'error')
+    }
+  } else {
+    console.error('advertenciaRef no está disponible')
+    mostrarNotificacion('Error al abrir el formulario de adopción', 'error')
   }
 }
 
-function continuarAdopcion() {
-  console.log('Usuario aceptó la advertencia, continuar proceso de adopción')
+// Conectar los eventos del modal
+function onAdopcionSuccess(data) {
+  console.log('Adopción exitosa:', data)
+  mostrarNotificacion('¡Solicitud enviada con éxito!', 'success')
+  // No cerrar automáticamente, dejar que el usuario lo haga
+}
+
+function onAdopcionError(err) {
+  console.error('Error en adopción:', err)
+  mostrarNotificacion('Error al enviar solicitud: ' + err.message, 'error')
+}
+
+function handleAdopcionClose() {
+  console.log('Modal de adopción cerrado')
+  // Solo resetea el estado si es necesario, no navegues
 }
 
 function handleClose() {
@@ -336,32 +392,71 @@ function goToHistorial() {
 
 const mostrarBotonVolver = computed(() => from.value === 'cerca')
 
-// --- Cargar mascota ---
+// --- Cargar mascota desde oferta o directamente ---
 async function cargarMascota() {
-  const id = route.params.id
-  if (!id) {
-    mascota.value = null
-    return
+  const idMascota = route.params.id || route.query.mascota_id;
+  const idOferta = route.params.id || route.query.oferta_id;
+  
+  // Si no hay ID, usar demo
+  if (!idMascota && !idOferta) {
+    mascota.value = null;
+    return;
   }
 
   try {
-    cargando.value = true
-    error.value = null
-    const response = await axios.get(`/api/mascotas/${id}`, {
+    cargando.value = true;
+    error.value = null;
+    
+    let endpoint = '';
+    let params = {};
+    
+    // Determinar qué endpoint usar
+    if (idOferta && route.path.startsWith('/explorar/cerca/')) {
+      // Cargar desde oferta de adopción
+      endpoint = `/api/adopciones/ofertas/${idOferta}`;
+    } else if (idMascota) {
+      // Cargar mascota directamente
+      endpoint = `/api/mascotas/${idMascota}`;
+    } else {
+      throw new Error('No se pudo determinar la ruta para cargar la mascota');
+    }
+    
+    console.log('Cargando mascota desde:', endpoint);
+    
+    const response = await axios.get(endpoint, {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'Authorization': `Bearer ${accessToken.value}`
       }
-    })
+    });
 
-    mascota.value = response.data?.mascota ?? null
+    // Manejar diferentes estructuras de respuesta
+    if (response.data.success) {
+      if (response.data.data && response.data.data.mascota) {
+        // Respuesta desde ofertas: { success: true, data: { mascota: {...} } }
+        mascota.value = response.data.data.mascota;
+      } else if (response.data.data) {
+        // Respuesta desde mascotas: { success: true, data: {...} }
+        mascota.value = response.data.data;
+      } else if (response.data.mascota) {
+        // Respuesta alternativa
+        mascota.value = response.data.mascota;
+      } else {
+        mascota.value = response.data;
+      }
+    } else {
+      throw new Error(response.data.message || 'Error en la respuesta del servidor');
+    }
+    
+    console.log('Mascota cargada:', mascota.value);
+    
   } catch (err) {
-    console.error('Error cargando mascota:', err)
-    error.value = 'No se pudo cargar la información de la mascota.'
-    mascota.value = null
+    console.error('Error cargando mascota:', err);
+    error.value = err.response?.data?.message || err.message || 'No se pudo cargar la información de la mascota.';
+    mascota.value = null;
   } finally {
-    cargando.value = false
+    cargando.value = false;
   }
 }
 
@@ -449,66 +544,81 @@ onUnmounted(() => {
 
 // ---------------- openGallery con manejo de errores ---------------
 const openGallery = (index) => {
-  const id = route.params.id || mascotaComputed.value.id
-  if (!id) {
-    console.error('No se pudo determinar el ID de la mascota')
-    return
+  const mascotaId = mascotaComputed.value?.id;
+  const ofertaId = route.params.id || route.query.oferta_id;
+  
+  if (!mascotaId && !ofertaId) {
+    console.error('No se pudo determinar el ID de la mascota u oferta');
+    return;
   }
 
   try {
+    const queryParams = {
+      images: JSON.stringify(galleryImages.value),
+      from: route.name,
+      originalParams: JSON.stringify(route.params)
+    };
+    
+    // Agregar oferta_id si existe
+    if (ofertaId && route.query.oferta_id !== ofertaId) {
+      queryParams.oferta_id = ofertaId;
+    }
+    
+    // Agregar mascota_id si existe
+    if (mascotaId && route.query.mascota_id !== mascotaId) {
+      queryParams.mascota_id = mascotaId;
+    }
+    
+    // Navegar a la galería
     router.push({
       name: 'galeria-mascota-imagen',
-      params: { id: id, imageIndex: index },
-      query: { images: JSON.stringify(galleryImages.value) }
+      params: { 
+        id: mascotaId || ofertaId,
+        imageIndex: index 
+      },
+      query: queryParams
     }).catch(err => {
       if (err.name !== 'NavigationDuplicated') {
-        console.error('Error de navegación:', err)
+        console.error('Error de navegación:', err);
       }
-    })
+    });
   } catch (error) {
-    console.error('Error al abrir galería:', error)
+    console.error('Error al abrir galería:', error);
   }
-}
+};
 
 // Computed para mostrar la edad correctamente
 const edadDisplay = computed(() => {
   const mascota = mascotaComputed.value
   
-  // 1. Primero intentar con edad_formateada
   if (mascota.edad_formateada && mascota.edad_formateada !== 'Edad no disponible') {
     return mascota.edad_formateada
   }
   
-  // 2. Si existe la relación edad_relacion
-  if (mascota.edad_relacion && mascota.edad_relacion.edad_formateada) {
-    return mascota.edad_relacion.edad_formateada
-  }
-  
-  // 3. Si la edad es un objeto con campos numéricos (fallback)
-  if (mascota.edad && typeof mascota.edad === 'object') {
-    const edadObj = mascota.edad
-    if (edadObj.dias !== null && edadObj.dias !== undefined) {
-      if (edadObj.dias < 30) {
-        return `${edadObj.dias} ${edadObj.dias === 1 ? 'día' : 'días'}`
-      } else if (edadObj.dias < 365) {
-        return `${edadObj.meses} ${edadObj.meses === 1 ? 'mes' : 'meses'}`
-      } else {
-        const mesesRestantes = edadObj.meses % 12
-        if (mesesRestantes > 0) {
-          return `${edadObj.años} ${edadObj.años === 1 ? 'año' : 'años'} y ${mesesRestantes} ${mesesRestantes === 1 ? 'mes' : 'meses'}`
-        }
-        return `${edadObj.años} ${edadObj.años === 1 ? 'año' : 'años'}`
-      }
-    }
-  }
-  
-  // 4. Para datos de demo
   if (mascota.edad && mascota.unidad_edad) {
     return `${mascota.edad} ${mascota.unidad_edad}`
   }
   
-  // 5. Fallback final
   return 'Edad no disponible'
 })
+
+// Función de notificación
+function mostrarNotificacion(mensaje, tipo = 'info') {
+  console.log(`${tipo.toUpperCase()}: ${mensaje}`)
+  
+  // Aquí puedes integrar con tu sistema de notificaciones
+  // Por ejemplo:
+  // if (typeof window !== 'undefined' && window.showNotification) {
+  //   window.showNotification(mensaje, tipo)
+  // }
+  
+  // O usar un store:
+  // const notificationStore = useNotificationStore()
+  // notificationStore.add({
+  //   message: mensaje,
+  //   type: tipo,
+  //   timeout: 3000
+  // })
+}
 </script>
   

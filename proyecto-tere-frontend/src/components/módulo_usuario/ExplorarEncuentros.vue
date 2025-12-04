@@ -217,10 +217,6 @@ async function pedirYGuardarUbicacion() {
     const position = await new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
         resolve,
-        (error) => {
-          console.error('Error de geolocalización:', error);
-          reject(error);
-        },
         {
           enableHighAccuracy: true,
           timeout: 10000,
@@ -262,8 +258,6 @@ async function pedirYGuardarUbicacion() {
     } else if (error.response?.status === 401) {
       alert('Sesión expirada. Por favor inicia sesión nuevamente.');
       router.push('/login');
-    } else {
-      alert('Error al obtener la ubicación: ' + error.message);
     }
   }
 }

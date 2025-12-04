@@ -1,6 +1,30 @@
+<!-- solicitudAdopción.vue -->
 <template>
   <!-- Overlay pantalla completa -->
-  <div class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-3">
+  <div v-if="loading" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl p-12 shadow-2xl">
+      <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+      <p class="mt-4 text-lg text-gray-700">Cargando información de la solicitud...</p>
+    </div>
+  </div>
+
+  <div v-else-if="error" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl p-12 shadow-2xl max-w-md">
+      <div class="text-center">
+        <font-awesome-icon :icon="['fas','triangle-exclamation']" class="text-red-500 text-6xl mb-4" />
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">Error al cargar la solicitud</h2>
+        <p class="text-gray-600 mb-6">{{ error }}</p>
+        <button
+          @click="cerrarOverlay"
+          class="px-6 py-3 rounded-xl bg-gray-900 text-white hover:bg-black transition"
+        >
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div v-else class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-3">
     <!-- Contenedor principal dividido en 2 -->
     <div
       class="w-full max-w-[1400px] h-[92vh] bg-white rounded-3xl shadow-2xl overflow-hidden flex"
@@ -12,13 +36,13 @@
           <div class="flex items-start justify-between gap-3">
             <div>
               <h2 class="text-2xl font-bold text-gray-900">
-                Solicitud #{{ solicitud.id }}
+                Solicitud #{{ datosSolicitud.id }}
               </h2>
               <div class="flex flex-wrap items-center gap-2 mt-1 text-sm text-gray-600">
                 <span class="font-medium">Mascota:</span>
-                <span class="font-semibold text-gray-800">{{ solicitud.mascota.nombre }}</span>
+                <span class="font-semibold text-gray-800">{{ datosOferta?.mascota?.nombre || 'Cargando...' }}</span>
                 <span class="text-gray-300">•</span>
-                <span>Recibida: {{ solicitud.fecha }}</span>
+                <span>Recibida: {{ fechaFormateada }}</span>
                 <span class="text-gray-300">•</span>
                 <span
                   :class="[
@@ -26,21 +50,23 @@
                     estadoClasses
                   ]"
                 >
-                  {{ solicitud.estado }}
+                  {{ estadoTraducido }}
                 </span>
               </div>
             </div>
             <div class="flex items-center gap-2">
               <button
-                @click="rechazar"
-                class="px-3 py-2 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 active:scale-[.98] transition"
+                @click="rechazarSolicitud"
+                :disabled="procesando"
+                class="px-3 py-2 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 active:scale-[.98] transition disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Rechazar solicitud"
               >
                 <font-awesome-icon :icon="['fas','xmark']" class="mr-2" /> Rechazar
               </button>
               <button
-                @click="aprobar"
-                class="px-3 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 active:scale-[.98] shadow-sm transition"
+                @click="aprobarSolicitud"
+                :disabled="procesando"
+                class="px-3 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 active:scale-[.98] shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Aprobar solicitud"
               >
                 <font-awesome-icon :icon="['fas','check']" class="mr-2" /> Aprobar
@@ -49,11 +75,11 @@
           </div>
           <div class="mt-2 flex flex-wrap gap-2">
             <RouterLink
-                v-if="perfil.id"
-                :to="{ name: 'chat-room', params: { id: perfil.id }, query: { from: 'adoption-request' } }"
-                class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 text-white ..."
-                >
-                <font-awesome-icon :icon="['fas','comment-dots']" /> Abrir chat
+              v-if="datosSolicitud.idUsuarioSolicitante"
+              :to="{ name: 'chat-room', params: { id: datosSolicitud.idUsuarioSolicitante }, query: { from: 'adoption-request' } }"
+              class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition"
+            >
+              <font-awesome-icon :icon="['fas','comment-dots']" /> Abrir chat
             </RouterLink>
             <button
               @click="marcarContactado = !marcarContactado"
@@ -69,129 +95,168 @@
         </div>
 
         <!-- Contenido scrollable de la solicitud -->
-         <div
+        <div
           ref="leftScroll"
           class="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 invisible-scrollbar"
         >
-
           <!-- Resumen de la mascota -->
-          <div class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
+          <div v-if="datosOferta?.mascota" class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
             <div class="flex items-center gap-3">
-              <img :src="solicitud.mascota.img" :alt="solicitud.mascota.nombre" class="w-16 h-16 rounded-2xl object-cover" />
+              <img 
+                :src="datosOferta.mascota.foto_principal_url || 'https://cdn.pixabay.com/photo/2017/09/25/13/12/dog-2785074_1280.jpg'" 
+                :alt="datosOferta.mascota.nombre" 
+                class="w-16 h-16 rounded-2xl object-cover"
+              />
               <div>
-                <div class="text-lg font-semibold text-gray-800">{{ solicitud.mascota.nombre }}</div>
-                <div class="text-sm text-gray-600">{{ solicitud.mascota.especie }} • {{ solicitud.mascota.raza }} • {{ solicitud.mascota.edad }}</div>
+                <div class="text-lg font-semibold text-gray-800">{{ datosOferta.mascota.nombre }}</div>
+                <div class="text-sm text-gray-600">
+                  {{ datosOferta.mascota.especie || 'Especie no especificada' }} 
+                  • {{ datosOferta.mascota.raza || 'Raza no especificada' }} 
+                  • {{ datosOferta.mascota.edad_formateada || 'Edad no especificada' }}
+                </div>
+              </div>
+            </div>
+            <div v-if="datosOferta.mascota.caracteristicas && Object.keys(datosOferta.mascota.caracteristicas).length" class="mt-3">
+              <div class="text-sm text-gray-500 mb-1">Características:</div>
+              <div class="flex flex-wrap gap-1">
+                <span 
+                  v-for="(value, key) in datosOferta.mascota.caracteristicas" 
+                  :key="key"
+                  class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-100"
+                >
+                  {{ key }}: {{ value }}
+                </span>
               </div>
             </div>
           </div>
 
           <!-- Secciones de la solicitud -->
           <div class="mt-4 space-y-4">
-            <!-- Datos principales -->
+            <!-- Datos principales de la solicitud -->
             <section class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
               <h3 class="text-xl font-bold text-gray-800 mb-3">Datos de la solicitud</h3>
               <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-700">
                 <div>
                   <dt class="text-gray-500">Estado</dt>
-                  <dd class="font-medium">{{ solicitud.estado }}</dd>
+                  <dd class="font-medium">{{ estadoTraducido }}</dd>
                 </div>
                 <div>
-                  <dt class="text-gray-500">Fecha</dt>
-                  <dd class="font-medium">{{ solicitud.fecha }}</dd>
+                  <dt class="text-gray-500">Fecha de solicitud</dt>
+                  <dd class="font-medium">{{ fechaFormateada }}</dd>
                 </div>
                 <div>
-                  <dt class="text-gray-500">Modalidad</dt>
-                  <dd class="font-medium">{{ solicitud.modalidad }}</dd>
+                  <dt class="text-gray-500">ID de solicitud</dt>
+                  <dd class="font-medium">{{ datosSolicitud.idSolicitud || datosSolicitud.id }}</dd>
                 </div>
-                <div>
-                  <dt class="text-gray-500">Ubicación</dt>
-                  <dd class="font-medium">{{ solicitud.ubicacion }}</dd>
+                <div v-if="datosSolicitud.aceptóTerminos !== undefined">
+                  <dt class="text-gray-500">Aceptó términos</dt>
+                  <dd class="font-medium">{{ datosSolicitud.aceptóTerminos ? 'Sí' : 'No' }}</dd>
                 </div>
               </dl>
             </section>
 
-            <!-- Hogar -->
-            <section class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
-              <h3 class="text-xl font-bold text-gray-800 mb-3">Hogar y convivencia</h3>
-              <ul class="space-y-1 text-sm text-gray-700">
-                <li>
-                  <span class="text-gray-500">Tipo de vivienda:</span>
-                  <span class="font-medium">{{ solicitud.domicilio.tipo }}</span>
-                </li>
-                <li>
-                  <span class="text-gray-500">Patio:</span>
-                  <span class="font-medium">{{ solicitud.domicilio.patio ? 'Sí' : 'No' }}</span>
-                </li>
-                <li>
-                  <span class="text-gray-500">Cercada:</span>
-                  <span class="font-medium">{{ solicitud.domicilio.cercada ? 'Sí' : 'No' }}</span>
-                </li>
-                <li>
-                  <span class="text-gray-500">Conviven:</span>
-                  <span class="font-medium">{{ solicitud.conviven.join(', ') }}</span>
-                </li>
-                <li>
-                  <span class="text-gray-500">Otras mascotas:</span>
-                  <span class="font-medium">{{ solicitud.otrasMascotas }}</span>
-                </li>
-              </ul>
+            <!-- Información de la oferta de adopción -->
+            <section v-if="datosOferta" class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
+              <h3 class="text-xl font-bold text-gray-800 mb-3">Información de la oferta</h3>
+              <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-700">
+                <div>
+                  <dt class="text-gray-500">Estado de la oferta</dt>
+                  <dd class="font-medium">{{ datosOferta.estado_oferta }}</dd>
+                </div>
+                <div>
+                  <dt class="text-gray-500">Permiso historial médico</dt>
+                  <dd class="font-medium">{{ datosOferta.permiso_historial_medico ? 'Sí' : 'No' }}</dd>
+                </div>
+                <div>
+                  <dt class="text-gray-500">Permiso contacto tutor</dt>
+                  <dd class="font-medium">{{ datosOferta.permiso_contacto_tutor ? 'Sí' : 'No' }}</dd>
+                </div>
+                <div>
+                  <dt class="text-gray-500">Fecha creación</dt>
+                  <dd class="font-medium">{{ formatFecha(datosOferta.created_at) }}</dd>
+                </div>
+              </dl>
             </section>
 
-            <!-- Motivaciones / Respuestas -->
-            <section class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
-              <h3 class="text-xl font-bold text-gray-800 mb-3">Motivaciones y respuestas</h3>
-              <div class="space-y-3">
-                <div v-for="(qa, i) in solicitud.respuestas" :key="i" class="bg-gray-50 rounded-2xl p-3">
-                  <div class="text-xs font-semibold text-gray-500 uppercase">{{ qa.p }}</div>
-                  <div class="text-sm text-gray-800 mt-1">{{ qa.r }}</div>
+            <!-- Información del solicitante -->
+            <section v-if="solicitanteInfo" class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
+              <h3 class="text-xl font-bold text-gray-800 mb-3">Información del solicitante</h3>
+              <div class="flex items-start gap-3 mb-3">
+                <img 
+                  :src="solicitanteInfo.img" 
+                  :alt="solicitanteInfo.nombre"
+                  class="w-12 h-12 rounded-full object-cover"
+                />
+                <div>
+                  <div class="font-medium text-gray-800">{{ solicitanteInfo.nombre }}</div>
+                  <div class="text-sm text-gray-600">ID: {{ datosSolicitud.idUsuarioSolicitante }}</div>
                 </div>
               </div>
             </section>
 
-            <!-- Referencias -->
-            <section class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
-              <h3 class="text-xl font-bold text-gray-800 mb-3">Referencias</h3>
-              <ul class="divide-y divide-gray-100">
-                <li v-for="(refe, idx) in solicitud.referencias" :key="idx" class="py-2 flex items-center justify-between">
-                  <div>
-                    <div class="font-medium text-gray-800">{{ refe.nombre }}</div>
-                    <div class="text-sm text-gray-600">{{ refe.relacion }}</div>
-                  </div>
-                  <a :href="`tel:${refe.contacto}`" class="text-sm text-blue-600 hover:underline">{{ refe.contacto }}</a>
-                </li>
-              </ul>
+            <!-- Permisos de la oferta -->
+            <section v-if="datosOferta" class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
+              <h3 class="text-xl font-bold text-gray-800 mb-3">Permisos de la oferta</h3>
+              <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                  <font-awesome-icon 
+                    :icon="['fas', datosOferta.permiso_historial_medico ? 'check-circle' : 'times-circle']" 
+                    :class="datosOferta.permiso_historial_medico ? 'text-green-500' : 'text-red-500'"
+                  />
+                  <span>Compartir historial médico completo</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <font-awesome-icon 
+                    :icon="['fas', datosOferta.permiso_contacto_tutor ? 'check-circle' : 'times-circle']" 
+                    :class="datosOferta.permiso_contacto_tutor ? 'text-green-500' : 'text-red-500'"
+                  />
+                  <span>Permitir contacto directo con tutor anterior</span>
+                </div>
+              </div>
             </section>
 
-            <!-- Documentos -->
-            <section v-if="solicitud.documentos && solicitud.documentos.length" class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
-              <h3 class="text-xl font-bold text-gray-800 mb-3">Documentos adjuntos</h3>
-              <div class="flex flex-wrap gap-2">
-                <a
-                  v-for="(doc, i) in solicitud.documentos"
-                  :key="i"
-                  :href="doc.url"
-                  target="_blank"
-                  class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-sm"
+            <!-- Fotos adicionales de la mascota -->
+            <section v-if="datosOferta?.mascota?.fotos && datosOferta.mascota.fotos.length > 0" class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
+              <h3 class="text-xl font-bold text-gray-800 mb-3">Fotos de la mascota</h3>
+              <div class="grid grid-cols-3 gap-2">
+                <div
+                  v-for="(foto, index) in datosOferta.mascota.fotos"
+                  :key="index"
+                  class="aspect-square rounded-lg overflow-hidden"
                 >
-                  <font-awesome-icon :icon="['fas','paperclip']" /> {{ doc.nombre }}
-                </a>
+                  <img 
+                    :src="foto.url || asset('storage/' + foto.ruta_foto)" 
+                    :alt="`Foto ${index + 1} de ${datosOferta.mascota.nombre}`"
+                    class="w-full h-full object-cover hover:scale-110 transition-transform duration-300 cursor-pointer"
+                    @click="abrirImagen(foto.url || asset('storage/' + foto.ruta_foto))"
+                  />
+                </div>
               </div>
             </section>
 
             <!-- Notas -->
             <section class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
               <h3 class="text-xl font-bold text-gray-800 mb-2">Notas internas</h3>
-              <!-- id y name añadidos para evitar advertencia de autocompletado -->
               <textarea
                 id="notas-internas"
                 name="notas"
-                v-model="solicitud.notas"
+                v-model="notasInternas"
                 rows="4"
                 class="w-full rounded-2xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 p-3 text-sm"
                 placeholder="Observaciones del evaluador..."
               ></textarea>
               <div class="mt-2 text-right">
-                <button class="px-3 py-2 rounded-xl bg-gray-900 text-white hover:bg-black active:scale-[.98]">Guardar notas</button>
+                <button 
+                  @click="guardarNotas"
+                  :disabled="guardandoNotas"
+                  class="px-3 py-2 rounded-xl bg-gray-900 text-white hover:bg-black active:scale-[.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span v-if="guardandoNotas">
+                    <font-awesome-icon :icon="['fas','spinner']" class="animate-spin mr-2" />
+                    Guardando...
+                  </span>
+                  <span v-else>Guardar notas</span>
+                </button>
               </div>
             </section>
           </div>
@@ -199,10 +264,21 @@
       </div>
 
       <!-- Columna derecha: Perfil (scroll independiente) -->
-       <div class="flex flex-col w-1/2 min-w-0 border-l border-gray-200">
+      <div class="flex flex-col w-1/2 min-w-0 border-l border-gray-200">
         <!-- Contenedor scrollable del perfil -->
         <div class="flex-1 overflow-y-auto overflow-x-hidden invisible-scrollbar">
-          <PerfilUsuarioOverlay :perfil="perfil" class="w-full" /> 
+          <PerfilUsuarioOverlay 
+            v-if="solicitanteInfo" 
+            :perfil="perfilUsuario" 
+            :solicitud-id="datosSolicitud.idSolicitud || datosSolicitud.id"
+            class="w-full" 
+          />
+          <div v-else class="h-full flex items-center justify-center">
+            <div class="text-center p-8">
+              <font-awesome-icon :icon="['fas','user-slash']" class="text-gray-400 text-6xl mb-4" />
+              <p class="text-gray-500">No se pudo cargar la información del solicitante</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -210,10 +286,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter, useRoute, RouterLink } from 'vue-router'
-import ReportarUsuario from '@/components/módulo_usuario/reportarUsuario.vue'
-// Reusar el componente de perfil que ya tenés (ajusta la ruta si hace falta)
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import axios from 'axios'
 import PerfilUsuarioOverlay from '@/components/módulo_usuario/contenidoUsuario.vue'
 
 const route = useRoute()
@@ -223,72 +298,366 @@ const leftScroll = ref(null)
 const mostrarReporte = ref(false)
 const marcarContactado = ref(false)
 
+// Estados reactivos
+const loading = ref(true)
+const error = ref(null)
+const procesando = ref(false)
+const guardandoNotas = ref(false)
+const notasInternas = ref('')
 
-// Perfil del solicitante (mock - en producción vendría de API). Si tu componente de perfil lee los params
-// directamente, podés quitar esta prop y dejar que el componente use useRoute(). Aquí lo paso por prop para
-// que quede explícito y reutilizable.
-const perfil = computed(() => {
-  return {
-    id: route.params.userId,
-    nombre: `Usuario ${route.params.userId || '—'}`,
-    img: 'https://cdn.pixabay.com/photo/2020/07/16/07/36/man-5410019_960_720.jpg',
-    edad: '30 años',
-    descripcion:
-      'Amante de los animales con experiencia en cuidado de mascotas. Comprometido con el bienestar animal y la adopción responsable.',
-    experiencia: 'Experto',
-    tipoCuidador: 'Hogar temporal',
-    mascotas: '3',
-    ubicacion: 'Buenos Aires, Argentina',
-    fotos: [
-      'https://cdn.pixabay.com/photo/2020/12/29/22/57/donkey-5871800_960_720.jpg',
-      'https://cdn.pixabay.com/photo/2024/09/09/17/22/donkey-9035452_1280.jpg'
-    ]
+// Datos de la solicitud y oferta
+const datosSolicitud = ref({})
+const datosOferta = ref(null)
+const solicitanteInfo = ref(null)
+
+// Computed properties
+const fechaFormateada = computed(() => {
+  if (!datosSolicitud.value.fechaSolicitud) return 'Fecha no disponible'
+  
+  try {
+    const date = new Date(datosSolicitud.value.fechaSolicitud)
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch (e) {
+    return datosSolicitud.value.fechaSolicitud
   }
 })
 
-// Datos de solicitud (mock)
-const solicitud = ref({
-  id: 'A-10234',
-  fecha: '2025-08-20',
-  estado: 'Pendiente',
-  mascota: {
-    nombre: 'Firulais',
-    img: 'https://cdn.pixabay.com/photo/2017/09/25/13/12/dog-2785074_1280.jpg',
-    especie: 'Perro',
-    raza: 'Mestizo',
-    edad: '2 años'
-  },
-  modalidad: 'Presencial',
-  ubicacion: 'Buenos Aires',
-  domicilio: { tipo: 'Casa', patio: true, cercada: true },
-  conviven: ['2 adultos', '1 niño'],
-  otrasMascotas: '1 gato',
-  respuestas: [
-    { p: '¿Por qué querés adoptar?', r: 'Porque amo a los perros' },
-    { p: '¿Qué experiencia tenés?', r: 'Ya adopté antes' }
-  ],
-  referencias: [
-    { nombre: 'Juan Pérez', relacion: 'Amigo', contacto: '123456789' }
-  ],
-  documentos: [{ nombre: 'DNI.pdf', url: '#' }],
-  notas: ''
+const estadoTraducido = computed(() => {
+  const estado = datosSolicitud.value.estadoSolicitud
+  const estados = {
+    'pendiente': 'Pendiente',
+    'aprobada': 'Aprobada',
+    'rechazada': 'Rechazada',
+    'cancelada': 'Cancelada',
+    'expirada': 'Expirada'
+  }
+  return estados[estado] || estado || 'Desconocido'
 })
 
-
-// Estilos dinámicos del estado
 const estadoClasses = computed(() => {
-  const e = solicitud.value.estado
-  if (e === 'Aprobada') return 'bg-green-50 text-green-700 border-green-200'
-  if (e === 'Rechazada') return 'bg-red-50 text-red-700 border-red-200'
-  return 'bg-amber-50 text-amber-700 border-amber-200'
+  const estado = datosSolicitud.value.estadoSolicitud
+  if (estado === 'aprobada') return 'bg-green-50 text-green-700 border-green-200'
+  if (estado === 'rechazada') return 'bg-red-50 text-red-700 border-red-200'
+  if (estado === 'cancelada') return 'bg-gray-50 text-gray-700 border-gray-200'
+  if (estado === 'expirada') return 'bg-orange-50 text-orange-700 border-orange-200'
+  return 'bg-amber-50 text-amber-700 border-amber-200' // Pendiente
 })
 
-// Acciones
-function aprobar() {
-  solicitud.value.estado = 'Aprobada'
+const perfilUsuario = computed(() => {
+  return {
+    id: datosSolicitud.value.idUsuarioSolicitante,
+    nombre: solicitanteInfo.value?.nombre || 'Usuario',
+    img: solicitanteInfo.value?.img || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
+    edad: 'Edad no disponible',
+    descripcion: solicitanteInfo.value?.descripcion || 'Solicitante de adopción',
+    experiencia: 'No especificada',
+    tipoCuidador: 'No especificado',
+    mascotas: 'No especificado',
+    ubicacion: 'Ubicación no disponible',
+    fotos: []
+  }
+})
+
+// Funciones
+function formatFecha(fecha) {
+  if (!fecha) return 'No disponible'
+  try {
+    const date = new Date(fecha)
+    return date.toLocaleDateString('es-ES')
+  } catch (e) {
+    return fecha
+  }
 }
-function rechazar() {
-  solicitud.value.estado = 'Rechazada'
+
+function asset(path) {
+  return import.meta.env.VITE_APP_URL ? import.meta.env.VITE_APP_URL + path : path
+}
+
+async function cargarDatosSolicitud() {
+  try {
+    loading.value = true
+    error.value = null
+    
+    const solicitudId = route.query.solicitud_id || route.params.solicitudId
+    
+    if (!solicitudId) {
+      console.error('Error: No se proporcionó ID de solicitud')
+      throw new Error('No se proporcionó ID de solicitud')
+    }
+
+    console.log('=== INICIO cargarDatosSolicitud ===')
+    console.log('Solicitud ID:', solicitudId)
+    console.log('Token:', localStorage.getItem('token') ? 'Presente' : 'Ausente')
+    console.log('URL completa:', `/api/solicitudes/${solicitudId}`)
+
+    // 1. Cargar información de la solicitud específica
+    const responseSolicitud = await axios.get(`/api/solicitudes/${solicitudId}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    console.log('Respuesta de API:', responseSolicitud)
+    console.log('Datos respuesta:', responseSolicitud.data)
+
+    if (responseSolicitud.data.success) {
+      datosSolicitud.value = responseSolicitud.data.data.solicitud
+      console.log('Datos de solicitud cargados:', datosSolicitud.value)
+      
+      // Cargar información del solicitante desde la solicitud
+      if (responseSolicitud.data.data.solicitante) {
+        solicitanteInfo.value = {
+          id: responseSolicitud.data.data.solicitante.id,
+          nombre: responseSolicitud.data.data.solicitante.nombre || responseSolicitud.data.data.solicitante.name,
+          img: responseSolicitud.data.data.solicitante.foto_perfil_url || 
+               'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
+          descripcion: responseSolicitud.data.data.solicitante.descripcion || ''
+        }
+        console.log('Solicitante info:', solicitanteInfo.value)
+      }
+      
+      // 2. Cargar la oferta de adopción relacionada
+      const mascotaId = datosSolicitud.value.idMascota
+      if (mascotaId) {
+        console.log('Buscando oferta para mascota ID:', mascotaId)
+        await cargarOfertaPorMascota(mascotaId)
+      } else {
+        console.warn('Solicitud no tiene ID de mascota asociado')
+      }
+      
+    } else {
+      console.error('Error en respuesta:', responseSolicitud.data)
+      throw new Error(responseSolicitud.data.message || 'Error al cargar solicitud')
+    }
+    
+    console.log('=== FIN cargarDatosSolicitud ===')
+    
+  } catch (err) {
+    console.error('=== ERROR cargando datos de solicitud ===')
+    console.error('Error completo:', err)
+    console.error('Respuesta error:', err.response)
+    console.error('Mensaje:', err.message)
+    
+    error.value = err.response?.data?.message || err.message || 'Error al cargar la solicitud'
+    
+    // Datos de ejemplo para desarrollo
+    if (import.meta.env.DEV || window.location.hostname === 'localhost') {
+      console.log('Usando datos de ejemplo para desarrollo')
+      datosSolicitud.value = {
+        idSolicitud: route.query.solicitud_id || '123',
+        idUsuarioSolicitante: route.params.userId || '101',
+        idMascota: '1',
+        estadoSolicitud: 'pendiente',
+        aceptóTerminos: true,
+        fechaSolicitud: new Date().toISOString()
+      }
+      
+      solicitanteInfo.value = {
+        nombre: route.query.nombre || 'Usuario Ejemplo',
+        img: route.query.img || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png'
+      }
+      
+      // Datos de ejemplo para la oferta
+      datosOferta.value = {
+        id_oferta: '456',
+        estado_oferta: 'publicada',
+        permiso_historial_medico: true,
+        permiso_contacto_tutor: true,
+        created_at: new Date().toISOString(),
+        mascota: {
+          id: '1',
+          nombre: 'Firulais',
+          especie: 'Perro',
+          raza: 'Mestizo',
+          edad_formateada: '2 años',
+          foto_principal_url: 'https://cdn.pixabay.com/photo/2017/09/25/13/12/dog-2785074_1280.jpg',
+          caracteristicas: {
+            tamaño: 'Mediano',
+            pelaje: 'Corto',
+            color: 'Marrón'
+          },
+          fotos: [
+            {
+              url: 'https://cdn.pixabay.com/photo/2017/09/25/13/12/dog-2785074_1280.jpg',
+              ruta_foto: '',
+              es_principal: true
+            }
+          ]
+        }
+      }
+      
+      error.value = null
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+async function cargarOfertaPorMascota(mascotaId) {
+  try {
+    console.log('Buscando oferta para mascota ID:', mascotaId)
+    
+    // Buscar ofertas activas para esta mascota
+    const response = await axios.get(`/api/adopciones/ofertas/mascota/${mascotaId}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    })
+    
+    if (response.data.success && response.data.data) {
+      datosOferta.value = response.data.data
+      console.log('Oferta cargada:', datosOferta.value)
+    } else {
+      // Si no hay una ruta específica, intentar obtener de la lista general
+      await cargarTodasOfertasYBuscarmascota(mascotaId)
+    }
+    
+  } catch (err) {
+    console.error('Error cargando oferta:', err)
+    // No establecer error aquí, ya que la solicitud podría cargarse sin oferta
+  }
+}
+
+async function cargarTodasOfertasYBuscarmascota(mascotaId) {
+  try {
+    // Cargar ofertas del usuario y buscar la que corresponda a la mascota
+    const response = await axios.get('/api/adopciones/mis-mascotas/en-adopcion', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    })
+    
+    if (response.data.success && response.data.data) {
+      const ofertaEncontrada = response.data.data.find(
+        oferta => oferta.id === mascotaId || oferta.mascota_id === mascotaId
+      )
+      
+      if (ofertaEncontrada) {
+        // Cargar detalles completos de la oferta
+        const detalleResponse = await axios.get(`/api/adopciones/ofertas/${ofertaEncontrada.oferta_id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Accept': 'application/json'
+          }
+        })
+        
+        if (detalleResponse.data.success) {
+          datosOferta.value = detalleResponse.data.data.oferta
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error buscando oferta en lista:', err)
+  }
+}
+
+async function aprobarSolicitud() {
+  if (!confirm('¿Estás seguro de aprobar esta solicitud de adopción? La mascota será transferida al adoptante inmediatamente.')) return
+  
+  try {
+    procesando.value = true
+    const solicitudId = datosSolicitud.value.idSolicitud || datosSolicitud.value.id
+    
+    const response = await axios.put(`/api/solicitudes/${solicitudId}/aprobar`, {}, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    })
+    
+    if (response.data.success) {
+      datosSolicitud.value.estadoSolicitud = 'aprobada'
+      
+      // Mostrar mensaje de transferencia exitosa
+      alert('✅ Solicitud aprobada y mascota transferida exitosamente\n' +
+            'La mascota ahora pertenece al adoptante.')
+      
+      // Recargar datos para mostrar nueva información
+      await cargarDatosSolicitud()
+    } else {
+      throw new Error(response.data.message || 'Error al aprobar solicitud')
+    }
+  } catch (err) {
+    console.error('Error aprobando solicitud:', err)
+    alert(err.response?.data?.message || err.message || 'Error al aprobar la solicitud')
+  } finally {
+    procesando.value = false
+  }
+}
+
+async function rechazarSolicitud() {
+  if (!confirm('¿Estás seguro de rechazar esta solicitud de adopción?')) return
+  
+  try {
+    procesando.value = true
+    const solicitudId = datosSolicitud.value.idSolicitud || datosSolicitud.value.id
+    
+    const response = await axios.put(`/api/solicitudes/${solicitudId}/rechazar`, {}, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    })
+    
+    if (response.data.success) {
+      datosSolicitud.value.estadoSolicitud = 'rechazada'
+      alert('Solicitud rechazada exitosamente')
+      
+      // Opcional: Cerrar el overlay o recargar datos
+      cerrarOverlay()
+    } else {
+      throw new Error(response.data.message || 'Error al rechazar solicitud')
+    }
+  } catch (err) {
+    console.error('Error rechazando solicitud:', err)
+    alert(err.response?.data?.message || err.message || 'Error al rechazar la solicitud')
+  } finally {
+    procesando.value = false
+  }
+}
+
+async function guardarNotas() {
+  try {
+    guardandoNotas.value = true
+    const solicitudId = datosSolicitud.value.idSolicitud || datosSolicitud.value.id
+    
+    const response = await axios.put(`/api/solicitudes/${solicitudId}/notas`, {
+      notas: notasInternas.value
+    }, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    })
+    
+    if (response.data.success) {
+      alert('Notas guardadas exitosamente')
+    } else {
+      throw new Error(response.data.message || 'Error al guardar notas')
+    }
+  } catch (err) {
+    console.error('Error guardando notas:', err)
+    alert(err.response?.data?.message || err.message || 'Error al guardar notas')
+  } finally {
+    guardandoNotas.value = false
+  }
+}
+
+function abrirImagen(url) {
+  window.open(url, '_blank')
+}
+
+function cerrarOverlay() {
+  router.back()
 }
 
 // Manejo del scroll del body al abrir/cerrar overlay
@@ -296,12 +665,29 @@ onMounted(() => {
   const prev = document.body.style.overflow
   document.body.dataset.prevOverflow = prev
   document.body.style.overflow = 'hidden'
-  console.log('ContenidoPerfil (overlay) montado — params:', route.params)
+  
+  console.log('SolicitudAdopcion overlay montado - params:', route.params, 'query:', route.query)
+  
+  // Cargar datos cuando se monta el componente
+  cargarDatosSolicitud()
 })
 
 onUnmounted(() => {
   document.body.style.overflow = document.body.dataset.prevOverflow || ''
   delete document.body.dataset.prevOverflow
+})
+
+// Observar cambios en los parámetros de ruta
+watch(() => route.query.solicitud_id, () => {
+  if (route.query.solicitud_id) {
+    cargarDatosSolicitud()
+  }
+})
+
+watch(() => route.params.userId, () => {
+  if (route.params.userId) {
+    cargarDatosSolicitud()
+  }
 })
 </script>
 
@@ -321,5 +707,19 @@ onUnmounted(() => {
 
 .debug-bg {
   background-color: rgba(255, 0, 0, 0.1);
+}
+
+/* Estilos para la animación de carga */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

@@ -2,7 +2,6 @@
   <div class="p-4 max-w-xl mx-auto">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- Especie -->
-
       <div class="md:col-span-2">
         <label class="block text-sm font-medium mb-1">Especie</label>
         <button
@@ -31,16 +30,13 @@
             </div>
           </div>
 
-          <!-- Opcional: botón para cerrar -->
           <div class="flex justify-center mt-3">
-            <button @click="mostrarTaxonomias = false" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all"
-            >
+            <button @click="mostrarTaxonomias = false" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all">
               Listo
             </button>
           </div>
         </div>
       </div>
-
 
       <!-- Edad -->
       <div class="md:col-span-2">
@@ -65,15 +61,12 @@
           </div>
 
           <div class="flex justify-center mt-3">
-            <button @click="mostrarEdad = false" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all"
-            >
+            <button @click="mostrarEdad = false" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all">
               Listo
             </button>
           </div>
         </div>
       </div>
-
-
 
       <!-- Sexo -->
       <div class="md:col-span-2">
@@ -98,8 +91,7 @@
           </div>
 
           <div class="flex justify-center mt-3">
-            <button @click="mostrarSexo = false" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all"
-            >
+            <button @click="mostrarSexo = false" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all">
               Listo
             </button>
           </div>
@@ -109,7 +101,6 @@
       <!-- Filtro de Ubicación -->
       <div class="md:col-span-2">
         <label class="block text-sm font-medium mb-1">Ubicación</label>
-
         <button
           @click="mostrarUbicacion = !mostrarUbicacion"
           class="w-full text-left bg-white border rounded p-2 hover:bg-gray-100"
@@ -138,8 +129,6 @@
           </ul>
         </div>
       </div>
-
-
     </div>
 
     <!-- Botones -->
@@ -154,7 +143,7 @@
 import { reactive, ref } from 'vue'
 
 // Emitir eventos
-const emit = defineEmits(['cerrar'])
+const emit = defineEmits(['cerrar', 'filtrar'])
 
 // Estado de los filtros visibles
 const mostrarTaxonomias = ref(false)
@@ -172,7 +161,7 @@ const filtros = reactive({
 
 // Datos base
 const taxonomias = [
-  'Perros', 'Gatos', 'Aves', 'Roedores', 'Reptiles', 'Peces', 'Animales de granja', 'Exóticos'
+  'Caninos', 'Felinos', 'Equinos', 'Bovinos', 'Aves', 'Peces', 'Otro'
 ]
 const opcionesEdad = ['Cachorro', 'Joven', 'Adulto', 'Abuelo']
 const opcionesSexo = ['Macho', 'Hembra']
@@ -205,15 +194,56 @@ function limpiarFiltros() {
   filtros.edad = []
   filtros.sexo = []
   filtros.ubicacion = ''
+  aplicarFiltros() // Aplicar filtros limpiados inmediatamente
 }
 
 function aplicarFiltros() {
   console.log('Filtros aplicados:', { ...filtros })
+  
+  // Preparar filtros para enviar a la API
+  const filtrosParaEnviar = {}
+  
+  // Convertir especies a minúsculas para coincidir con la base de datos
+  if (filtros.especie.length) {
+    filtrosParaEnviar.especie = filtros.especie.map(esp => esp.toLowerCase())
+  }
+  
+  // Convertir sexo a minúsculas
+  if (filtros.sexo.length) {
+    filtrosParaEnviar.sexo = filtros.sexo.map(s => s.toLowerCase())
+  }
+  
+  // Agregar ubicación si existe
+  if (filtros.ubicacion) {
+    filtrosParaEnviar.ubicacion = filtros.ubicacion
+  }
+  
+  // Agregar rango de edad
+  if (filtros.edad.length) {
+    // Convertir rangos de edad a meses aproximados
+    const rangosEdad = []
+    
+    filtros.edad.forEach(rango => {
+      switch(rango.toLowerCase()) {
+        case 'cachorro':
+          rangosEdad.push({ min: 0, max: 12 }) // 0-12 meses
+          break
+        case 'joven':
+          rangosEdad.push({ min: 13, max: 36 }) // 1-3 años
+          break
+        case 'adulto':
+          rangosEdad.push({ min: 37, max: 84 }) // 3-7 años
+          break
+        case 'abuelo':
+          rangosEdad.push({ min: 85, max: 999 }) // 7+ años
+          break
+      }
+    })
+    
+    filtrosParaEnviar.rangos_edad = rangosEdad
+  }
+  
+  emit('filtrar', filtrosParaEnviar)
   emit('cerrar')
 }
 </script>
-
-
-<style>  
- 
-</style> 
