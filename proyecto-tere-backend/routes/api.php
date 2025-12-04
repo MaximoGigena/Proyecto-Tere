@@ -22,10 +22,17 @@ use App\Http\Controllers\ControllersProcedimientos\VacunaController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\UsuarioContactoController;
 use App\Http\Controllers\TelegramWebhookController;
+use App\Http\Controllers\OfertaAdopcionController;
+use App\Http\Controllers\ManejarOfertasController;
+use App\Http\Controllers\SolicitudAdopcionController;
+use App\Http\Controllers\ProcesoAdopcionController;
+use App\Http\Controllers\HistorialTransferenciaController;
+use App\Models\OfertaAdopcion;
 use App\Models\ContactoUsuario;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 // =============================================
 // RUTAS DE TELEGRAM - EN API (SIN MIDDLEWARE WEB)
@@ -141,20 +148,157 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/mascotas/{id}', [MascotaController::class, 'update']);
     Route::get('/mascotas/motivos/baja', [MascotaController::class, 'obtenerMotivosBaja']);
     Route::post('/mascotas/{id}/baja', [MascotaController::class, 'darDeBaja']);
+
+    // NUEVAS RUTAS PARA ADOPCIONES
+    // Obtener todas las mascotas del usuario autenticado
+    Route::get('/mis-mascotas', [MascotaController::class, 'misMascotas']);
     
+    // Obtener mascotas del usuario autenticado que NO están en adopción
+    Route::get('/mis-mascotas/disponibles', [MascotaController::class, 'misMascotasDisponibles']);
+    
+    // Obtener mascotas del usuario autenticado que SÍ están en adopción
+    Route::get('/mis-mascotas/en-adopcion', [MascotaController::class, 'misMascotasEnAdopcion']);
+    
+    Route::get('/usuarios/{id}/medios', [UsuarioContactoController::class, 'obtenerMedios']);
+    
+    // =============================================
+    // RUTAS PARA SOLICITUDES DE ADOPCIÓN (FUERA DEL GRUPO ADOPCIONES)
+    // =============================================
+    
+    // Rutas para la gestión de solicitudes de adopción
+    Route::get('/solicitudes/recibidas', [SolicitudAdopcionController::class, 'solicitudesRecibidas']);
+    Route::get('/solicitudes/todas-recibidas', [SolicitudAdopcionController::class, 'todasSolicitudesRecibidas']);
+    Route::get('/solicitudes/pendientes/conteo', [SolicitudAdopcionController::class, 'conteoSolicitudesPendientes']);
+    
+    // Ruta para obtener una solicitud específica por ID
+    Route::get('/solicitudes/{id}', [SolicitudAdopcionController::class, 'show']);
+    
+    // Ruta para aprobar/rechazar solicitud
+    Route::put('/solicitudes/{id}/aprobar', [SolicitudAdopcionController::class, 'aprobar']);
+    Route::put('/solicitudes/{id}/rechazar', [SolicitudAdopcionController::class, 'rechazar']);
+    
+    // Ruta para guardar notas en una solicitud
+    Route::put('/solicitudes/{id}/notas', [SolicitudAdopcionController::class, 'guardarNotas']);
+    
+    // =============================================
+    // RUTAS PARA ADOPCIONES (GRUPO SEPARADO)
+    // =============================================
+    Route::prefix('adopciones')->group(function () {
+        // Ofertas de adopción
+        Route::get('/ofertas-disponibles', [OfertaAdopcionController::class, 'getOfertasDisponibles']);
+        Route::get('/', [OfertaAdopcionController::class, 'index']);
+        Route::post('/', [OfertaAdopcionController::class, 'store']);
+        Route::get('/{id}', [OfertaAdopcionController::class, 'show']);
+        Route::put('/{id}', [OfertaAdopcionController::class, 'update']);
+        Route::delete('/{id}', [OfertaAdopcionController::class, 'cancelar']);
+        
+        Route::get('/mis-mascotas/disponibles', [OfertaAdopcionController::class, 'getMascotasDisponibles']);
+        Route::get('/mis-mascotas/en-adopcion', [OfertaAdopcionController::class, 'getOfertasUsuario']);
+        
+        // Ruta para cancelar por mascotaId
+        Route::post('/{mascotaId}/cancelar', function($mascotaId) {
+            $controller = new OfertaAdopcionController();
+            return $controller->cancelarPorMascota($mascotaId);
+        });
+        
+        // Ruta para obtener oferta por mascota ID (debe estar dentro de adopciones)
+        Route::get('/ofertas/mascota/{mascotaId}', [OfertaAdopcionController::class, 'getOfertaPorMascota']);
+        
+        // Rutas para manejar ofertas (mantener compatibilidad)
+        Route::get('/ofertas/{idOferta}', [ManejarOfertasController::class, 'obtenerOferta']);
+        
+        // ✅ Ruta de prueba
+        Route::get('/test-ofertas-simple', function() {
+            Log::info('Test ofertas simple llamado');
+            
+            try {
+                $user = Auth::user();
+                
+                if (!$user) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No autenticado'
+                    ], 401);
+                }
+                
+                $ofertas = OfertaAdopcion::where('estado_oferta', 'publicada')
+                    ->where('id_usuario_responsable', '!=', $user->id)
+                    ->take(5)
+                    ->get();
+                
+                return response()->json([
+                    'success' => true,
+                    'user_id' => $user->id,
+                    'total_ofertas' => $ofertas->count(),
+                    'data' => $ofertas->map(function($oferta) {
+                        return [
+                            'id' => $oferta->id_oferta,
+                            'estado' => $oferta->estado_oferta,
+                            'mascota_id' => $oferta->id_mascota,
+                        ];
+                    })
+                ]);
+                
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ], 500);
+            }
+        });
+
+        // Rutas para la gestión de solicitudes de adopción (DENTRO de adopciones, para otras funcionalidades)
+        Route::prefix('solicitudes-adopcion')->group(function () {
+            Route::post('/', [SolicitudAdopcionController::class, 'store']);
+            Route::get('/', [SolicitudAdopcionController::class, 'index']);
+            Route::get('/estadisticas', [SolicitudAdopcionController::class, 'estadisticas']);
+            Route::get('/verificar/{idMascota}', [SolicitudAdopcionController::class, 'verificarSolicitud']);
+            Route::post('/cancelar/{id}', [SolicitudAdopcionController::class, 'cancelar']);
+        });
+        
+        // ✅ Rutas específicas para ofertas (opcional, si necesitas mantener acceso directo)
+        Route::prefix('ofertas')->group(function () {
+            Route::get('/{id}', [OfertaAdopcionController::class, 'show']);
+        });
+    });
+
+    // =============================================
+    // RUTAS PARA ADMINISTRADORES
+    // =============================================
+    Route::get('/solicitudes-pendientes', [VeterinarioController::class, 'obtenerSolicitudesPendientes']);
+    Route::post('/solicitudes/{id}/aprobar', [VeterinarioController::class, 'aprobarSolicitud']);
+    Route::post('/solicitudes/{id}/rechazar', [VeterinarioController::class, 'rechazarSolicitud']);
+
 
     // Rutas para administradores
     Route::get('/solicitudes-pendientes', [VeterinarioController::class, 'obtenerSolicitudesPendientes']);
     Route::post('/solicitudes/{id}/aprobar', [VeterinarioController::class, 'aprobarSolicitud']);
     Route::post('/solicitudes/{id}/rechazar', [VeterinarioController::class, 'rechazarSolicitud']);
 
+    Route::prefix('procesos-adopcion')->group(function () {
+        Route::get('/', [ProcesoAdopcionController::class, 'index']);
+        Route::get('/{id}', [ProcesoAdopcionController::class, 'show']);
+        Route::post('/{id}/actualizar-estado', [ProcesoAdopcionController::class, 'actualizarEstado']);
+        Route::post('/{id}/confirmar-entrega', [ProcesoAdopcionController::class, 'confirmarEntrega']);
+        Route::post('/{id}/agregar-seguimiento', [ProcesoAdopcionController::class, 'agregarSeguimiento']);
+        Route::post('/{id}/finalizar', [ProcesoAdopcionController::class, 'finalizarConEvaluacion']);
+    });
+
+    // Historial de transferencias
+    Route::prefix('historial-transferencias')->group(function () {
+        Route::get('/mascota/{mascotaId}', [HistorialTransferenciaController::class, 'porMascota']);
+        Route::get('/usuario', [HistorialTransferenciaController::class, 'porUsuario']);
+        Route::get('/usuario/estadisticas', [HistorialTransferenciaController::class, 'estadisticasUsuario']);
+    });
+
     // Rutas para la gestión de tipos de vacuna - SOLO VETERINARIOS
-    
+        
     Route::prefix('tipos-vacuna')->group(function () {
         Route::get('/', [TipoVacunaController::class, 'index']);
         Route::post('/', [TipoVacunaController::class, 'store']);
         Route::get('/{tipoVacuna}', [TipoVacunaController::class, 'show']);
-        Route::put('/{tipoVacuna}', [TipoVacunaController::class, 'update']);
+        Route::put('/{}', [TipoVacunaController::class, 'update']);
         Route::post('/{tipoVacuna}', [TipoVacunaController::class, 'update']);
         Route::delete('/{tipoVacuna}', [TipoVacunaController::class, 'destroy']);
     });
