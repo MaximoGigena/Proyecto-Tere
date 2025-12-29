@@ -22,6 +22,7 @@ class Kernel extends ConsoleKernel
         // ->everyMinute()  // Cada minuto
         // ->hourly()       // Cada hora
         // ->daily()        // Cada día a medianoche
+        $schedule->command('sanciones:verificar-expiracion')->daily();
     }
 
     /**

@@ -138,87 +138,102 @@ class RegistrarUsuarioController extends Controller
     }
 
     /**
-    * Obtener usuario para modificación
-    */
+     * Obtener usuario para modificación
+     */
     public function show($id)
     {
-        {
-            try {
-                Log::info('🔍 Solicitando perfil de usuario', ['usuario_id' => $id]);
+        try {
+            Log::info('🔍 Solicitando perfil de usuario', ['usuario_id' => $id]);
 
-                // Cargar todas las relaciones necesarias
-                $usuario = Usuario::with([
-                    'user', 
-                    'caracteristicas', 
-                    'contacto', 
-                    'ubicaciones', // Cargar ubicaciones
-                    'fotos' // Cargar TODAS las fotos, no solo la principal
-                ])->findOrFail($id);
+            // Cargar todas las relaciones necesarias
+            $usuario = Usuario::with([
+                'user', 
+                'caracteristicas', 
+                'contacto', 
+                'ubicaciones', // Cargar ubicaciones
+                'fotos' // Cargar TODAS las fotos, no solo la principal
+            ])->findOrFail($id);
 
-                // Obtener ubicación actual (más reciente)
-                $ubicacionActual = $usuario->ubicaciones()->latest('location_updated_at')->first();
+            // Obtener ubicación actual (más reciente)
+            $ubicacionActual = $usuario->ubicaciones()->latest('location_updated_at')->first();
 
-                Log::info('🔍 Usuario encontrado', [
+            Log::info('🔍 Usuario encontrado', [
+                'id' => $usuario->id,
+                'nombre' => $usuario->nombre,
+                'tiene_caracteristicas' => !is_null($usuario->caracteristicas),
+                'tiene_contacto' => !is_null($usuario->contacto),
+                'cantidad_fotos' => $usuario->fotos->count(),
+                'tiene_ubicacion' => !is_null($ubicacionActual)
+            ]);
+
+            // Estructura más clara para el frontend
+            $response = [
+                'success' => true,
+                'usuario' => [
                     'id' => $usuario->id,
                     'nombre' => $usuario->nombre,
-                    'tiene_caracteristicas' => !is_null($usuario->caracteristicas),
-                    'tiene_contacto' => !is_null($usuario->contacto),
-                    'cantidad_fotos' => $usuario->fotos->count(),
-                    'tiene_ubicacion' => !is_null($ubicacionActual)
-                ]);
+                    'edad' => $usuario->edad,
+                    'ubicacion' => $ubicacionActual ? $ubicacionActual->location : null,
+                    'email' => $usuario->user ? $usuario->user->email : null,
+                    'caracteristicas' => $usuario->caracteristicas ? [
+                        'ocupacion' => $usuario->caracteristicas->ocupacion,
+                        'tipoVivienda' => $usuario->caracteristicas->tipoVivienda,
+                        'experiencia' => $usuario->caracteristicas->experiencia,
+                        'convivenciaNiños' => $usuario->caracteristicas->convivenciaNiños,
+                        'convivenciaMascotas' => $usuario->caracteristicas->convivenciaMascotas,
+                        'descripción' => $usuario->caracteristicas->descripción,
+                    ] : null,
+                    'contacto' => $usuario->contacto ? [
+                        'dni' => $usuario->contacto->dni,
+                        'telefono' => $usuario->contacto->telefono,
+                        'email' => $usuario->contacto->email,
+                        'nombre_completo' => $usuario->contacto->nombre_completo,
+                    ] : null,
+                    'fotos' => $usuario->fotos->map(function($foto) {
+                        return [
+                            'ruta_foto' => $foto->ruta_foto,
+                            'url_foto' => $foto->ruta_foto ? Storage::url($foto->ruta_foto) : null,
+                            'es_principal' => $foto->es_principal
+                        ];
+                    }),
+                    'foto_principal' => $usuario->fotos->where('es_principal', true)->first() 
+                        ? Storage::url($usuario->fotos->where('es_principal', true)->first()->ruta_foto)
+                        : ($usuario->fotos->first() 
+                            ? Storage::url($usuario->fotos->first()->ruta_foto) 
+                            : null)
 
-                // Estructura más clara para el frontend
-                $response = [
-                    'success' => true,
-                    'usuario' => [
-                        'id' => $usuario->id,
-                        'nombre' => $usuario->nombre,
-                        'edad' => $usuario->edad,
-                        'ubicacion' => $ubicacionActual ? $ubicacionActual->location : null,
-                        'email' => $usuario->user ? $usuario->user->email : null,
-                        'caracteristicas' => $usuario->caracteristicas ? [
-                            'ocupacion' => $usuario->caracteristicas->ocupacion,
-                            'tipoVivienda' => $usuario->caracteristicas->tipoVivienda,
-                            'experiencia' => $usuario->caracteristicas->experiencia,
-                            'convivenciaNiños' => $usuario->caracteristicas->convivenciaNiños,
-                            'convivenciaMascotas' => $usuario->caracteristicas->convivenciaMascotas,
-                            'descripción' => $usuario->caracteristicas->descripción,
-                        ] : null,
-                        'contacto' => $usuario->contacto ? [
-                            'dni' => $usuario->contacto->dni,
-                            'telefono' => $usuario->contacto->telefono,
-                            'email' => $usuario->contacto->email,
-                            'nombre_completo' => $usuario->contacto->nombre_completo,
-                        ] : null,
-                        'fotos' => $usuario->fotos->map(function($foto) {
-                            return [
-                                'ruta_foto' => $foto->ruta_foto,
-                                'url_foto' => $foto->url_foto, // ← AGREGAR URL COMPLETA
-                                'es_principal' => $foto->es_principal
-                            ];
-                        }),
-                        'foto_principal' => $usuario->fotos->where('es_principal', true)->first()?->url_foto 
-                            ?? $usuario->fotos->first()?->url_foto 
-                            ?? null
-                    ]
-                ];
+                            
+                ]
+                
+            ];
 
-                Log::info('🔍 Enviando respuesta al frontend', [
-                    'tiene_caracteristicas' => !is_null($response['usuario']['caracteristicas']),
-                    'tiene_fotos' => count($response['usuario']['fotos']),
-                    'tiene_foto_principal' => !is_null($response['usuario']['foto_principal'])
-                ]);
+            Log::info('🔍 Enviando respuesta al frontend', [
+                'tiene_caracteristicas' => !is_null($response['usuario']['caracteristicas']),
+                'tiene_fotos' => count($response['usuario']['fotos']),
+                'tiene_foto_principal' => !is_null($response['usuario']['foto_principal'])
+            ]);
 
-                return response()->json($response);
+            // En el método show() del controlador, justo antes del return
+            Log::info('📤 Enviando respuesta JSON:', [
+                'success' => $response['success'],
+                'usuario_nombre' => $response['usuario']['nombre'] ?? 'NO',
+                'usuario_email' => $response['usuario']['email'] ?? 'NO',
+                'tiene_foto_principal' => !empty($response['usuario']['foto_principal']),
+                'foto_principal' => $response['usuario']['foto_principal'] ?? 'NO',
+                'cantidad_fotos' => count($response['usuario']['fotos'])
+            ]);
 
-            } catch (\Exception $e) {
-                Log::error('❌ Error al obtener usuario: ' . $e->getMessage());
-                Log::error('❌ Stack trace: ' . $e->getTraceAsString());
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Usuario no encontrado'
-                ], 404);
-            }
+            return response()->json($response);
+
+            return response()->json($response);
+
+        } catch (\Exception $e) {
+            Log::error('❌ Error al obtener usuario: ' . $e->getMessage());
+            Log::error('❌ Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'message' => 'Usuario no encontrado'
+            ], 404);
         }
     }
 
@@ -539,7 +554,7 @@ class RegistrarUsuarioController extends Controller
             Log::error('❌ Error al guardar datos de contacto: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Error al guardar datos de contacto',
+                    'message' => 'Error al guardar datos de contacto',
                 'error' => $e->getMessage()
             ], 500);
         }

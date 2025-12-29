@@ -3,13 +3,11 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\FacebookAuthController;
-use App\Http\Controllers\TelegramWebhookController;
 use Illuminate\Http\Request;
 
 Route::get('/', function () {
     return view('welcome');
 });
-
 
 Route::prefix('auth/google')->group(function () {
     Route::get('/', [GoogleAuthController::class, 'redirectToGoogle'])->name('google.login');
@@ -35,7 +33,21 @@ Route::get('/seleccionarRegistro', function (Request $request) {
     ]);
 })->name('profile.selection');
 
+// Ruta para la vista de cuenta suspendida (accesible incluso estando suspendido)
+Route::get('/cuenta-suspendida', function () {
+    return view('cuenta-suspendida'); // Tu vista Vue
+})->name('cuenta-suspendida');
+
+// ✅ Ruta de login
 Route::get('/login', function () {
     return response()->json(['message' => 'Por favor inicia sesión'], 401);
 })->name('login');
 
+// ✅ Proteger las rutas web también
+// NOTA: Si usas 'user.suspended' en API, usa el mismo en web
+Route::middleware(['auth', \App\Http\Middleware\CheckUserSuspended::class])->group(function () {
+    // Rutas web protegidas
+    Route::get('/dashboard', function () {
+        return view('dashboard');
+    });
+});

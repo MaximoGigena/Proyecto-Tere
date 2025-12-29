@@ -7,11 +7,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Traits\Auditable;
+use Illuminate\Support\Facades\Log;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, Auditable;
 
     /**
      * The attributes that are mass assignable.
@@ -127,6 +129,123 @@ class User extends Authenticatable
         return null;
     }
 
+   // En App\Models\User.php
+    /**
+     * Obtener las notificaciones del usuario
+     */
+    public function notificaciones()
+    {
+        return $this->hasMany(Notificacion::class, 'usuario_id') // ← Especificar la columna
+                    ->activas()
+                    ->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Obtener notificaciones no leídas
+     */
+    public function notificacionesNoLeidas()
+    {
+        return $this->notificaciones()->noLeidas();
+    }
+
+    /**
+     * Contar notificaciones no leídas
+     */
+    public function contarNotificacionesNoLeidas()
+    {
+        return $this->notificaciones()->where('leida', false)->count();
+    }
+
+    /**
+     * Verificar si el usuario tiene sanciones activas
+     */
+    public function tieneSancionesActivas()
+    {
+        try {
+            // Verificar estado del usuario primero (más rápido)
+            if (in_array($this->estado, ['suspendido', 'bloqueado'])) {
+                Log::info('📋 Usuario tiene estado suspendido/bloqueado', [
+                    'user_id' => $this->id,
+                    'estado' => $this->estado
+                ]);
+                return true;
+            }
+            
+            // Verificar sanciones en la tabla Sancion
+            $sancionesActivas = Sancion::activas()
+                ->where('usuario_id', $this->id)
+                ->exists();
+                
+            if ($sancionesActivas) {
+                Log::info('📋 Usuario tiene sanciones activas en tabla', [
+                    'user_id' => $this->id,
+                    'sanciones_activas' => $sancionesActivas
+                ]);
+                
+                // Si hay sanciones activas, actualizar estado del usuario
+                if ($this->estado !== 'suspendido') {
+                    $this->update(['estado' => 'suspendido']);
+                    Log::info('🔄 Estado actualizado a suspendido', [
+                        'user_id' => $this->id
+                    ]);
+                }
+                
+                return true;
+            }
+            
+            Log::info('📋 Usuario NO tiene sanciones activas', [
+                'user_id' => $this->id,
+                'estado' => $this->estado
+            ]);
+            
+            return false;
+            
+        } catch (\Exception $e) {
+            Log::error('❌ Error en tieneSancionesActivas:', [
+                'user_id' => $this->id,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Obtener las sanciones activas del usuario
+     */
+    public function sancionesActivas()
+    {
+        return $this->hasMany(Sancion::class, 'usuario_id')
+                    ->activas()
+                    ->orderBy('fecha_inicio', 'desc');
+    }
+
+    /**
+     * Obtener la información de sanción activa más relevante
+     */
+    public function obtenerInformacionSancion()
+    {
+        $sanciones = $this->sancionesActivas()->get();
+        
+        if ($sanciones->isEmpty()) {
+            return null;
+        }
+        
+        // Tomar la sanción más reciente
+        $sancion = $sanciones->first();
+        
+        return [
+            'id' => $sancion->id,
+            'tipo' => $sancion->tipo,
+            'razon' => $sancion->razon,
+            'descripcion' => $sancion->descripcion,
+            'fecha_inicio' => $sancion->fecha_inicio,
+            'fecha_fin' => $sancion->fecha_fin,
+            'duracion_dias' => $sancion->duracion_dias,
+            'es_permanente' => $sancion->tipo === 'BLOQUEO_PERMANENTE' || is_null($sancion->fecha_fin),
+            'puede_apelar' => $sancion->tipo !== 'BLOQUEO_PERMANENTE' && $sancion->estado === 'ACTIVA',
+            'restricciones' => $sancion->restricciones
+        ];
+    }
 
     /**
      * Get the attributes that should be cast.

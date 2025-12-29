@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Usuario;
+use App\Traits\Auditable;
 
 class CaracteristicasUsuario extends Model
 {
+    use Auditable;
+
     protected $fillable = [
         'tipoVivienda',
         'ocupacion',

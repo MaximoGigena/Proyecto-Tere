@@ -1,5 +1,5 @@
 <?php
-
+// cors.php
 
 return [
     'paths' => ['*', 'api/*', 'sanctum/csrf-cookie', 'sanctum/*', 'login', 'logout', 'auth/*'], // Permite todas las rutas

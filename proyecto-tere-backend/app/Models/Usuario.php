@@ -3,9 +3,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use App\Models\User;
+use App\Models\CaracteristicasUsuario;
+use App\Models\ContactoUsuario;
+use App\Models\UbicacionUsuario;
+use App\Models\UsuarioFoto;
+use App\Models\SolicitudAdopcion;
+use App\Traits\Auditable;
 
 class Usuario extends Model
 {
+    use Auditable;
+
     protected $fillable = [
         'nombre',
         'edad',
