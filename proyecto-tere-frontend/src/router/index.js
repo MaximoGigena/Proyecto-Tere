@@ -38,6 +38,7 @@ import { registrarVeterinaria } from './routes/registrarCentroVeterinario.js'
 import { editarMascotaRoutes } from './routes/editarMascota.js'
 import { motivosBajaMascota } from './routes/overlayMotivosMascota.js'
 import { esperaVeterinarios } from './routes/esperaVeterinaria.js'
+import { UsuarioSuspendido } from './routes/cuentaSuspendida.js'
  
 const routes = [
   ...homeRoutes,
@@ -80,12 +81,48 @@ const routes = [
   ...editarMascotaRoutes,
   ...motivosBajaMascota,
   ...esperaVeterinarios,
+  ...UsuarioSuspendido,
 ]
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
+
+// Después de crear el router
+router.beforeEach(async (to, from, next) => {
+  const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+  
+  // Si no hay token y la ruta requiere autenticación
+  if (to.meta.requiresAuth && !token) {
+    next('/login');
+    return;
+  }
+  
+  // Si hay token, verificar si el usuario está suspendido
+  if (token && to.name !== 'cuenta-suspendida') {
+    try {
+      // Verificar en localStorage primero (más rápido)
+      const suspensionData = localStorage.getItem('suspension_data');
+      if (suspensionData) {
+        const data = JSON.parse(suspensionData);
+        if (data.estado === 'suspendido' || data.esta_suspendido) {
+          next('/cuenta-suspendida');
+          return;
+        }
+      }
+      
+      // Si no hay datos en localStorage pero la ruta no es login, 
+      // podrías hacer una petición para verificar el estado
+      // (esto es opcional, ya que el middleware de Laravel lo hará)
+      
+    } catch (error) {
+      console.error('Error verificando estado de usuario:', error);
+    }
+  }
+  
+  next();
+});
 
 export default router
 

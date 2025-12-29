@@ -1,11 +1,9 @@
-<!-- contenidoMascota -->
+<!-- contenidoMascota.vue -->
 <template> 
    <div class="bg-white backdrop-blur-md border border-white rounded-2xl 
-         overflow-y-auto max-h-[83vh] w-full shadow-2xl 
+         overflow-y-auto max-h-[80vh] w-full shadow-2xl 
          transition-all duration-300 relative mx-0"
     >
-
-
        <div
         ref="scrollContainer"
         class="flex-1 overflow-y-auto overflow-x-overlay 
@@ -13,24 +11,60 @@
         [&::-webkit-scrollbar]:hidden ml-4"
         >
             <!-- Imagen principal -->
-            <div class="relative w-full min-h-[76vh] rounded-4xl overflow-hidden">
+            <div class="relative w-full rounded-4xl overflow-hidden" :class="{'min-h-[60vh]': galleryImages.length <= 1, 'min-h-[76vh]': galleryImages.length > 1}">
                 <div v-if="galleryImages[0]" class="relative w-full rounded-4xl overflow-hidden">
                   <img
                     :src="galleryImages[0]"
                     alt="Foto secundaria 1"
-                    class="w-full max-h-[80vh] object-contain rounded-4xl bg-gray-100"
+                    class="w-full h-full object-cover rounded-4xl bg-gray-100"
+                    :class="{'max-h-[60vh]': galleryImages.length <= 1, 'max-h-[80vh]': galleryImages.length > 1}"
                     @click="openGallery(0)"
                     @error="onImgError"
                   />
                 </div>
                         
-                <!-- Info mascota -->
-              <div class="absolute top-5 left-4 bg-white px-3 py-1 rounded-md shadow text-sm font-semibold w-fit">
-                Nombre: {{ mascotaComputed.nombre }}, <span class="font-normal">sexo: {{ mascotaComputed.sexo }}</span>
-              </div>
+              <!-- Info mascota -->
+              <div class="absolute top-5 left-4 flex flex-col gap-2">
+                <!-- Etiqueta Nombre -->
+                <div class="bg-white px-3 py-1 rounded-md shadow text-sm font-semibold w-fit">
+                  <span>Nombre: {{ mascotaComputed.nombre }}</span>
+                </div>
+                
+                <!-- Etiqueta Sexo con iconos y colores -->
+                <div 
+                  class="px-3 py-1 rounded-md shadow text-sm font-semibold w-fit flex items-center gap-2"
+                  :class="{
+                    'bg-blue-100 text-blue-800 border border-blue-300': mascotaComputed.sexo?.toLowerCase() === 'macho',
+                    'bg-pink-100 text-pink-800 border border-pink-300': mascotaComputed.sexo?.toLowerCase() === 'hembra',
+                    'bg-white text-gray-800 border border-gray-300': !['macho', 'hembra'].includes(mascotaComputed.sexo?.toLowerCase())
+                  }"
+                >
+                  <font-awesome-icon 
+                    v-if="mascotaComputed.sexo?.toLowerCase() === 'macho'"
+                    :icon="['fas', 'mars']" 
+                    class="text-blue-600"
+                  />
+                  <font-awesome-icon 
+                    v-else-if="mascotaComputed.sexo?.toLowerCase() === 'hembra'"
+                    :icon="['fas', 'venus']" 
+                    class="text-pink-600"
+                  />
+                  <span>Sexo: {{ mascotaComputed.sexo }}</span>
+                </div>
 
-              <div class="absolute top-13 left-4 bg-blue-500 text-white text-xs px-2 py-1 rounded-md w-fit">
-                Edad: {{ edadDisplay }}
+                <!-- Etiqueta Edad -->
+                <div class="bg-blue-500 text-white text-xs px-2 py-1 rounded-md w-fit">
+                  Edad: {{ edadDisplay }}
+                </div>
+
+                <!-- Etiqueta Castrado -->
+                <div 
+                  v-if="mascotaComputed.castrado !== null"
+                  class="bg-green-500 text-white text-xs px-2 py-1 rounded-md w-fit"
+                  :class="{'bg-green-500': mascotaComputed.castrado, 'bg-yellow-500': !mascotaComputed.castrado}"
+                >
+                  {{ castradoLabel }}
+                </div>
               </div>
 
                   <button  
@@ -70,12 +104,12 @@
 
             <!-- Descripción -->
             <div class="px-4 pt-4 pb-6 bg-white space-y-4">
-                <div class="space-y-2">
+              <div class="space-y-2">
                 <h2 class="text-4xl font-bold text-gray-800">Descripción</h2>
                 <p class="text-lg font-semibold text-gray-800">
-                     {{ mascotaComputed.caracteristicas?.descripcion }}
+                  {{ mascotaComputed.caracteristicas?.descripcion }}
                 </p>
-                </div>
+              </div>
             </div>
             
            <!-- Imagen secundaria 2 -->
@@ -83,77 +117,29 @@
               <img
                 :src="galleryImages[1]"
                 alt="Foto secundaria 2"
-                class="w-full max-h-[80vh] object-contain rounded-4xl bg-gray-100"
+                class="w-full h-full object-cover rounded-4xl bg-gray-100"
                 @click="openGallery(1)"
                 @error="onImgError"
               />
             </div>
 
-            <!-- Características -->            
-            <!-- Etiquetas de la Mascota -->
-            <div class="flex flex-wrap gap-3 mt-2 justify-center">
-                    <!-- Personalidad -->
-                    <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Personalidad">
-                        <div class=" mr-2">
-                            <font-awesome-icon :icon="['fas', 'heart']" class="text-pink-500 text-sm"/>
-                        </div>
-                         {{ mascotaComputed.caracteristicas?.personalidad }}
-                    </div>
-                    
-                    <!-- nivel de energía -->
-                    <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Energia">
-                        <font-awesome-icon :icon="['fas', 'bolt']" class="text-gray-500 mr-2" />
-                        {{ mascotaComputed.caracteristicas?.energia }}
-                    </div>
-                    
-                    <!-- Tamaño -->
-                    <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Tamaño">
-                        <font-awesome-icon :icon="['fas', 'ruler-combined']" class="text-gray-500 mr-2"/>
-                        {{ mascotaComputed.caracteristicas?.tamano }}
-                    </div>
-                    
-                    <!-- Alimentación -->
-                    <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Alimentación">
-                    <font-awesome-icon :icon="['fas', 'bowl-food']" class="text-gray-500 mr-2"/>
-                        {{ mascotaComputed.caracteristicas?.alimentacion }}
-                    </div>
-                    
-                    <!-- Ejercicio -->
-                    <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Ejercicio">
-                        <font-awesome-icon :icon="['fas', 'dumbbell']" class="fa-solid fa-dumbbell text-gray-500 mr-2"/>
-                        <span class="text-gray-700">Regularmente</span>
-                    </div>
-                    
-                    <!-- fertilidad -->
-                    <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Fertilidad">
-                        <font-awesome-icon :icon="['fas', 'seedling']" class="text-gray-500 mr-2"/>
-                        <span class="text-gray-700">Esteril</span>
-                    </div>
-                    
-                    <!-- Afinidad a niños -->
-                    <div class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="interacción con niños">
-                        <font-awesome-icon :icon="['fas', 'baby-carriage']" class="fa-solid fa-baby-carriage text-gray-500 mr-2"/>
-                        {{ mascotaComputed.caracteristicas?.comportamiento_ninos }}
-                    </div>
-                    
-                </div>
-                <div class="relative w-full min-h-[80vh] rounded-4xl overflow-hidden mt-4">
-                  
+            <!-- Componente de Características -->
+            <CaracteristicasMascota :mascota="mascotaComputed" />
+                
                 <!-- Imagen secundaria 3 -->
-                <div v-if="galleryImages[2]" class="relative w-full rounded-4xl overflow-hidden">
+                <div v-if="galleryImages[2]" class="relative w-full rounded-4xl overflow-hidden mt-4">
                   <img
                     :src="galleryImages[2]"
                     alt="Foto secundaria 2"
-                    class="w-full max-h-[80vh] object-contain rounded-4xl bg-gray-100"
+                    class="w-full h-full object-cover rounded-4xl bg-gray-100"
                     @click="openGallery(2)"
                     @error="onImgError"
                   />
                 </div>
             
-                </div>
                 <!-- Historial Mascota -->
-                <div class="flex justify-center mt-2">
-                    <button class="bg-purple-300 hover:bg-purple-600 text-white text-2xl font-bold py-5 px-10 rounded-md" @click="goToHistorial">
+                <div class="flex justify-center mt-4">
+                    <button class="bg-purple-300 hover:bg-purple-600 text-white text-2xl font-bold py-4 px-8 rounded-md transition-all duration-300" @click="goToHistorial">
                         Historiales
                     </button>
                 </div>
@@ -180,7 +166,6 @@
 
                 <div
                   class="px-4 pt-4 pb-6 bg-white space-y-4"
-                  :class="{'mt-2': galleryImages.length > 3, 'mt-2': galleryImages.length <= 3}"
                 >
                   <div class="space-y-2">
                     <h2 class="text-4xl font-bold text-gray-800">Ubicación Actual</h2>
@@ -189,6 +174,7 @@
                     </p>
                   </div>
                 </div>
+              
               <!-- Contenedor de botones -->
                 <div 
                   v-if="showButtonsContainer"
@@ -196,11 +182,6 @@
                   :class="{'opacity-0 translate-y-10': !mostrarBotones, 'opacity-100 translate-y-0': mostrarBotones}"
                   class="flex justify-center gap-14 z-20 transition-all duration-700 ease-out"
                 >
-                  <button 
-                    v-if="$route.path.startsWith('/explorar/encuentros')"
-                    class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300">
-                    <font-awesome-icon :icon="['fas', 'xmark']" class="text-black text-5xl hover:text-red-400" />
-                  </button>
 
                   <button 
                     v-if="$route.path.startsWith('/explorar/cerca/')"
@@ -208,34 +189,57 @@
                     <font-awesome-icon :icon="['fas', 'comment']" class="text-black text-4xl hover:text-purple-400" />
                   </button>
                   <button 
+                    v-if="$route.path.startsWith('/explorar/cerca/')"
                     class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300"
                     @click="abrirAdvertencia"
                   >
                     <font-awesome-icon :icon="['fas','heart']" class="text-black text-4xl hover:text-green-400"/>
                   </button>
-                  <AdvertenciaAdopcion 
-                    ref="advertenciaRef" 
-                    @close="handleAdopcionClose"
-                    @success="onAdopcionSuccess"
-                    @error="onAdopcionError"
+
+                <BotonesSwipe
+                    v-if="$route.path.startsWith('/explorar/encuentros')"
+                    ref="botonesSwipeRef"
+                    :mascotaId="mascotaComputed?.id"
+                    :ofertaId="ofertaActual?.id_oferta || route.params.id"
+                    :mostrarBotones="mostrarBotones"
+                    :mostrarInstrucciones="true"
+                    :contenedorElement="contenedorPrincipal"
+                    @like="onLike"
+                    @dislike="onDislike"
+                    @swipe-start="onSwipeStart"
+                    @swipe-end="onSwipeEnd"
+                    @swipe-cancel="onSwipeCancel"
+                    @swipe-animation="onSwipeAnimation"
                   />
                 </div>
-
-                <div class="h-20"></div>
-            </div>
+          <div class="h-20"></div>
+        </div>
     </div>
+    
+    <AdvertenciaAdopcion 
+      ref="advertenciaRef" 
+      @close="handleAdopcionClose"
+      @success="onAdopcionSuccess"
+      @error="onAdopcionError"
+    />
 </template>
 
+<!-- El script se mantiene EXACTAMENTE IGUAL -->
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { defineProps, defineEmits } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import burro from '@/assets/burro.png'
 import axios from 'axios'
 import { useAuth } from '@/composables/useAuth'
+import { useInteracciones } from '@/composables/useInteracciones'
 import PasoAlgo from '@/components/módulo_mascotas/reportarMascota.vue'
 import AdvertenciaAdopcion from '@/components/módulo_adopciones/advertenciaParaAdoptantes.vue'
+import CaracteristicasMascota from '@/components/ElementosGraficos/CaracteristicasMascota.vue'
+import BotonesSwipe from '@/components/ElementosGraficos/BotonesSwipe.vue'
 
 const advertenciaRef = ref(null)
+const botonesSwipeRef = ref(null)
 
 const router = useRouter()
 const route = useRoute()
@@ -253,9 +257,116 @@ const mostrarBotones = ref(false)
 const botonesAnimados = ref(null)
 const showButtonsContainer = ref(false)
 
+// Nuevas variables para el swipe
+const contenedorPrincipal = ref(null)
+const swipeTransform = ref('')
+const swipeClass = ref('')
+const procesandoSwipe = ref(false)
+
+const { registrarInteraccion } = useInteracciones()
+
 // Accede a los parámetros de la ruta
 const id = computed(() => route.params.id)
 const from = computed(() => route.query.from)
+
+const props = defineProps({
+  ofertaActual: {
+    type: Object,
+    default: null
+  }
+})
+
+// Define emits para comunicar acciones al padre
+const emit = defineEmits(['like', 'dislike', 'close', 'next', 'prev', 'swipe-completed'])
+
+// Función para manejar el dislike
+async function onLike(data) {
+  console.log('Like recibido desde BotonesSwipe:', data)
+  
+  try {
+    // Registrar la interacción en la base de datos
+    await registrarInteraccion({
+      mascota_id: data.mascotaId,
+      oferta_id: data.ofertaId || props.ofertaActual?.id_oferta,
+      tipo_interaccion: 'like'
+    })
+    
+    // Emitir evento al componente padre
+    emit('like', {
+      mascotaId: data.mascotaId,
+      ofertaId: data.ofertaId || props.ofertaActual?.id_oferta
+    })
+    
+    // Si estamos en "cerca de ti", abrir advertencia
+    if (route.path.startsWith('/explorar/cerca/')) {
+      abrirAdvertencia()
+    } 
+    // Si estamos en "encuentros", emitir evento para avanzar
+    else if (route.path.startsWith('/explorar/encuentros')) {
+      emit('next')  // Esto le dice al padre que avance
+    }
+    
+  } catch (error) {
+    console.error('Error registrando like:', error)
+    mostrarNotificacion('Error al registrar tu interés', 'error')
+  }
+}
+
+async function onDislike(data) {
+  console.log('Dislike recibido desde BotonesSwipe:', data)
+  
+  try {
+    // Registrar la interacción en la base de datos
+    await registrarInteraccion({
+      mascota_id: data.mascotaId,
+      oferta_id: data.ofertaId || props.ofertaActual?.id_oferta,
+      tipo_interaccion: 'dislike'
+    })
+    
+    // Emitir evento al componente padre
+    emit('dislike', {
+      mascotaId: data.mascotaId,
+      ofertaId: data.ofertaId || props.ofertaActual?.id_oferta
+    })
+    
+    // Si estamos en "encuentros", emitir evento para avanzar
+    if (route.path.startsWith('/explorar/encuentros')) {
+      emit('next')  // Esto le dice al padre que avance
+    }
+    
+  } catch (error) {
+    console.error('Error registrando dislike:', error)
+    mostrarNotificacion('Error al registrar tu decisión', 'error')
+  }
+}
+
+function onSwipeStart(tipo) {
+  console.log('Swipe iniciado:', tipo)
+  procesandoSwipe.value = true
+}
+
+function onSwipeEnd(tipo) {
+  console.log('Swipe finalizado:', tipo)
+  // El reset se maneja en las funciones onLike/onDislike
+}
+
+function onSwipeCancel(tipo) {
+  console.log('Swipe cancelado:', tipo)
+  procesandoSwipe.value = false
+  resetSwipeAnimation()
+}
+
+function onSwipeAnimation(animation) {
+  // Aplicar animación recibida del componente BotonesSwipe
+  swipeTransform.value = animation.transform
+  swipeClass.value = animation.opacity
+}
+
+function resetSwipeAnimation() {
+  swipeTransform.value = ''
+  swipeClass.value = ''
+}
+
 
 // Verificar autenticación 
 onMounted(async () => {
@@ -274,44 +385,59 @@ onMounted(async () => {
 function abrirAdvertencia() {
   console.log('=== abrirAdvertencia llamado ===')
   console.log('Ruta actual:', route.path)
-  console.log('Ruta completa:', route.fullPath)
-  console.log('Parámetros:', route.params)
-  console.log('Query:', route.query)
   console.log('Mascota computada:', mascotaComputed.value)
-  console.log('Mascota computada ID:', mascotaComputed.value?.id)
   
   if (advertenciaRef.value) {
-    // Verificar si estamos en una ruta de oferta
-    if (route.path.startsWith('/explorar/cerca/') && route.params.id) {
-      console.log('Contexto: Estamos en una oferta de adopción')
+    // Verificar si estamos en la vista de swipe (encuentros)
+    if (route.path.startsWith('/explorar/encuentros')) {
+      console.log('Contexto: Vista de encuentros (swipe)')
+      
+      // Si tenemos una oferta actual
+      if (props.ofertaActual?.id_oferta) {
+        console.log('ID de oferta:', props.ofertaActual.id_oferta)
+        advertenciaRef.value.open(props.ofertaActual.id_oferta, null)
+      }
+      // Si tenemos ID de mascota
+      else if (mascotaComputed.value?.id && mascotaComputed.value.id !== 'demo-burro') {
+        console.log('ID de mascota:', mascotaComputed.value.id)
+        advertenciaRef.value.open(null, mascotaComputed.value.id)
+      }
+      // Si hay parámetro de ruta
+      else if (route.params.id) {
+        console.log('ID de ruta:', route.params.id)
+        // Determinar si es oferta o mascota basado en la ruta
+        const esOferta = route.path.includes('oferta') || route.path.includes('cerca')
+        if (esOferta) {
+          advertenciaRef.value.open(route.params.id, null)
+        } else {
+          advertenciaRef.value.open(null, route.params.id)
+        }
+      }
+    }
+    // Para la vista "cerca"
+    else if (route.path.startsWith('/explorar/cerca/') && route.params.id) {
+      console.log('Contexto: Vista cerca de ti')
       console.log('ID de oferta:', route.params.id)
       advertenciaRef.value.open(route.params.id, null)
     } 
-    // Verificar si tenemos un ID de mascota directo
-    else if (mascotaComputed.value?.id && mascotaComputed.value.id !== 'demo-burro') {
-      console.log('Contexto: Tenemos ID de mascota directo')
-      console.log('ID de mascota:', mascotaComputed.value.id)
-      advertenciaRef.value.open(null, mascotaComputed.value.id)
-    } 
-    // Verificar si hay un query parameter de mascota_id
-    else if (route.query.mascota_id) {
-      console.log('Contexto: Tenemos mascota_id en query')
-      console.log('mascota_id:', route.query.mascota_id)
-      advertenciaRef.value.open(null, route.query.mascota_id)
-    }
-    // Verificar si hay un query parameter de oferta_id
-    else if (route.query.oferta_id) {
-      console.log('Contexto: Tenemos oferta_id en query')
-      console.log('oferta_id:', route.query.oferta_id)
-      advertenciaRef.value.open(route.query.oferta_id, null)
-    }
+    // Otros casos
     else {
-      console.error('No se pudo determinar el contexto para la adopción')
-      mostrarNotificacion('No se pudo identificar la mascota para adopción', 'error')
+      console.log('Contexto: Otro caso')
+      // Lógica existente...
+      if (mascotaComputed.value?.id && mascotaComputed.value.id !== 'demo-burro') {
+        advertenciaRef.value.open(null, mascotaComputed.value.id)
+      } else if (route.query.mascota_id) {
+        advertenciaRef.value.open(null, route.query.mascota_id)
+      } else if (route.query.oferta_id) {
+        advertenciaRef.value.open(route.query.oferta_id, null)
+      } else {
+        console.error('No se pudo determinar el contexto')
+        mostrarNotificacion('No se pudo identificar la mascota para adopción', 'error')
+      }
     }
   } else {
-    console.error('advertenciaRef no está disponible')
-    mostrarNotificacion('Error al abrir el formulario de adopción', 'error')
+    console.error('advertenciaRef no disponible')
+    mostrarNotificacion('Error al abrir formulario', 'error')
   }
 }
 
@@ -319,7 +445,12 @@ function abrirAdvertencia() {
 function onAdopcionSuccess(data) {
   console.log('Adopción exitosa:', data)
   mostrarNotificacion('¡Solicitud enviada con éxito!', 'success')
-  // No cerrar automáticamente, dejar que el usuario lo haga
+  
+  // Si estamos en la vista de swipe, emitir evento para avanzar
+  if (route.path.startsWith('/explorar/encuentros')) {
+    emit('swipe-completed', 'like')
+    emit('next')
+  }
 }
 
 function onAdopcionError(err) {
@@ -355,28 +486,6 @@ const images = ref([
   'https://cdn.pixabay.com/photo/2020/12/29/22/57/donkey-5871800_960_720.jpg'
 ]);
 
-// Inicializar observer de forma segura
-const initObserver = () => {
-  if (observer) {
-    observer.disconnect()
-    observer = null
-  }
-
-  if (!botonesAnimados.value) return
-
-  observer = new IntersectionObserver(
-    ([entry]) => {
-      mostrarBotones.value = entry.isIntersecting
-    },
-    { 
-      threshold: 0.5,
-      rootMargin: '0px'
-    }
-  )
-  
-  observer.observe(botonesAnimados.value)
-}
-
 function goToHistorial() {
   const query = {
     ...route.query,
@@ -394,6 +503,13 @@ const mostrarBotonVolver = computed(() => from.value === 'cerca')
 
 // --- Cargar mascota desde oferta o directamente ---
 async function cargarMascota() {
+
+  if (props.ofertaActual) {
+    mascota.value = props.ofertaActual.mascota
+    cargando.value = false
+    return
+  }
+
   const idMascota = route.params.id || route.query.mascota_id;
   const idOferta = route.params.id || route.query.oferta_id;
   
@@ -470,6 +586,7 @@ const mascotaComputed = computed(() => {
     edad: '2',
     unidad_edad: 'Años',
     sexo: 'Hembra',
+    castrado: true,
     descripcion: `Con sus largas orejas y su mirada dulce... (demo)`,
     caracteristicas: {
       tamano: 'Grande',
@@ -511,26 +628,22 @@ function onImgError(event) {
   event.target.src = burro
 }
 
-// -------------- lifecycle + observer corregido --------------
+// -------------- lifecycle --------------
 onMounted(async () => {
   document.body.style.overflow = 'hidden'
   
-  // Esperar a que el DOM se renderice completamente
   await nextTick()
-  
-  // Inicializar el contenedor de botones después de que el DOM esté listo
   showButtonsContainer.value = true
-  
-  // Esperar un tick más para asegurar que el elemento esté en el DOM
   await nextTick()
   
-  // Inicializar observer de forma segura
+  // Inicializar observer
   if (botonesAnimados.value) {
     initObserver()
   }
   
   cargarMascota()
 })
+
 
 onUnmounted(() => {
   // Limpiar observer de forma segura
@@ -602,23 +715,43 @@ const edadDisplay = computed(() => {
   return 'Edad no disponible'
 })
 
+const castradoLabel = computed(() => {
+  const castrado = mascotaComputed.value?.castrado
+  
+  if (castrado === null || castrado === undefined) {
+    return 'Castración: No especificado'
+  }
+  
+  return castrado ? 'Castrado/a' : 'No castrado/a'
+})
+
 // Función de notificación
 function mostrarNotificacion(mensaje, tipo = 'info') {
   console.log(`${tipo.toUpperCase()}: ${mensaje}`)
-  
-  // Aquí puedes integrar con tu sistema de notificaciones
-  // Por ejemplo:
-  // if (typeof window !== 'undefined' && window.showNotification) {
-  //   window.showNotification(mensaje, tipo)
-  // }
-  
-  // O usar un store:
-  // const notificationStore = useNotificationStore()
-  // notificationStore.add({
-  //   message: mensaje,
-  //   type: tipo,
-  //   timeout: 3000
-  // })
+  // Implementar notificaciones si es necesario
 }
-</script>
+
+
+// Observador para mostrar/ocultar botones
+const initObserver = () => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+
+  if (!botonesAnimados.value) return
+
+  observer = new IntersectionObserver(
+    ([entry]) => {
+      mostrarBotones.value = entry.isIntersecting
+    },
+    { 
+      threshold: 0.5,
+      rootMargin: '0px'
+    }
+  )
   
+  observer.observe(botonesAnimados.value)
+}
+
+</script>

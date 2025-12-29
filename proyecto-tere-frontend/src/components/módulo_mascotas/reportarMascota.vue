@@ -89,18 +89,22 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import axios from 'axios'
+import { useAuth } from '@/composables/useAuth'
+import { useRoute } from 'vue-router'
 
 const emit = defineEmits(['close'])
 
-const cerrar = () => {
-  emit('close')
-}
+const route = useRoute()
+const { accessToken } = useAuth()
 
 const mostrarRazones = ref(false)
 const razonSeleccionada = ref(null)
 const causaSeleccionada = ref(null)
 const descripcion = ref('')
+const enviando = ref(false)
+const error = ref(null)
 
 const razones = [
   'Maltrato Animal',
@@ -118,6 +122,10 @@ const causasEspecificas = {
   'Mascota ilegal': ['Especie prohibida', 'Falta de permisos', 'Tráfico ilegal', 'Otro'],
 }
 
+const cerrar = () => {
+  emit('close')
+}
+
 const seleccionarRazon = (razon) => {
   razonSeleccionada.value = razon
 }
@@ -126,18 +134,122 @@ const seleccionarCausa = (causa) => {
   causaSeleccionada.value = causa
 }
 
-const enviarDenuncia = () => {
-  console.log('Razón:', razonSeleccionada.value)
-  console.log('Causa específica:', causaSeleccionada.value)
-  console.log('Descripción:', descripcion.value)
+// Obtener ID de mascota u oferta según la ruta
+const getIdentificadorDenuncia = () => {
+  const params = route.params
+  const query = route.query
+  
+  // Si estamos en una oferta de adopción
+  if (route.path.startsWith('/explorar/cerca/') && params.id) {
+    return { oferta_id: params.id }
+  }
+  
+  // Si estamos en encuentros con oferta actual
+  if (route.path.startsWith('/explorar/encuentros') && params.id) {
+    return { oferta_id: params.id }
+  }
+  
+  // Si tenemos mascota_id en query
+  if (query.mascota_id) {
+    return { mascota_id: query.mascota_id }
+  }
+  
+  // Si tenemos oferta_id en query
+  if (query.oferta_id) {
+    return { oferta_id: query.oferta_id }
+  }
+  
+  return null
+}
 
-  // Aquí podés emitir un evento o enviar la data a un backend
-  cerrar()
+const enviarDenuncia = async () => {
+  if (!razonSeleccionada.value || !causaSeleccionada.value) {
+    error.value = 'Por favor selecciona una razón y causa específica'
+    return
+  }
 
-  // Reset para futuros usos
+  const identificador = getIdentificadorDenuncia()
+  if (!identificador) {
+    error.value = 'No se pudo identificar la mascota u oferta para denunciar'
+    return
+  }
+
+  enviando.value = true
+  error.value = null
+
+  try {
+    const payload = {
+      ...identificador,
+      categoria: razonSeleccionada.value,
+      subcategoria: causaSeleccionada.value,
+      descripcion: descripcion.value
+    }
+
+    console.log('🔍 Enviando denuncia con payload:', payload)
+    console.log('🔍 Token de acceso disponible:', !!accessToken.value)
+    console.log('🔍 Ruta actual:', route.fullPath)
+    console.log('🔍 Parámetros de ruta:', route.params)
+    console.log('🔍 Query params:', route.query)
+
+    const response = await axios.post('/api/denuncias', payload, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      timeout: 10000 // 10 segundos timeout
+    })
+
+    console.log('✅ Respuesta del servidor:', response.data)
+
+    if (response.data.success) {
+      // Mostrar notificación de éxito
+      mostrarNotificacion('Denuncia enviada correctamente. Será revisada por nuestro equipo.', 'success')
+      
+      // Resetear formulario
+      resetFormulario()
+      
+      // Cerrar modal
+      cerrar()
+    } else {
+      error.value = response.data.message || 'Error al enviar la denuncia'
+      console.error('❌ Error en respuesta:', response.data)
+    }
+  } catch (err) {
+    console.error('❌ Error completo al enviar denuncia:', err)
+    console.error('❌ URL de la petición:', err.config?.url)
+    console.error('❌ Código de estado:', err.response?.status)
+    console.error('❌ Datos del error:', err.response?.data)
+    console.error('❌ Headers de respuesta:', err.response?.headers)
+    
+    if (err.response?.data?.errors) {
+      error.value = Object.values(err.response.data.errors).flat().join(', ')
+    } else if (err.response?.data?.message) {
+      error.value = err.response.data.message
+    } else if (err.code === 'ECONNABORTED') {
+      error.value = 'Tiempo de espera agotado. Intenta nuevamente.'
+    } else if (err.code === 'ERR_NETWORK') {
+      error.value = 'Error de conexión. Verifica tu internet.'
+    } else {
+      error.value = 'Error inesperado. Intenta nuevamente.'
+    }
+  } finally {
+    enviando.value = false
+  }
+}
+
+const resetFormulario = () => {
   mostrarRazones.value = false
   razonSeleccionada.value = null
   causaSeleccionada.value = null
   descripcion.value = ''
+  error.value = null
+}
+
+const mostrarNotificacion = (mensaje, tipo = 'info') => {
+  // Implementa tu sistema de notificaciones aquí
+  console.log(`${tipo.toUpperCase()}: ${mensaje}`)
+  // Ejemplo con alert temporal:
+  alert(mensaje)
 }
 </script>

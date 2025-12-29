@@ -69,18 +69,6 @@
           </div>
 
           <div>
-              <label class="block font-medium mb-2">Especie objetivo</label>
-              <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
-              <p v-if="!especiesSeleccionadas.length" class="text-sm text-gray-500 mt-1">
-                Seleccione una o más especies objetivo
-              </p>
-          </div>
-
-        </div>
-
-        <!-- Columna derecha -->
-        <div class="space-y-4">
-          <div>
             <label class="block font-medium">Reacción común asociada</label>
             <input 
               v-model="alergia.reaccion" 
@@ -103,19 +91,50 @@
           </div>
 
           <div>
-            <label class="block font-medium">Áreas afectadas</label>
-            <div class="flex flex-wrap gap-2">
-              <label v-for="area in areasAfectadas" :key="area.value" class="flex items-center space-x-2">
-                <input type="checkbox" v-model="alergia.areas" :value="area.value" class="rounded">
-                <span>{{ area.label }}</span>
-              </label>
+              <label class="block font-medium mb-2">Especie objetivo</label>
+              <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
+              <p v-if="!especiesSeleccionadas.length" class="text-sm text-gray-500 mt-1">
+                Seleccione una o más especies objetivo
+              </p>
+          </div>
+
+        </div>
+
+        <!-- Columna derecha -->
+        <div class="space-y-4">
+          <!-- ÁREAS AFECTADAS (ÁRBOL ANATÓMICO) - SEGÚN ESTÁNDAR -->
+          <div class="my-8">
+            <div class="flex items-center mb-6">
+              <div class="flex-grow border-t border-gray-600"></div>
+              <h5 class="px-4 text-center font-bold text-gray-800 whitespace-nowrap">
+                Áreas Afectadas
+                <span v-if="areasSeleccionadas.length > 0" class="text-sm text-green-600 ml-2">
+                  ({{ areasSeleccionadas.length }} seleccionadas)
+                </span>
+              </h5>
+              <div class="flex-grow border-t border-gray-600"></div>
             </div>
-            <input 
-              v-model="alergia.otraArea"
-              type="text"
-              class="w-full border rounded p-2 mt-2"
-              placeholder="Otra área afectada (especificar)"
+            
+            <!-- Componente de árbol anatómico -->
+            <ClinicalExaminationTree 
+              ref="arbolAnatomicoRef"
+              :initial-data="alergia.areas"
+              @selection-change="handleArbolSelectionChange"
             />
+            
+            <!-- Área adicional -->
+            <div class="mt-6">
+              <label class="block font-medium mb-2">Otra área afectada (opcional)</label>
+              <input 
+                v-model="alergia.otraArea"
+                type="text"
+                class="w-full border rounded p-2"
+                placeholder="Agregue otras áreas afectadas no incluidas en el árbol anatómico"
+              />
+              <p class="text-sm text-gray-500 mt-1">
+                Use este campo para agregar áreas específicas que no estén en la lista anterior
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -199,8 +218,11 @@ import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import { useAuth } from '@/composables/useAuth'
 import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
+import ClinicalExaminationTree from '@/components/ElementosGraficos/arbolAnatomico.vue'
 
 const especiesSeleccionadas = ref([])
+const areasSeleccionadas = ref([]) // Para almacenar las áreas seleccionadas
+const arbolAnatomicoRef = ref(null)
 
 const router = useRouter()
 const route = useRoute()
@@ -210,16 +232,6 @@ const esModoEdicion = computed(() => route.params.id !== undefined)
 
 const alergiaId = ref(null)
 
-const areasAfectadas = [
-  { value: 'piel', label: 'Piel' },
-  { value: 'ojos', label: 'Ojos' },
-  { value: 'oidos', label: 'Oídos' },
-  { value: 'respiratorio', label: 'Sistema respiratorio' },
-  { value: 'digestivo', label: 'Sistema digestivo' },
-  { value: 'neurologico', label: 'Sistema neurológico' },
-  { value: 'otro', label: 'Otro' }
-]
-
 const alergia = reactive({
   nombre: '',
   descripcion: '',
@@ -227,7 +239,7 @@ const alergia = reactive({
   categoriaOtro: '',
   reaccion: '',
   riesgo: '',
-  areas: [],
+  areas: [], // Array de nombres de áreas anatómicas
   otraArea: '',
   tratamiento: '',
   recomendaciones: '',
@@ -236,6 +248,33 @@ const alergia = reactive({
   conducta: '',
   observaciones: ''
 })
+
+// Función para manejar cambios en la selección del árbol
+// En handleArbolSelectionChange, evitar actualizar si no hay cambios
+const handleArbolSelectionChange = (data) => {
+  const newAreaNames = data.areaNames
+  
+  // Comparar para evitar bucles
+  if (JSON.stringify(alergia.areas) !== JSON.stringify(newAreaNames)) {
+    alergia.areas = newAreaNames
+    areasSeleccionadas.value = data.areas
+    console.log('Áreas seleccionadas:', alergia.areas)
+  }
+}
+
+// Agregar watch para sincronización
+watch(() => alergia.areas, (newAreas) => {
+  console.log('🔄 alergia.areas cambió:', newAreas)
+  
+  // Solo actualizar si realmente hay cambios
+  if (JSON.stringify(areasSeleccionadas.value.map(a => a.nombre)) !== JSON.stringify(newAreas)) {
+    areasSeleccionadas.value = newAreas.map(area => ({
+      nombre: area,
+      id: null,
+      sistema: ''
+    }))
+  }
+}, { deep: true })
 
 // Cargar datos cuando esté en modo edición
 onMounted(async () => {
@@ -269,14 +308,45 @@ const cargarAlergia = async () => {
       alergia.categoriaOtro = datos.categoria_otro || ''
       alergia.reaccion = datos.reaccion_comun || ''
       alergia.riesgo = datos.nivel_riesgo || ''
-      alergia.areas = Array.isArray(datos.areas_afectadas) ? datos.areas_afectadas : []
       alergia.otraArea = datos.otra_area || ''
       alergia.tratamiento = datos.tratamiento_recomendado || ''
       alergia.recomendaciones = datos.recomendaciones_clinicas || ''
-      especiesSeleccionadas.value = Array.isArray(datos.especies) ? datos.especies : []
       alergia.desencadenante = datos.desencadenante || ''
       alergia.conducta = datos.conducta_recomendada || ''
       alergia.observaciones = datos.observaciones_adicionales || ''
+      
+      // Cargar las especies objetivo
+      if (datos.especies && Array.isArray(datos.especies)) {
+        especiesSeleccionadas.value = datos.especies
+      } else if (datos.especie_objetivo) {
+        especiesSeleccionadas.value = [datos.especie_objetivo]
+      }
+      
+      // Cargar las áreas afectadas - IMPORTANTE
+      if (datos.areas_afectadas && Array.isArray(datos.areas_afectadas)) {
+        alergia.areas = datos.areas_afectadas
+        areasSeleccionadas.value = datos.areas_afectadas.map(area => ({
+          nombre: area,
+          id: null,
+          sistema: ''
+        }))
+        
+        console.log('📋 Áreas cargadas para el árbol:', datos.areas_afectadas)
+        console.log('📋 Número de áreas:', datos.areas_afectadas.length)
+        
+        // Forzar una actualización después de cargar los datos
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        // Si el árbol está disponible, llamar a loadInitialData directamente
+        if (arbolAnatomicoRef.value) {
+          console.log('📋 Llamando a loadInitialData directamente')
+          arbolAnatomicoRef.value.loadInitialData(datos.areas_afectadas)
+        }
+      } else {
+        alergia.areas = []
+        areasSeleccionadas.value = []
+      }
+      
     } else {
       throw new Error(response.data.message || 'Error al cargar los datos')
     }
@@ -300,6 +370,23 @@ const registrarAlergia = async () => {
       return
     }
 
+    // Validaciones
+    if (alergia.areas.length === 0 && !alergia.otraArea.trim()) {
+      alert('Debe seleccionar al menos un área afectada')
+      return
+    }
+
+    if (especiesSeleccionadas.value.length === 0) {
+      alert('Debe seleccionar al menos una especie objetivo')
+      return
+    }
+
+    // Combinar áreas del árbol con "otra área" si existe
+    let todasLasAreas = [...alergia.areas]
+    if (alergia.otraArea && alergia.otraArea.trim() !== '') {
+      todasLasAreas.push(alergia.otraArea.trim())
+    }
+
     const payload = {
       nombre: alergia.nombre,
       descripcion: alergia.descripcion,
@@ -307,11 +394,11 @@ const registrarAlergia = async () => {
       categoria_otro: alergia.categoria === 'otra' ? alergia.categoriaOtro : null,
       reaccion_comun: alergia.reaccion,
       nivel_riesgo: alergia.riesgo,
-      areas_afectadas: alergia.areas,
+      areas_afectadas: todasLasAreas,
       otra_area: alergia.otraArea || null,
       tratamiento_recomendado: alergia.tratamiento || null,
       recomendaciones_clinicas: alergia.recomendaciones || null,
-      especies: especiesSeleccionadas.value.length > 0 ? especiesSeleccionadas.value : ['todos'], // Cambio aquí
+      especies: especiesSeleccionadas.value.length > 0 ? especiesSeleccionadas.value : ['todos'],
       desencadenante: alergia.desencadenante || null,
       conducta_recomendada: alergia.conducta || null,
       observaciones_adicionales: alergia.observaciones || null
@@ -352,6 +439,23 @@ const actualizarAlergia = async () => {
       return
     }
 
+    // Validaciones
+    if (alergia.areas.length === 0 && !alergia.otraArea.trim()) {
+      alert('Debe seleccionar al menos un área afectada')
+      return
+    }
+
+    if (especiesSeleccionadas.value.length === 0) {
+      alert('Debe seleccionar al menos una especie objetivo')
+      return
+    }
+
+    // Combinar áreas del árbol con "otra área" si existe
+    let todasLasAreas = [...alergia.areas]
+    if (alergia.otraArea && alergia.otraArea.trim() !== '') {
+      todasLasAreas.push(alergia.otraArea.trim())
+    }
+
     const payload = {
       nombre: alergia.nombre,
       descripcion: alergia.descripcion,
@@ -359,7 +463,7 @@ const actualizarAlergia = async () => {
       categoria_otro: alergia.categoria === 'otra' ? alergia.categoriaOtro : null,
       reaccion_comun: alergia.reaccion,
       nivel_riesgo: alergia.riesgo,
-      areas_afectadas: alergia.areas,
+      areas_afectadas: todasLasAreas,
       otra_area: alergia.otraArea || null,
       tratamiento_recomendado: alergia.tratamiento || null,
       recomendaciones_clinicas: alergia.recomendaciones || null,

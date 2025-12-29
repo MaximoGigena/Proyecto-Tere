@@ -127,26 +127,30 @@ const cargarDatosMascota = async () => {
   try {
     const response = await axios.get(`/api/mascotas/${route.params.id}`, {
       headers: {
-        'Authorization': `Bearer ${accessToken.value}` // Usar accessToken del composable
+        'Authorization': `Bearer ${accessToken.value}`
       }
     })
 
     if (response.data.success) {
-      const m = response.data.mascota
+      // CORREGIR: Acceder a response.data.data en lugar de response.data.mascota
+      const mascotaData = response.data.data
+      
       mascota.value = {
-        id: m.id,
-        nombre: m.nombre,
-        edad: `${m.edad} ${m.unidad_edad}`,
-        sexo: m.sexo === 'macho' ? 'Macho' : 'Hembra',
-        imagen: m.fotos && m.fotos.length > 0 
-          ? m.fotos[0].url 
+        id: mascotaData.id,
+        nombre: mascotaData.nombre,
+        // CORREGIR: Ajustar según la estructura real de la respuesta
+        // La API devuelve 'edad_formateada' directamente, no 'edad' y 'unidad_edad' separados
+        edad: mascotaData.edad_formateada || 'Edad no disponible',
+        sexo: mascotaData.sexo === 'macho' ? 'Macho' : 'Hembra',
+        imagen: mascotaData.fotos && mascotaData.fotos.length > 0 
+          ? mascotaData.fotos[0].url 
           : 'https://cdn.pixabay.com/photo/2017/08/18/06/49/capybara-2653996_1280.jpg'
       }
     }
   } catch (error) {
     console.error('Error al cargar mascota:', error)
+    console.error('Respuesta completa:', error.response?.data) // ← Agregar para depurar
     
-    // Manejar errores de autenticación
     if (error.response?.status === 401) {
       alert('Tu sesión ha expirado. Por favor inicia sesión nuevamente.')
       router.push('/login')

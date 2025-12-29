@@ -209,25 +209,38 @@ export default {
         },
         {
           id: 11,
-          name: '11. Comportamiento',
+          name: '11. Sistema Auditivo',
           expanded: false,
           selected: false,
           items: [
-            { id: 1101, name: 'Ansiedad', selected: false },
-            { id: 1102, name: 'Agresividad', selected: false },
-            { id: 1103, name: 'Cognición', selected: false },
-            { id: 1104, name: 'Interacción social', selected: false }
+            { id: 1101, name: 'Oído Externo', selected: false },
+            { id: 1102, name: 'Oído Medio', selected: false },
+            { id: 1103, name: 'Oído Interno', selected: false },
+            { id: 1104, name: 'Audición / respuesta a sonidos', selected: false },
+            { id: 1105, name: 'Equilibrio', selected: false }
           ]
         },
         {
           id: 12,
-          name: '12. Nutrición',
+          name: '12. Comportamiento',
           expanded: false,
           selected: false,
           items: [
-            { id: 1201, name: 'Dieta', selected: false },
-            { id: 1202, name: 'Apetito', selected: false },
-            { id: 1203, name: 'Hidratación', selected: false }
+            { id: 1201, name: 'Ansiedad', selected: false },
+            { id: 1202, name: 'Agresividad', selected: false },
+            { id: 1203, name: 'Cognición', selected: false },
+            { id: 1204, name: 'Interacción social', selected: false }
+          ]
+        },
+        {
+          id: 13,
+          name: '13. Nutrición',
+          expanded: false,
+          selected: false,
+          items: [
+            { id: 1301, name: 'Dieta', selected: false },
+            { id: 1302, name: 'Apetito', selected: false },
+            { id: 1303, name: 'Hidratación', selected: false }
           ]
         }
       ]

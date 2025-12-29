@@ -7,8 +7,20 @@
         <div class="text-2xl font-bold text-gray-800 pointer-events-none">
           Chats
         </div>
-        <button class="text-gray-700 hover:text-black transition">
+        <button
+          @click="toggleNotifications"
+          class="relative text-gray-700 hover:text-black transition"
+        >
           <font-awesome-icon :icon="['fas', 'bell']" class="text-2xl"/>
+
+          <!-- Badge -->
+          <span
+            v-if="totalNotificaciones > 0"
+            class="absolute -top-1 -right-1 bg-red-500 text-white text-xs 
+                  w-5 h-5 rounded-full flex items-center justify-center"
+          >
+            {{ totalNotificaciones }}
+          </span>
         </button>
       </div>
 
@@ -24,6 +36,14 @@
       />
     </div>
     
+   
+    <!-- Notificaciones Overlay - COMPLETAMENTE FUERA DE LA ESTRUCTURA -->
+    <NotificationsOverlay
+      v-if="showNotifications"
+      :notificaciones="notificaciones"
+      @close="showNotifications = false"
+    />
+    
     <div class="sticky z-30 bg-white px-4 py-2 border-b border-gray-600"></div>
     
     <!-- Contenedor de scroll -->
@@ -31,7 +51,6 @@
       ref="scrollContainer"
       class="relative w-full flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-4"
     > 
-      <div class="h-2"></div>
       <!-- Notificación de chats -->
       <div class="flex items-center gap-12">
         <!-- Notificación de solicitudes con botón de filtro adentro -->
@@ -53,7 +72,7 @@
             </span>
           </div>
 
-          <!-- Botón de filtro (grupo derecho separado) -->
+          <!-- Botón de filtro -->
           <div class="relative">
             <button
               @click="open = !open"
@@ -92,34 +111,69 @@
 
       <div class="h-2"></div>
 
+      <!-- Loading -->
+      <div v-if="loadingChats" class="flex justify-center py-8">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+
       <!-- Lista de chats -->
-      <div v-for="(chat, index) in chats" :key="index" class="relative">
-        <div class="flex justify-between items-center gap-3 mb-2 min-h-[72px] transition duration-200 hover:bg-blue-100 rounded-xl">
-          <router-link
-            :to="{
-              path: `/explorar/chats/${index + 1}`,
-              query: {
-                nombre: chat.nombre,
-                img: chat.img,
-                from: 'chats'
-              }
-            }"
-            class="flex-1 flex items-start gap-3 py-4 pl-4"
-          >
-            <img :src="chat.img" class="w-16 h-16 rounded-full object-cover" :alt="chat.nombre">
-            <div>
-              <p class="font-semibold text-lg">{{ chat.nombre }}</p>
-              <p class="text-sm text-gray-700">{{ chat.mensaje }}</p>
-            </div>
-          </router-link>
-          
-          <button
-            @click.stop="toggleFavorite(chat)"
-            class="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 p-2 transition duration-200"
-            :class="chat.favorito ? 'text-green-400' : 'text-gray-400 hover:text-gray-500'"
-          >
-            <font-awesome-icon :icon="['fas', 'star']" class="text-2xl"/>
-          </button>
+      <div v-else>
+        <div v-for="(chat, index) in chats" :key="index" class="relative">
+          <div class="flex justify-between items-center gap-3 mb-2 min-h-[72px] transition duration-200 hover:bg-blue-100 rounded-xl">
+            <router-link
+              :to="{
+                path: `/explorar/chats/${chat.id || chat.chat_id || (index + 1)}`,
+                query: {
+                  nombre: chat.nombre,
+                  img: chat.img,
+                  from: 'chats',
+                  solicitud_id: chat.solicitud_id
+                }
+              }"
+              class="flex-1 flex items-start gap-3 py-4 pl-4"
+            >
+              <div class="relative">
+                <img :src="chat.img" class="w-16 h-16 rounded-full object-cover" :alt="chat.nombre">
+                <!-- Indicador de online -->
+                <div v-if="chat.online" class="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <p class="font-semibold text-lg">{{ chat.nombre }}</p>
+                  <span v-if="chat.mascota_nombre" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                    {{ chat.mascota_nombre }}
+                  </span>
+                </div>
+                <p class="text-sm text-gray-700 truncate">{{ chat.mensaje }}</p>
+                <div class="flex items-center justify-between mt-1">
+                  <span class="text-xs text-gray-500">
+                    {{ chat.fecha ? formatFecha(chat.fecha) : '' }}
+                  </span>
+                  <span v-if="chat.mensajes_no_leidos > 0" 
+                        class="bg-blue-600 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
+                    {{ chat.mensajes_no_leidos }}
+                  </span>
+                </div>
+              </div>
+            </router-link>
+            
+            <button
+              @click.stop="toggleFavorite(chat)"
+              class="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 p-2 transition duration-200"
+              :class="chat.favorito ? 'text-green-400' : 'text-gray-400 hover:text-gray-500'"
+            >
+              <font-awesome-icon :icon="['fas', 'star']" class="text-2xl"/>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sin chats -->
+        <div v-if="chats.length === 0" class="text-center py-12">
+          <svg class="w-24 h-24 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <p class="text-gray-500 text-lg">No tienes chats activos</p>
+          <p class="text-gray-400 text-sm">Inicia una conversación desde una solicitud de adopción</p>
         </div>
       </div>
       
@@ -129,36 +183,107 @@
 </template>
   
 <script setup>
-import { reactive, ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useRoute } from 'vue-router';
 import axios from 'axios';
 import SolicitudesLista from '@/components/ElementosGraficos/ListadoDeSolicitudes.vue';
+import NotificationsOverlay from '@/components/módulo_usuario/NotificacionesOverlay.vue';
 
-const route = useRoute();
 const router = useRouter();
 
 const open = ref(false);
 const selectedFilter = ref(null);
 const filters = ref(["Todas", "Pendientes", "Aprobadas", "Rechazadas"]);
 
-// Determinar si estamos en desarrollo
-const isDevelopment = import.meta.env.MODE === 'development' || 
-                     import.meta.env.DEV || 
-                     window.location.hostname === 'localhost' ||
-                     window.location.hostname === '127.0.0.1';
-
 // Datos reactivos
 const solicitudesRecibidas = ref([]);
-const todasLasSolicitudes = ref([]); // Para debugging
-const loading = ref(false);
-const error = ref(null);
+const chats = ref([]);
+const loadingChats = ref(false);
+const loadingSolicitudes = ref(false);
 
-// Computed properties
+
+// AÑADE ESTAS NUEVAS PROPIEDADES
+const showNotifications = ref(false);
+const notificaciones = ref([]);
+
+const toggleNotifications = () => {
+  showNotifications.value = !showNotifications.value;
+  // Opcional: cargar notificaciones cuando se abre
+  if (showNotifications.value && notificaciones.value.length === 0) {
+    cargarNotificaciones();
+  }
+};
+
+// Computed property para el total de notificaciones
+const totalNotificaciones = computed(() => {
+  return notificaciones.value.length;
+});
+
+// Función para cargar notificaciones
+async function cargarNotificaciones() {
+  try {
+    console.log('Cargando notificaciones...');
+    
+    // Ejemplo de API - ajusta según tu backend
+    const response = await axios.get('/api/notificaciones', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (response.data.success) {
+      notificaciones.value = response.data.data.notificaciones || [];
+      console.log(`Cargadas ${notificaciones.value.length} notificaciones`);
+    } else {
+      console.error('Error cargando notificaciones:', response.data);
+      // Datos de ejemplo
+      usarNotificacionesEjemplo();
+    }
+  } catch (err) {
+    console.error('Error cargando notificaciones:', err);
+    // Datos de ejemplo
+    usarNotificacionesEjemplo();
+  }
+}
+
+function usarNotificacionesEjemplo() {
+  console.log('Usando notificaciones de ejemplo');
+  notificaciones.value = [
+    {
+      id: 1,
+      titulo: 'Nueva solicitud de adopción',
+      mensaje: 'Juan ha enviado una solicitud para adoptar a Firulais',
+      tipo: 'info',
+      fecha: '2024-12-20T10:30:00'
+    },
+    {
+      id: 2,
+      titulo: 'Chat no respondido',
+      mensaje: 'Tienes un chat pendiente de respuesta desde hace 2 días',
+      tipo: 'advertencia',
+      fecha: '2024-12-19T15:45:00'
+    },
+    {
+      id: 3,
+      titulo: 'Solicitud aprobada',
+      mensaje: 'La solicitud para adoptar a Luna ha sido aprobada',
+      tipo: 'info',
+      fecha: '2024-12-18T09:15:00'
+    }
+  ];
+}
+
+// Computed properties - IDÉNTICO A LA VERSIÓN VIEJA
 const solicitudesRecibidasFormateadas = computed(() => {
   console.log('Formateando solicitudes:', solicitudesRecibidas.value);
+  
+  if (!solicitudesRecibidas.value || solicitudesRecibidas.value.length === 0) {
+    return [];
+  }
+  
   return solicitudesRecibidas.value.map(solicitud => ({
-    id: solicitud.solicitante_id,
+    id: solicitud.solicitante_id, // ¡IMPORTANTE! Esta es la clave que funcionaba
     nombre: solicitud.nombre,
     img: solicitud.img,
     solicitud_id: solicitud.id,
@@ -183,17 +308,94 @@ const mensajeSolicitudes = computed(() => {
   return `Tienes ${count} solicitudes de adopción`;
 });
 
-// Funciones
-function selectFilter(filter) {
-  selectedFilter.value = filter;
-  open.value = false;
-  filtrarSolicitudes(filter);
+// Función para formatear fecha
+const formatFecha = (fecha) => {
+  if (!fecha) return '';
+  
+  try {
+    if (typeof fecha === 'string') {
+      const date = new Date(fecha);
+      return date.toLocaleDateString('es-ES', { 
+        day: '2-digit', 
+        month: 'short' 
+      });
+    }
+    return fecha;
+  } catch (e) {
+    return fecha;
+  }
+};
+
+// Funciones para chats
+async function cargarChats() {
+  try {
+    loadingChats.value = true;
+    console.log('Cargando chats...');
+    
+    const response = await axios.get('/api/chats', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (response.data.success) {
+      chats.value = response.data.data.chats.map(chat => ({
+        id: chat.chat_id,
+        chat_id: chat.chat_id,
+        usuario_id: chat.usuario_id,
+        nombre: chat.nombre,
+        img: chat.img,
+        mensaje: chat.ultimo_mensaje || 'Inicia una conversación',
+        fecha: chat.ultimo_mensaje_en,
+        mensajes_no_leidos: chat.mensajes_no_leidos || 0,
+        solicitud_id: chat.solicitud_id,
+        mascota_nombre: chat.mascota_nombre,
+        favorito: false,
+        online: chat.online || false
+      }));
+      
+      console.log(`Cargados ${chats.value.length} chats`);
+    } else {
+      console.error('Error en respuesta:', response.data);
+      mantenerDatosEjemplo();
+    }
+  } catch (err) {
+    console.error('Error cargando chats:', err);
+    mantenerDatosEjemplo();
+  } finally {
+    loadingChats.value = false;
+  }
 }
 
+function mantenerDatosEjemplo() {
+  // Datos de ejemplo como en la versión vieja
+  console.log('Usando datos de ejemplo para chats');
+  chats.value = [{
+    id: 1,
+    nombre: 'Josefina, dolores del mes',
+    mensaje: 'Te molesta si me como a tu perro?',
+    img: 'https://cdn.pixabay.com/photo/2020/10/07/16/24/woman-5635665_960_720.jpg',
+    favorito: false,
+    online: true,
+    mensajes_no_leidos: 2
+  }];
+}
+
+async function toggleFavorite(chat) {
+  try {
+    chat.favorito = !chat.favorito;
+    console.log(`${chat.nombre} favorito:`, chat.favorito);
+  } catch (err) {
+    console.error('Error actualizando favorito:', err);
+    chat.favorito = !chat.favorito;
+  }
+}
+
+// Función para cargar solicitudes - VERSIÓN SIMPLIFICADA COMO LA VIEJA
 async function cargarSolicitudesRecibidas() {
   try {
-    loading.value = true;
-    error.value = null;
+    loadingSolicitudes.value = true;
     console.log('Cargando solicitudes recibidas...');
     
     const response = await axios.get('/api/solicitudes/recibidas', {
@@ -206,177 +408,82 @@ async function cargarSolicitudesRecibidas() {
     console.log('Respuesta del servidor:', response.data);
     
     if (response.data.success) {
-      solicitudesRecibidas.value = response.data.data.solicitudes;
+      solicitudesRecibidas.value = response.data.data.solicitudes || [];
       console.log(`Cargadas ${solicitudesRecibidas.value.length} solicitudes:`);
+      
       solicitudesRecibidas.value.forEach(s => {
-        console.log(`- ID: ${s.id}, Nombre: ${s.nombre}, Estado: ${s.estado}`);
+        console.log(`- ID: ${s.id}, Nombre: ${s.nombre}, Estado: ${s.estado}, Solicitante ID: ${s.solicitante_id}`);
       });
     } else {
-      error.value = response.data.message || 'Error al cargar solicitudes';
       console.error('Error en respuesta:', response.data);
+      // Datos de ejemplo
+      usarDatosEjemplo();
     }
   } catch (err) {
     console.error('Error cargando solicitudes:', err);
-    error.value = 'No se pudieron cargar las solicitudes. Intenta nuevamente.';
-    
-    // Datos de ejemplo para desarrollo - SIEMPRE mostrar para debug
-    console.log('Usando datos de ejemplo para desarrollo');
-    solicitudesRecibidas.value = [
-      {
-        id: 1,
-        solicitante_id: 101,
-        nombre: 'La Abu',
-        img: 'https://cdn.pixabay.com/photo/2020/01/15/19/45/witch-4768770_1280.jpg',
-        mascota_nombre: 'Firulais',
-        fecha_solicitud: '15/12/2024 14:30',
-        estado: 'pendiente'
-      },
-      {
-        id: 2,
-        solicitante_id: 102,
-        nombre: 'Mohamed',
-        img: 'https://cdn.pixabay.com/photo/2020/07/16/07/36/man-5410019_960_720.jpg',
-        mascota_nombre: 'Luna',
-        fecha_solicitud: '14/12/2024 10:15',
-        estado: 'pendiente'
-      },
-      {
-        id: 3,
-        solicitante_id: 103,
-        nombre: 'Mauricio',
-        img: 'https://cdn.pixabay.com/photo/2020/05/16/16/41/man-5178199_1280.jpg',
-        mascota_nombre: 'Rocky',
-        fecha_solicitud: '13/12/2024 16:45',
-        estado: 'pendiente'
-      },
-      {
-        id: 4,
-        solicitante_id: 104,
-        nombre: 'Michael',
-        img: 'https://cdn.pixabay.com/photo/2025/08/23/07/48/sadhu-9791446_960_720.jpg',
-        mascota_nombre: 'Max',
-        fecha_solicitud: '12/12/2024 09:20',
-        estado: 'pendiente'
-      },
-      {
-        id: 5,
-        solicitante_id: 105,
-        nombre: 'Pepa',
-        img: 'https://cdn.pixabay.com/photo/2025/05/08/14/54/vietnam-9587582_1280.jpg',
-        mascota_nombre: 'Bobby',
-        fecha_solicitud: '11/12/2024 15:10',
-        estado: 'pendiente'
-      },
-      {
-        id: 6,
-        solicitante_id: 106,
-        nombre: 'Sofia',
-        img: 'https://cdn.pixabay.com/photo/2025/04/28/20/02/woman-9565637_1280.jpg',
-        mascota_nombre: 'Coco',
-        fecha_solicitud: '10/12/2024 11:45',
-        estado: 'pendiente'
-      }
-    ];
+    // Datos de ejemplo
+    usarDatosEjemplo();
   } finally {
-    loading.value = false;
+    loadingSolicitudes.value = false;
   }
 }
 
-// Función para cargar TODAS las solicitudes (para debugging)
-async function cargarTodasSolicitudes() {
-  try {
-    console.log('Cargando TODAS las solicitudes...');
-    const response = await axios.get('/api/solicitudes/todas-recibidas', {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Accept': 'application/json'
-      }
-    });
-
-    console.log('Respuesta de TODAS las solicitudes:', response.data);
-    
-    if (response.data.success) {
-      todasLasSolicitudes.value = response.data.data.solicitudes;
-      console.log(`Total de solicitudes en BD: ${response.data.data.total}`);
-      console.log('Estadísticas:', response.data.data.estadisticas);
-      
-      // Mostrar todas las solicitudes en consola
-      todasLasSolicitudes.value.forEach(s => {
-        console.log(`- ID: ${s.id}, Nombre: ${s.nombre}, Estado: ${s.estado}, Usuario Type: ${s.usuario_type}`);
-      });
+function usarDatosEjemplo() {
+  console.log('Usando datos de ejemplo para desarrollo');
+  solicitudesRecibidas.value = [
+    {
+      id: 1,
+      solicitante_id: 101,
+      nombre: 'La Abu',
+      img: 'https://cdn.pixabay.com/photo/2020/01/15/19/45/witch-4768770_1280.jpg',
+      mascota_nombre: 'Firulais',
+      fecha_solicitud: '15/12/2024 14:30',
+      estado: 'pendiente'
+    },
+    {
+      id: 2,
+      solicitante_id: 102,
+      nombre: 'Mohamed',
+      img: 'https://cdn.pixabay.com/photo/2020/07/16/07/36/man-5410019_960_720.jpg',
+      mascota_nombre: 'Luna',
+      fecha_solicitud: '14/12/2024 10:15',
+      estado: 'pendiente'
+    },
+    {
+      id: 3,
+      solicitante_id: 103,
+      nombre: 'Mauricio',
+      img: 'https://cdn.pixabay.com/photo/2020/05/16/16/41/man-5178199_1280.jpg',
+      mascota_nombre: 'Rocky',
+      fecha_solicitud: '13/12/2024 16:45',
+      estado: 'pendiente'
     }
-  } catch (err) {
-    console.error('Error cargando todas las solicitudes:', err);
+  ];
+}
+
+function selectFilter(filter) {
+  selectedFilter.value = filter;
+  open.value = false;
+  console.log('Filtrando por:', filter);
+  // Lógica de filtrado simple
+  if (filter === 'Todas') {
+    cargarSolicitudesRecibidas();
   }
 }
 
-async function filtrarSolicitudes(filtro) {
-  if (filtro === 'Todas') {
-    await cargarSolicitudesRecibidas();
-  } else {
-    console.log('Filtrando por:', filtro);
-    // Implementar lógica de filtrado local
-    const estadoMap = {
-      'Pendientes': 'pendiente',
-      'Aprobadas': 'aprobada',
-      'Rechazadas': 'rechazada'
-    };
-    
-    if (estadoMap[filtro]) {
-      // Filtrar localmente
-      const filtradas = solicitudesRecibidas.value.filter(
-        s => s.estado === estadoMap[filtro]
-      );
-      // Podrías actualizar una copia temporal aquí
-      console.log(`Filtradas: ${filtradas.length} solicitudes`);
-    }
-  }
+function abrirPerfilUsuario(userId) {
+  console.log('Abriendo perfil de usuario desde padre:', userId);
+  // Esta función se mantiene simple, la navegación la maneja el componente hijo
 }
-
-async function cargarConteoSolicitudes() {
-  try {
-    const response = await axios.get('/api/solicitudes/pendientes/conteo', {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Accept': 'application/json'
-      }
-    });
-
-    if (response.data.success) {
-      console.log('Conteo de solicitudes pendientes:', response.data.data.conteo);
-    }
-  } catch (err) {
-    console.error('Error cargando conteo:', err);
-  }
-}
-
-// Datos de ejemplo para chats (mantener como están)
-const chats = reactive([
-  {
-    id: 1,
-    nombre: 'Josefina, dolores del mes',
-    mensaje: 'Te molesta si me como a tu perro?',
-    img: 'https://cdn.pixabay.com/photo/2020/10/07/16/24/woman-5635665_960_720.jpg',
-    favorito: false
-  },
-]);
 
 // Ciclo de vida
 onMounted(() => {
+  console.log('✅ Componente Chats montado');
   cargarSolicitudesRecibidas();
-  cargarConteoSolicitudes();
+  cargarChats();
+  // Opcional: cargar notificaciones al montar
+  // cargarNotificaciones();
 });
-
-// Funciones existentes (mantener igual)
-const abrirPerfilUsuario = (userId) => {
-  console.log('Abriendo perfil de usuario:', userId);
-  // La navegación ya se maneja en el componente hijo
-};
-
-const toggleFavorite = (chat) => {
-  chat.favorito = !chat.favorito;
-  console.log(`${chat.nombre} favorito:`, chat.favorito);
-};
 </script>
 
 <style>

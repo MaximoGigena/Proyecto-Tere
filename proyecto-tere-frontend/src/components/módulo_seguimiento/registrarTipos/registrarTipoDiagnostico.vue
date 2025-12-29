@@ -91,16 +91,124 @@
               <option value="progresiva">Progresiva</option>
             </select>
           </div>
-
-          <div>
+          
+          <!-- CRITERIOS DIAGNÓSTICOS PRINCIPALES - SECCIÓN MODIFICADA -->
+          <div class="space-y-4">
             <label class="block font-medium">Criterios diagnósticos principales</label>
-            <textarea 
-              v-model="diagnostico.criterios_diagnosticos" 
-              rows="3" 
-              required 
-              class="w-full border rounded p-2" 
-              placeholder="Síntomas característicos, exámenes requeridos, etc."
-            ></textarea>
+            
+            <!-- Síntomas característicos -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Síntomas característicos (Signos clínicos)
+              </label>
+              <div class="flex gap-2">
+                <textarea 
+                  v-model="inputSintomas" 
+                  rows="2" 
+                  class="w-full border rounded p-2 text-sm" 
+                  placeholder="fiebre, diarrea, jadeo excesivo, cojera, etc."
+                ></textarea>
+                <button 
+                  type="button"
+                  @click="agregarItem('sintomas')"
+                  class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-blue-600 transition-colors"
+                >
+                  <font-awesome-icon :icon="['fas', 'plus']" />
+                </button>
+              </div>
+              <!-- Lista de síntomas agregados -->
+               <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+                <div v-if="sintomasAgregados.length > 0" class="mt-2 space-y-1">
+                  <div v-for="(sintoma, index) in sintomasAgregados" :key="index" 
+                      class="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                    <span>{{ sintoma }}</span>
+                    <button 
+                      type="button"
+                      @click="eliminarItem('sintomas', index)"
+                      class="text-red-500 hover:text-red-700"
+                    >
+                      <font-awesome-icon :icon="['fas', 'times']" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Exámenes requeridos -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Exámenes requeridos / Estudios complementarios
+              </label>
+              <div class="flex gap-2">
+                <textarea 
+                  v-model="inputExamenes" 
+                  rows="2" 
+                  class="w-full border rounded p-2 text-sm" 
+                  placeholder="Hemograma, Radiografía, Ecografía, etc."
+                ></textarea>
+                <button 
+                  type="button"
+                  @click="agregarItem('examenes')"
+                  class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-blue-600 transition-colors"
+                >
+                  <font-awesome-icon :icon="['fas', 'plus']" />
+                </button>
+              </div>
+              <!-- Lista de exámenes agregados -->
+              <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+                <div v-if="examenesAgregados.length > 0" class="mt-2 space-y-1">
+                  <div v-for="(examen, index) in examenesAgregados" :key="index" 
+                      class="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                    <span>{{ examen }}</span>
+                    <button 
+                      type="button"
+                      @click="eliminarItem('examenes', index)"
+                      class="text-red-500 hover:text-red-700"
+                    >
+                      <font-awesome-icon :icon="['fas', 'times']" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Señales clínicas mayores -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Señales clínicas mayores (Major criteria)
+              </label>
+              <div class="flex gap-2">
+                <textarea 
+                  v-model="inputSeñalesMayores" 
+                  rows="2"  
+                  class="w-full border rounded p-2 text-sm" 
+                  placeholder="Lesión visible, Pérdida de conciencia, etc."
+                ></textarea>
+                <button 
+                  type="button"
+                  @click="agregarItem('señalesMayores')"
+                  class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-blue-600 transition-colors"
+                >
+                  <font-awesome-icon :icon="['fas', 'plus']" />
+                </button>
+              </div>
+              <!-- Lista de señales mayores agregadas -->
+              <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+                <div v-if="señalesMayoresAgregadas.length > 0" class="mt-2 space-y-1">
+                  <div v-for="(senal, index) in señalesMayoresAgregadas" :key="index" 
+                      class="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                    <span>{{ senal }}</span>
+                    <button 
+                      type="button"
+                      @click="eliminarItem('señalesMayores', index)"
+                      class="text-red-500 hover:text-red-700"
+                    >
+                      <font-awesome-icon :icon="['fas', 'times']" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -112,7 +220,81 @@
         <div class="flex-grow border-t border-gray-600"></div>
       </div>
 
+      <!-- NUEVAS SECCIONES AGREGADAS -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
+        <!-- Señales clínicas menores -->
+        <div>
+          <label class="block font-medium">Señales clínicas menores (Minor criteria)</label>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputSeñalesMenores" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Letargo, Disminución del apetito, Cambios en comportamiento"
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('señalesMenores')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de señales menores agregadas -->
+           <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="señalesMenoresAgregadas.length > 0" class="mt-2 space-y-1">
+              <div v-for="(senal, index) in señalesMenoresAgregadas" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ senal }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('señalesMenores', index)"
+                  class="text-red-500 hover:text-red-700"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>  
+        </div>
+
+        <!-- Criterios de exclusión -->
+        <div>
+          <label class="block font-medium">Criterios de exclusión</label>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputCriteriosExclusion" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Condiciones que, si están presentes, descartan este diagnóstico."
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('criteriosExclusion')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de criterios de exclusión agregados -->
+          <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="criteriosExclusionAgregados.length > 0" class="mt-2 space-y-1">
+              <div v-for="(criterio, index) in criteriosExclusionAgregados" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ criterio }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('criteriosExclusion', index)"
+                  class="text-red-500 hover:text-red-700"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tratamiento sugerido estándar -->
         <div>
           <label class="block font-medium">Tratamiento sugerido estándar</label>
           <textarea 
@@ -123,26 +305,79 @@
           ></textarea>
         </div>
 
+        <!-- Riesgos o complicaciones asociadas -->
         <div>
           <label class="block font-medium">Riesgos o complicaciones asociadas</label>
-          <textarea 
-            v-model="diagnostico.riesgos_complicaciones" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Complicaciones comunes de este diagnóstico"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRiesgos" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Complicaciones comunes de este diagnóstico"
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('riesgos')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de riesgos agregados -->
+          <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="riesgosAgregados.length > 0" class="mt-2 space-y-1">
+              <div v-for="(riesgo, index) in riesgosAgregados" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ riesgo }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('riesgos', index)"
+                  class="text-red-500 hover:text-red-700"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- Recomendaciones clínicas -->
         <div class="col-span-full">
           <label class="block font-medium">Recomendaciones clínicas</label>
-          <textarea 
-            v-model="diagnostico.recomendaciones_clinicas" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Recomendaciones para el manejo clínico"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRecomendaciones" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Recomendaciones para el manejo clínico"
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('recomendaciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de recomendaciones agregadas -->
+          <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="recomendacionesAgregadas.length > 0" class="mt-2 space-y-1">
+              <div v-for="(recomendacion, index) in recomendacionesAgregadas" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ recomendacion }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('recomendaciones', index)"
+                  class="text-red-500 hover:text-red-700"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- Observaciones adicionales -->
         <div class="col-span-full">
           <label class="block font-medium">Observaciones adicionales</label>
           <textarea 
@@ -211,13 +446,37 @@ const esEdicion = computed(() => {
   return route.params.id !== undefined || route.query.modo === 'edicion'
 })
 
+// Inputs temporales para agregar elementos
+const inputSintomas = ref('')
+const inputExamenes = ref('')
+const inputSeñalesMayores = ref('')
+const inputSeñalesMenores = ref('')
+const inputCriteriosExclusion = ref('')
+const inputRiesgos = ref('')
+const inputRecomendaciones = ref('')
+
+// Arrays para almacenar elementos agregados
+const sintomasAgregados = ref([])
+const examenesAgregados = ref([])
+const señalesMayoresAgregadas = ref([])
+const señalesMenoresAgregadas = ref([])
+const criteriosExclusionAgregados = ref([])
+const riesgosAgregados = ref([])
+const recomendacionesAgregadas = ref([])
+
 const diagnostico = reactive({
   nombre: '',
   descripcion: '',
   especies: [],
   clasificacion: '',
-  clasificacion_otro: '', // CAMBIADO: de clasificacionOtro a clasificacion_otro
-  criterios_diagnosticos: '', 
+  clasificacion_otro: '',
+  // Nuevos campos para criterios diagnósticos (obligatorios)
+  sintomas_caracteristicos: '',
+  examenes_requeridos: '',
+  señales_clinicas_mayores: '',
+  // Nuevos campos opcionales
+  señales_clinicas_menores: '',
+  criterios_exclusion: '',
   evolucion: '',
   tratamiento_sugerido: '', 
   recomendaciones_clinicas: '', 
@@ -225,10 +484,140 @@ const diagnostico = reactive({
   observaciones: ''
 })
 
+// Función para agregar elementos
+const agregarItem = (tipo) => {
+  let inputValue, arrayDestino
+  
+  switch(tipo) {
+    case 'sintomas':
+      inputValue = inputSintomas.value.trim()
+      arrayDestino = sintomasAgregados
+      break
+    case 'examenes':
+      inputValue = inputExamenes.value.trim()
+      arrayDestino = examenesAgregados
+      break
+    case 'señalesMayores':
+      inputValue = inputSeñalesMayores.value.trim()
+      arrayDestino = señalesMayoresAgregadas
+      break
+    case 'señalesMenores':
+      inputValue = inputSeñalesMenores.value.trim()
+      arrayDestino = señalesMenoresAgregadas
+      break
+    case 'criteriosExclusion':
+      inputValue = inputCriteriosExclusion.value.trim()
+      arrayDestino = criteriosExclusionAgregados
+      break
+    case 'riesgos':
+      inputValue = inputRiesgos.value.trim()
+      arrayDestino = riesgosAgregados
+      break
+    case 'recomendaciones':
+      inputValue = inputRecomendaciones.value.trim()
+      arrayDestino = recomendacionesAgregadas
+      break
+    default:
+      return
+  }
+  
+  if (inputValue) {
+    // Verificar si ya existe (case insensitive)
+    const existe = arrayDestino.value.some(item => 
+      item.toLowerCase() === inputValue.toLowerCase()
+    )
+    
+    if (!existe) {
+      arrayDestino.value.push(inputValue)
+      
+      // Limpiar el input
+      switch(tipo) {
+        case 'sintomas': inputSintomas.value = ''; break
+        case 'examenes': inputExamenes.value = ''; break
+        case 'señalesMayores': inputSeñalesMayores.value = ''; break
+        case 'señalesMenores': inputSeñalesMenores.value = ''; break
+        case 'criteriosExclusion': inputCriteriosExclusion.value = ''; break
+        case 'riesgos': inputRiesgos.value = ''; break
+        case 'recomendaciones': inputRecomendaciones.value = ''; break
+      }
+    } else {
+      alert('Este elemento ya ha sido agregado')
+    }
+  }
+}
+
+// Función para eliminar elementos
+const eliminarItem = (tipo, index) => {
+  switch(tipo) {
+    case 'sintomas':
+      sintomasAgregados.value.splice(index, 1)
+      break
+    case 'examenes':
+      examenesAgregados.value.splice(index, 1)
+      break
+    case 'señalesMayores':
+      señalesMayoresAgregadas.value.splice(index, 1)
+      break
+    case 'señalesMenores':
+      señalesMenoresAgregadas.value.splice(index, 1)
+      break
+    case 'criteriosExclusion':
+      criteriosExclusionAgregados.value.splice(index, 1)
+      break
+    case 'riesgos':
+      riesgosAgregados.value.splice(index, 1)
+      break
+    case 'recomendaciones':
+      recomendacionesAgregadas.value.splice(index, 1)
+      break
+  }
+}
+
 // Watch para sincronizar especiesSeleccionadas con diagnostico.especies
 watch(especiesSeleccionadas, (newEspecies) => {
   diagnostico.especies = [...newEspecies]
 })
+
+// Watch para sincronizar arrays con los campos del diagnóstico
+watch([sintomasAgregados, examenesAgregados, señalesMayoresAgregadas, 
+       señalesMenoresAgregadas, criteriosExclusionAgregados,
+       riesgosAgregados, recomendacionesAgregadas], () => {
+  // Convertir arrays a strings separados por comas para el backend
+  // Asegurarse de que solo se asigne si hay elementos
+  diagnostico.sintomas_caracteristicos = sintomasAgregados.value.length > 0 
+    ? sintomasAgregados.value.join(', ') 
+    : ''
+  
+  diagnostico.examenes_requeridos = examenesAgregados.value.length > 0 
+    ? examenesAgregados.value.join(', ') 
+    : ''
+  
+  diagnostico.señales_clinicas_mayores = señalesMayoresAgregadas.value.length > 0 
+    ? señalesMayoresAgregadas.value.join(', ') 
+    : ''
+  
+  diagnostico.señales_clinicas_menores = señalesMenoresAgregadas.value.length > 0 
+    ? señalesMenoresAgregadas.value.join(', ') 
+    : ''
+  
+  diagnostico.criterios_exclusion = criteriosExclusionAgregados.value.length > 0 
+    ? criteriosExclusionAgregados.value.join(', ') 
+    : ''
+  
+  diagnostico.riesgos_complicaciones = riesgosAgregados.value.length > 0 
+    ? riesgosAgregados.value.join(', ') 
+    : ''
+  
+  diagnostico.recomendaciones_clinicas = recomendacionesAgregadas.value.length > 0 
+    ? recomendacionesAgregadas.value.join(', ') 
+    : ''
+  
+  // Debug: mostrar los valores convertidos
+  console.log('Valores convertidos para backend:')
+  console.log('sintomas_caracteristicos:', diagnostico.sintomas_caracteristicos)
+  console.log('examenes_requeridos:', diagnostico.examenes_requeridos)
+  console.log('señales_clinicas_mayores:', diagnostico.señales_clinicas_mayores)
+}, { deep: true }) // Añadido deep: true para detectar cambios en arrays
 
 // Verificar autenticación y cargar datos si es edición
 onMounted(async () => {
@@ -269,14 +658,20 @@ const cargarDiagnostico = async () => {
         if (result.success && result.data) {
           const datos = result.data
           
-          // Asignar los datos al reactive object, mapeando correctamente los campos
+          // Asignar los datos al reactive object
           Object.assign(diagnostico, {
             nombre: datos.nombre || '',
             descripcion: datos.descripcion || '',
             especies: datos.especies || [], 
             clasificacion: datos.clasificacion || '',
-            clasificacion_otro: datos.clasificacion_otro || '', // CAMBIADO
-            criterios_diagnosticos: datos.criterios_diagnosticos || '',
+            clasificacion_otro: datos.clasificacion_otro || '',
+            // Campos para criterios diagnósticos
+            sintomas_caracteristicos: datos.sintomas_caracteristicos || '',
+            examenes_requeridos: datos.examenes_requeridos || '',
+            señales_clinicas_mayores: datos.señales_clinicas_mayores || '',
+            // Nuevos campos opcionales
+            señales_clinicas_menores: datos.señales_clinicas_menores || '',
+            criterios_exclusion: datos.criterios_exclusion || '',
             evolucion: datos.evolucion || '',
             tratamiento_sugerido: datos.tratamiento_sugerido || '',
             recomendaciones_clinicas: datos.recomendaciones_clinicas || '',
@@ -284,32 +679,104 @@ const cargarDiagnostico = async () => {
             observaciones: datos.observaciones || ''
           })
 
+          // Convertir strings del backend a arrays - CORREGIDO
+          // Usar split(',') y luego filtrar elementos no vacíos
+          sintomasAgregados.value = diagnostico.sintomas_caracteristicos 
+            ? diagnostico.sintomas_caracteristicos.split(',').map(s => s.trim()).filter(s => s !== '')
+            : []
+          
+          examenesAgregados.value = diagnostico.examenes_requeridos 
+            ? diagnostico.examenes_requeridos.split(',').map(s => s.trim()).filter(s => s !== '')
+            : []
+          
+          señalesMayoresAgregadas.value = diagnostico.señales_clinicas_mayores 
+            ? diagnostico.señales_clinicas_mayores.split(',').map(s => s.trim()).filter(s => s !== '')
+            : []
+          
+          señalesMenoresAgregadas.value = diagnostico.señales_clinicas_menores 
+            ? diagnostico.señales_clinicas_menores.split(',').map(s => s.trim()).filter(s => s !== '')
+            : []
+          
+          criteriosExclusionAgregados.value = diagnostico.criterios_exclusion 
+            ? diagnostico.criterios_exclusion.split(',').map(s => s.trim()).filter(s => s !== '')
+            : []
+          
+          riesgosAgregados.value = diagnostico.riesgos_complicaciones 
+            ? diagnostico.riesgos_complicaciones.split(',').map(s => s.trim()).filter(s => s !== '')
+            : []
+          
+          recomendacionesAgregadas.value = diagnostico.recomendaciones_clinicas 
+            ? diagnostico.recomendaciones_clinicas.split(',').map(s => s.trim()).filter(s => s !== '')
+            : []
+
           // Sincronizar especies seleccionadas
           if (datos.especies && Array.isArray(datos.especies)) {
             especiesSeleccionadas.value = [...datos.especies]
           }
           
-          console.log('Datos asignados al formulario:', diagnostico)
-        } else {
-          console.error('Respuesta del servidor sin datos:', result)
-          alert('No se pudieron cargar los datos del diagnóstico')
+          console.log('Arrays cargados desde backend:')
+          console.log('sintomasAgregados:', sintomasAgregados.value)
+          console.log('examenesAgregados:', examenesAgregados.value)
+          console.log('señalesMayoresAgregadas:', señalesMayoresAgregadas.value)
         }
-      } else {
-        console.error('Error en la respuesta HTTP:', response.status)
-        alert('Error al cargar los datos del diagnóstico')
       }
     }
   } catch (error) {
     console.error('Error al cargar diagnóstico:', error)
-    alert('Error al cargar los datos del diagnóstico: ' + error.message)
   }
 }
 
 const confirmarAccion = () => {
+  // Validar campos obligatorios de criterios diagnósticos
+  let errores = []
+  
+  if (sintomasAgregados.value.length === 0) {
+    errores.push('Debe especificar al menos un síntoma característico')
+  }
+  
+  if (examenesAgregados.value.length === 0) {
+    errores.push('Debe especificar al menos un examen requerido')
+  }
+  
+  if (señalesMayoresAgregadas.value.length === 0) {
+    errores.push('Debe especificar al menos una señal clínica mayor')
+  }
+  
   if (!diagnostico.especies || diagnostico.especies.length === 0) {
-    alert('Debe seleccionar al menos una especie objetivo')
+    errores.push('Debe seleccionar al menos una especie objetivo')
+  }
+
+  // Validar otros campos obligatorios
+  if (!diagnostico.nombre.trim()) {
+    errores.push('El nombre del diagnóstico es obligatorio')
+  }
+  
+  if (!diagnostico.descripcion.trim()) {
+    errores.push('La descripción general es obligatoria')
+  }
+  
+  if (!diagnostico.clasificacion) {
+    errores.push('La clasificación es obligatoria')
+  }
+  
+  if (diagnostico.clasificacion === 'otro' && !diagnostico.clasificacion_otro?.trim()) {
+    errores.push('Debe especificar la clasificación cuando selecciona "Otro"')
+  }
+  
+  if (!diagnostico.evolucion) {
+    errores.push('La evolución típica es obligatoria')
+  }
+
+  if (errores.length > 0) {
+    alert('Por favor complete los siguientes campos obligatorios:\n\n• ' + errores.join('\n• '))
     return
   }
+  
+  // Mostrar resumen de lo que se va a enviar
+  console.log('Datos preparados para enviar:', diagnostico)
+  console.log('Síntomas agregados:', sintomasAgregados.value)
+  console.log('Exámenes agregados:', examenesAgregados.value)
+  console.log('Señales mayores agregadas:', señalesMayoresAgregadas.value)
   
   showModal.value = true
 }
@@ -336,10 +803,23 @@ const cancelar = () => {
 
 const registrarDiagnostico = async () => {
   try {
+
+    // DEBUG: Verificar que los datos están correctos antes de enviar
+    console.log('DEBUG - Arrays antes de enviar:')
+    console.log('sintomasAgregados:', sintomasAgregados.value)
+    console.log('examenesAgregados:', examenesAgregados.value)
+    console.log('señalesMayoresAgregadas:', señalesMayoresAgregadas.value)
+    console.log('Valores en diagnostico objeto:')
+    console.log('sintomas_caracteristicos:', diagnostico.sintomas_caracteristicos)
+    console.log('examenes_requeridos:', diagnostico.examenes_requeridos)
+    console.log('señales_clinicas_mayores:', diagnostico.señales_clinicas_mayores)
+    
     const datosEnvio = {
       ...diagnostico,
-      // Ya no necesitas mapear porque los nombres coinciden
       clasificacion_otro: diagnostico.clasificacion === 'otro' ? diagnostico.clasificacion_otro : null,
+      // Campos opcionales
+      señales_clinicas_menores: diagnostico.señales_clinicas_menores || null,
+      criterios_exclusion: diagnostico.criterios_exclusion || null,
       tratamiento_sugerido: diagnostico.tratamiento_sugerido || null,
       riesgos_complicaciones: diagnostico.riesgos_complicaciones || null,
       recomendaciones_clinicas: diagnostico.recomendaciones_clinicas || null,
@@ -389,8 +869,10 @@ const editarDiagnostico = async () => {
   try {
     const datosEnvio = {
       ...diagnostico,
-      // Ya no necesitas mapear porque los nombres coinciden
       clasificacion_otro: diagnostico.clasificacion === 'otro' ? diagnostico.clasificacion_otro : null,
+      // Campos opcionales
+      señales_clinicas_menores: diagnostico.señales_clinicas_menores || null,
+      criterios_exclusion: diagnostico.criterios_exclusion || null,
       tratamiento_sugerido: diagnostico.tratamiento_sugerido || null,
       riesgos_complicaciones: diagnostico.riesgos_complicaciones || null,
       recomendaciones_clinicas: diagnostico.recomendaciones_clinicas || null,

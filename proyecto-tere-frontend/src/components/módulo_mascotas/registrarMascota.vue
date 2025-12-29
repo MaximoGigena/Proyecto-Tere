@@ -107,6 +107,32 @@
               </div>
 
               <div>
+                <label class="block font-medium">¿La mascota está actualmente castrada/esterilizada?</label>
+                <div class="flex gap-4 mt-2">
+                  <label class="flex items-center">
+                    <input
+                      type="radio"
+                      v-model="mascota.castrado"
+                      :value="true"
+                      required
+                      class="mr-2"
+                    />
+                    Sí
+                  </label>
+                  <label class="flex items-center">
+                    <input
+                      type="radio"
+                      v-model="mascota.castrado"
+                      :value="false"
+                      required
+                      class="mr-2"
+                    />
+                    No
+                  </label>
+                </div>
+              </div>
+
+              <div>
                 <label class="block font-medium mb-2">Especie</label>
                  <EspecieSelector v-model="mascota.especie" />
               </div>
@@ -225,6 +251,21 @@
           </div>
 
           <div>
+            <label class="block font-medium">¿Realiza ejercicio regularmente?</label>
+            <select
+              v-model="mascota.ejercicio"
+              class="w-full border rounded p-2"
+            >
+              <option disabled value="">Seleccionar</option>
+              <option value="Diariamente">Diariamente</option>
+              <option value="Varias veces por semana">Varias veces por semana</option>
+              <option value="Semanalmente">Semanalmente</option>
+              <option value="Ocasionalmente">Ocasionalmente</option>
+              <option value="No realiza ejercicio">No realiza ejercicio</option>
+            </select>
+          </div>
+
+          <div>
             <label class="block font-medium">Comportamiento frente a otros animales </label>
             <select
               v-model="mascota.comportamientoAnimales"
@@ -331,10 +372,12 @@ const mascota = ref({
   especie: 'canino',
   fechaNacimiento: '', // String en formato dd/mm/yyyy
   sexo: '',
+  castrado: null, // Nuevo campo - booleano
   tamaño: '',
   pelaje: '', 
   alimentacion: '',
   energia: '',
+  ejercicio: '', // Nuevo campo - ejercicio
   comportamientoAnimales: '',
   comportamientoNiños: '',
   personalidad: '',
@@ -552,23 +595,29 @@ const cargarMascota = async () => {
     })
 
     if (response.data.success) {
-      const mascotaData = response.data.mascota
+      const mascotaData = response.data.data
       
-      // Llenar el formulario con los datos existentes
+      // CORRECCIÓN IMPORTANTE: castrado viene de mascotaData, NO de caracteristicas
+      console.log('Datos recibidos para editar:', mascotaData) // ← DEBUG
+      
       mascota.value = {
         nombre: mascotaData.nombre,
         especie: mascotaData.especie,
-        fechaNacimiento: mascotaData.fecha_nacimiento, // Usar el campo correcto de la API
+        fechaNacimiento: mascotaData.fecha_nacimiento,
         sexo: mascotaData.sexo,
+        castrado: mascotaData.castrado, // ← CORREGIDO: de mascotaData directamente
         tamaño: mascotaData.caracteristicas?.tamano || '',
         pelaje: mascotaData.caracteristicas?.pelaje || '',
         alimentacion: mascotaData.caracteristicas?.alimentacion || '',
         energia: mascotaData.caracteristicas?.energia || '',
+        ejercicio: mascotaData.caracteristicas?.ejercicio || '',
         comportamientoAnimales: mascotaData.caracteristicas?.comportamiento_animales || '',
         comportamientoNiños: mascotaData.caracteristicas?.comportamiento_ninos || '',
         personalidad: mascotaData.caracteristicas?.personalidad || '',
         descripcion: mascotaData.caracteristicas?.descripcion || ''
       }
+      
+      console.log('Mascota cargada para editar:', mascota.value) // ← DEBUG
 
       // Cargar fotos existentes
       if (mascotaData.fotos && mascotaData.fotos.length > 0) {
@@ -584,7 +633,7 @@ const cargarMascota = async () => {
           if (index < 6) {
             fotos.value[index] = {
               archivo: null,
-              preview: foto.url,
+              preview: foto.url || (foto.ruta_foto ? `/storage/${foto.ruta_foto}` : null),
               id: foto.id,
               esExistente: true,
               paraEliminar: false
@@ -597,6 +646,7 @@ const cargarMascota = async () => {
     }
   } catch (error) {
     console.error('Error al cargar mascota:', error)
+    console.error('Respuesta completa:', error.response?.data)
     
     if (error.response?.status === 401) {
       alert('Tu sesión ha expirado. Por favor inicia sesión nuevamente.')
@@ -679,6 +729,7 @@ const actualizarMascota = async () => {
     formData.append('especie', mascota.value.especie)
     formData.append('fecha_nacimiento', mascota.value.fechaNacimiento) // String dd/mm/yyyy
     formData.append('sexo', mascota.value.sexo)
+    formData.append('castrado', mascota.value.castrado ? '1' : '0')
     formData.append('_method', 'PUT')
 
     // Opcionales
@@ -690,6 +741,7 @@ const actualizarMascota = async () => {
     if (mascota.value.comportamientoNiños) formData.append('comportamiento_ninos', mascota.value.comportamientoNiños)
     if (mascota.value.personalidad) formData.append('personalidad', mascota.value.personalidad)
     if (mascota.value.descripcion) formData.append('descripcion', mascota.value.descripcion)
+    if (mascota.value.ejercicio) formData.append('ejercicio', mascota.value.ejercicio)
 
     // Fotos nuevas
     fotos.value.forEach((foto, index) => {
@@ -721,6 +773,7 @@ const actualizarMascota = async () => {
 
   } catch (error) {
     console.error('Error al actualizar:', error)
+    console.error('Errores de validación:', error.response?.data?.errors)
     
     if (error.response?.status === 401) {
       mensaje.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
@@ -753,24 +806,38 @@ const registrarMascota = async () => {
   mensaje.value = ''
   mensajeExito.value = false
 
+  console.log('Castrado value:', mascota.value.castrado)
+  console.log('Type of castrado:', typeof mascota.value.castrado)
+  
+  // DEBUG: Verifica todos los valores
+  console.log('Todos los valores de mascota:', JSON.parse(JSON.stringify(mascota.value)))
+
   try {
     const formData = new FormData()
 
-    // Datos obligatorios
+    // Datos obligatorios - AÑADE castrado aquí como string
     formData.append('nombre', mascota.value.nombre)
     formData.append('especie', mascota.value.especie)
-    formData.append('fecha_nacimiento', mascota.value.fechaNacimiento) // String dd/mm/yyyy
+    formData.append('fecha_nacimiento', mascota.value.fechaNacimiento)
     formData.append('sexo', mascota.value.sexo)
+    // Envía castrado como string '1' o '0' en lugar de booleano
+    formData.append('castrado', mascota.value.castrado ? '1' : '0')
 
     // Opcionales
     if (mascota.value.tamaño) formData.append('tamano', mascota.value.tamaño)
     if (mascota.value.pelaje) formData.append('pelaje', mascota.value.pelaje)
     if (mascota.value.alimentacion) formData.append('alimentacion', mascota.value.alimentacion)
     if (mascota.value.energia) formData.append('energia', mascota.value.energia)
+    if (mascota.value.ejercicio) formData.append('ejercicio', mascota.value.ejercicio)
     if (mascota.value.comportamientoAnimales) formData.append('comportamiento_animales', mascota.value.comportamientoAnimales)
     if (mascota.value.comportamientoNiños) formData.append('comportamiento_ninos', mascota.value.comportamientoNiños)
     if (mascota.value.personalidad) formData.append('personalidad', mascota.value.personalidad)
     if (mascota.value.descripcion) formData.append('descripcion', mascota.value.descripcion)
+
+    // DEBUG: Muestra todos los datos que se van a enviar
+    for (let [key, value] of formData.entries()) {
+      console.log(`${key}: ${value}`)
+    }
 
     // Fotos
     fotos.value.forEach((foto) => {
@@ -795,6 +862,8 @@ const registrarMascota = async () => {
 
   } catch (error) {
     console.error('Error completo:', error)
+    console.error('Detalles del error:', error.response?.data)
+    console.error('Errores de validación:', error.response?.data?.errors) // ← ESTA LÍNEA ES IMPORTANTE
     
     if (error.response?.status === 401) {
       mensaje.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
@@ -812,6 +881,9 @@ const registrarMascota = async () => {
       
       mensaje.value = mensajeError
       alert(mensajeError)
+      
+      // También muestra en consola para debugging
+      console.error('Errores específicos:', errores)
     } else {
       mensaje.value = error.response?.data?.message || error.message || 'Error al registrar la mascota.'
     }

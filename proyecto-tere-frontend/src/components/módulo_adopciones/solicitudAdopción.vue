@@ -36,7 +36,7 @@
           <div class="flex items-start justify-between gap-3">
             <div>
               <h2 class="text-2xl font-bold text-gray-900">
-                Solicitud #{{ datosSolicitud.id }}
+                Solicitud #{{ datosSolicitud.idSolicitud || datosSolicitud.id }}
               </h2>
               <div class="flex flex-wrap items-center gap-2 mt-1 text-sm text-gray-600">
                 <span class="font-medium">Mascota:</span>
@@ -74,13 +74,36 @@
             </div>
           </div>
           <div class="mt-2 flex flex-wrap gap-2">
-            <RouterLink
-              v-if="datosSolicitud.idUsuarioSolicitante"
-              :to="{ name: 'chat-room', params: { id: datosSolicitud.idUsuarioSolicitante }, query: { from: 'adoption-request' } }"
+            <button
+              v-if="datosSolicitud.idUsuarioSolicitante && datosSolicitud.estadoSolicitud === 'pendiente'"
+              @click="iniciarChat"
+              :disabled="creandoChat"
+              class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50"
+            >
+              <font-awesome-icon v-if="creandoChat" :icon="['fas','spinner']" class="animate-spin" />
+              <font-awesome-icon v-else :icon="['fas','comment-dots']" />
+              {{ creandoChat ? 'Creando chat...' : 'Abrir chat' }}
+            </button>
+            
+            <!-- Botón para ir a chat existente si ya hay uno -->
+            <router-link
+              v-else-if="chatExistente"
+              :to="{
+                name: 'chat-room',
+                params: { id: chatExistente.chat_id },
+                query: { 
+                  from: 'adoption-request',
+                  nombre: solicitanteInfo?.nombre,
+                  img: solicitanteInfo?.img,
+                  solicitud_id: datosSolicitud.idSolicitud || datosSolicitud.id
+                }
+              }"
               class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition"
             >
-              <font-awesome-icon :icon="['fas','comment-dots']" /> Abrir chat
-            </RouterLink>
+              <font-awesome-icon :icon="['fas','comment-dots']" />
+              Ir al chat
+            </router-link>
+            
             <button
               @click="marcarContactado = !marcarContactado"
               :class="[
@@ -91,6 +114,15 @@
               <font-awesome-icon :icon="['fas', marcarContactado ? 'check-circle' : 'phone']" />
               {{ marcarContactado ? 'Marcado como contactado' : 'Marcar contactado' }}
             </button>
+            
+            <!-- Estado del chat -->
+            <div v-if="estadoChat" class="flex items-center gap-2 px-3 py-2 text-sm">
+              <font-awesome-icon 
+                :icon="['fas', estadoChat.icon]" 
+                :class="estadoChat.color"
+              />
+              <span :class="estadoChat.color">{{ estadoChat.text }}</span>
+            </div>
           </div>
         </div>
 
@@ -148,9 +180,17 @@
                   <dt class="text-gray-500">ID de solicitud</dt>
                   <dd class="font-medium">{{ datosSolicitud.idSolicitud || datosSolicitud.id }}</dd>
                 </div>
+                <div>
+                  <dt class="text-gray-500">ID del solicitante</dt>
+                  <dd class="font-medium">{{ datosSolicitud.idUsuarioSolicitante }}</dd>
+                </div>
                 <div v-if="datosSolicitud.aceptóTerminos !== undefined">
                   <dt class="text-gray-500">Aceptó términos</dt>
                   <dd class="font-medium">{{ datosSolicitud.aceptóTerminos ? 'Sí' : 'No' }}</dd>
+                </div>
+                <div v-if="chatExistente">
+                  <dt class="text-gray-500">Chat activo</dt>
+                  <dd class="font-medium text-green-600">Sí (ID: {{ chatExistente.chat_id }})</dd>
                 </div>
               </dl>
             </section>
@@ -185,12 +225,24 @@
                 <img 
                   :src="solicitanteInfo.img" 
                   :alt="solicitanteInfo.nombre"
-                  class="w-12 h-12 rounded-full object-cover"
+                  class="w-12 h-12 rounded-full object-cover cursor-pointer"
+                  @click="abrirPerfilUsuario"
                 />
                 <div>
                   <div class="font-medium text-gray-800">{{ solicitanteInfo.nombre }}</div>
                   <div class="text-sm text-gray-600">ID: {{ datosSolicitud.idUsuarioSolicitante }}</div>
+                  <div v-if="solicitanteInfo.descripcion" class="text-sm text-gray-700 mt-2">
+                    {{ solicitanteInfo.descripcion }}
+                  </div>
                 </div>
+              </div>
+              <div class="flex gap-2">
+                <button 
+                  @click="abrirPerfilUsuario"
+                  class="text-sm px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+                >
+                  Ver perfil completo
+                </button>
               </div>
             </section>
 
@@ -295,7 +347,6 @@ const route = useRoute()
 const router = useRouter()
 
 const leftScroll = ref(null)
-const mostrarReporte = ref(false)
 const marcarContactado = ref(false)
 
 // Estados reactivos
@@ -303,12 +354,14 @@ const loading = ref(true)
 const error = ref(null)
 const procesando = ref(false)
 const guardandoNotas = ref(false)
+const creandoChat = ref(false)
 const notasInternas = ref('')
 
 // Datos de la solicitud y oferta
 const datosSolicitud = ref({})
 const datosOferta = ref(null)
 const solicitanteInfo = ref(null)
+const chatExistente = ref(null)
 
 // Computed properties
 const fechaFormateada = computed(() => {
@@ -364,12 +417,44 @@ const perfilUsuario = computed(() => {
   }
 })
 
+const estadoChat = computed(() => {
+  if (creandoChat.value) {
+    return {
+      icon: 'spinner',
+      text: 'Creando chat...',
+      color: 'text-blue-500 animate-spin'
+    }
+  }
+  
+  if (chatExistente.value) {
+    return {
+      icon: 'check-circle',
+      text: 'Chat activo',
+      color: 'text-green-500'
+    }
+  }
+  
+  if (datosSolicitud.value.estadoSolicitud === 'pendiente') {
+    return {
+      icon: 'comment',
+      text: 'Puedes iniciar un chat',
+      color: 'text-blue-500'
+    }
+  }
+  
+  return null
+})
+
 // Funciones
 function formatFecha(fecha) {
   if (!fecha) return 'No disponible'
   try {
     const date = new Date(fecha)
-    return date.toLocaleDateString('es-ES')
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
   } catch (e) {
     return fecha
   }
@@ -393,8 +478,6 @@ async function cargarDatosSolicitud() {
 
     console.log('=== INICIO cargarDatosSolicitud ===')
     console.log('Solicitud ID:', solicitudId)
-    console.log('Token:', localStorage.getItem('token') ? 'Presente' : 'Ausente')
-    console.log('URL completa:', `/api/solicitudes/${solicitudId}`)
 
     // 1. Cargar información de la solicitud específica
     const responseSolicitud = await axios.get(`/api/solicitudes/${solicitudId}`, {
@@ -404,7 +487,6 @@ async function cargarDatosSolicitud() {
       }
     })
 
-    console.log('Respuesta de API:', responseSolicitud)
     console.log('Datos respuesta:', responseSolicitud.data)
 
     if (responseSolicitud.data.success) {
@@ -432,6 +514,11 @@ async function cargarDatosSolicitud() {
         console.warn('Solicitud no tiene ID de mascota asociado')
       }
       
+      // 3. Verificar si ya existe un chat para esta solicitud
+      if (datosSolicitud.value.idUsuarioSolicitante) {
+        await verificarChatExistente()
+      }
+      
     } else {
       console.error('Error en respuesta:', responseSolicitud.data)
       throw new Error(responseSolicitud.data.message || 'Error al cargar solicitud')
@@ -442,8 +529,6 @@ async function cargarDatosSolicitud() {
   } catch (err) {
     console.error('=== ERROR cargando datos de solicitud ===')
     console.error('Error completo:', err)
-    console.error('Respuesta error:', err.response)
-    console.error('Mensaje:', err.message)
     
     error.value = err.response?.data?.message || err.message || 'Error al cargar la solicitud'
     
@@ -461,7 +546,8 @@ async function cargarDatosSolicitud() {
       
       solicitanteInfo.value = {
         nombre: route.query.nombre || 'Usuario Ejemplo',
-        img: route.query.img || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png'
+        img: route.query.img || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
+        descripcion: 'Descripción del usuario solicitante'
       }
       
       // Datos de ejemplo para la oferta
@@ -500,11 +586,127 @@ async function cargarDatosSolicitud() {
   }
 }
 
+async function verificarChatExistente() {
+  try {
+    console.log('Verificando chat existente para solicitud:', datosSolicitud.value.idSolicitud)
+    
+    const response = await axios.get('/api/chats', {
+      params: {
+        solicitud_id: datosSolicitud.value.idSolicitud
+      },
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (response.data.success) {
+      // Buscar chat que tenga esta solicitud
+      const chatConSolicitud = response.data.data.chats.find(
+        chat => chat.solicitud_id == datosSolicitud.value.idSolicitud
+      )
+      
+      if (chatConSolicitud) {
+        chatExistente.value = chatConSolicitud
+        console.log('Chat existente encontrado:', chatExistente.value)
+      } else {
+        console.log('No hay chat existente para esta solicitud')
+      }
+    }
+  } catch (err) {
+    console.error('Error verificando chat existente:', err)
+  }
+}
+
+async function iniciarChat() {
+  try {
+    creandoChat.value = true;
+    
+    console.log('Iniciando chat con usuario:', datosSolicitud.value.idUsuarioSolicitante);
+    console.log('Datos a enviar:', {
+      user_id: datosSolicitud.value.idUsuarioSolicitante,
+      solicitud_id: datosSolicitud.value.idSolicitud
+    });
+    
+    // PRIMERO: Verificar que el token existe
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('No estás autenticado. Por favor, inicia sesión.');
+      return;
+    }
+    
+    console.log('Token encontrado, haciendo solicitud...');
+    
+    const response = await axios.post('/api/chats/crear', {
+      user_id: datosSolicitud.value.idUsuarioSolicitante,
+      solicitud_id: datosSolicitud.value.idSolicitud
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('✅ Respuesta del servidor:', response.data);
+    
+    if (response.data.success) {
+      const chat = response.data.data.chat;
+      chatExistente.value = chat;
+      
+      router.push({
+        name: 'chat-room',
+        params: { id: chat.chat_id },
+        query: { 
+          from: 'adoption-request',
+          nombre: solicitanteInfo.value?.nombre,
+          img: solicitanteInfo.value?.img,
+          solicitud_id: datosSolicitud.value.idSolicitud
+        }
+      });
+      
+    } else {
+      console.error('❌ Error en respuesta:', response.data);
+      alert(response.data.message || 'Error al crear chat');
+    }
+    
+  } catch (err) {
+    console.error('❌ Error completo:', err);
+    
+    // Información detallada del error
+    if (err.response) {
+      console.error('📊 Datos de la respuesta:', {
+        status: err.response.status,
+        statusText: err.response.statusText,
+        data: err.response.data,
+        headers: err.response.headers
+      });
+      
+      if (err.response.status === 401) {
+        alert('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
+      } else if (err.response.status === 403) {
+        alert('No tienes permiso para crear este chat.');
+      } else if (err.response.status === 422) {
+        alert('Error de validación: ' + JSON.stringify(err.response.data.errors));
+      } else if (err.response.status === 500) {
+        alert('Error interno del servidor. Por favor, contacta al administrador.');
+      }
+    } else if (err.request) {
+      console.error('📡 No se recibió respuesta:', err.request);
+      alert('No se pudo conectar con el servidor. Verifica tu conexión a internet.');
+    } else {
+      console.error('⚙️ Error al configurar la solicitud:', err.message);
+      alert('Error: ' + err.message);
+    }
+  } finally {
+    creandoChat.value = false;
+  }
+}
+
 async function cargarOfertaPorMascota(mascotaId) {
   try {
     console.log('Buscando oferta para mascota ID:', mascotaId)
     
-    // Buscar ofertas activas para esta mascota
     const response = await axios.get(`/api/adopciones/ofertas/mascota/${mascotaId}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -656,6 +858,21 @@ function abrirImagen(url) {
   window.open(url, '_blank')
 }
 
+function abrirPerfilUsuario() {
+  if (datosSolicitud.value.idUsuarioSolicitante) {
+    router.push({
+      name: 'user-profile-room',
+      params: {
+        userId: datosSolicitud.value.idUsuarioSolicitante
+      },
+      query: { 
+        from: 'adoption-request',
+        solicitud_id: datosSolicitud.value.idSolicitud || datosSolicitud.value.id
+      }
+    })
+  }
+}
+
 function cerrarOverlay() {
   router.back()
 }
@@ -699,14 +916,6 @@ watch(() => route.params.userId, () => {
 }
 .invisible-scrollbar::-webkit-scrollbar {
   display: none; /* Chrome/Safari */
-}
-
-.debug-border {
-  border: 2px solid red;
-}
-
-.debug-bg {
-  background-color: rgba(255, 0, 0, 0.1);
 }
 
 /* Estilos para la animación de carga */

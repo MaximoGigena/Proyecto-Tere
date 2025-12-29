@@ -381,8 +381,10 @@ async function publicarOfertaAdopcion() {
     if (!datosOfertaCompleta.value) {
       throw new Error('No hay datos de oferta')
     }
-    
+
     console.log('📤 Publicando oferta con datos:', datosOfertaCompleta.value);
+    console.log('🆔 Mascota ID:', datosOfertaCompleta.value.mascotaId);
+    console.log('📝 Datos completos de mascota:', datosOfertaCompleta.value.mascota);
     
     // Usar la ruta POST /api/adopciones
     const response = await fetch('/api/adopciones', {

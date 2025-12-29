@@ -93,15 +93,42 @@
 
           <div>
             <label class="block font-medium">Diagnóstico o causa</label>
-            <div class="flex gap-2">
-              <input v-model="cirugia.diagnostico" type="text" required class="w-full border rounded p-2" placeholder="Motivo que justificó la cirugía" />
-              <!-- Botón de + Tipo -->
+            <div class="space-y-2">
+              <!-- Input para mostrar los diagnósticos seleccionados -->
+              <div class="flex items-center gap-2">
+                <input 
+                  :value="diagnosticosSeleccionadosTexto" 
+                  type="text" 
+                  readonly
+                  class="w-full border rounded p-2 bg-gray-50 cursor-default" 
+                  placeholder="Seleccione uno o más diagnósticos" 
+                />
                 <button 
                   type="button"
-                  class="bg-orange-500 text-white px-4 rounded font-bold hover:bg-orange-700 transition-colors whitespace-nowrap"
+                  @click="mostrarModalDiagnosticos = true"
+                  class="bg-orange-500 text-white px-4 py-2 rounded font-bold hover:bg-orange-700 transition-colors whitespace-nowrap"
                 >
-                  + Asociar Diagnostico 
+                  + Asociar Diagnóstico
                 </button>
+              </div>
+              
+              <!-- Mostrar diagnósticos seleccionados como tags -->
+              <div v-if="diagnosticosSeleccionados.length > 0" class="flex flex-wrap gap-2">
+                <div 
+                  v-for="diagnostico in diagnosticosSeleccionados" 
+                  :key="diagnostico.id"
+                  class="flex items-center gap-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm"
+                >
+                  <span>{{ diagnostico.nombre }}</span>
+                  <button 
+                    type="button"
+                    @click="eliminarDiagnostico(diagnostico.id)"
+                    class="text-blue-600 hover:text-blue-800"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -143,7 +170,7 @@
           + Asociar Medicación
         </button>
       </div>
-</div>
+  </div>
 
 
 
@@ -211,15 +238,60 @@
       </div>
     </form>
   </div>
+
+  <!-- Modal de selección de diagnósticos -->
+  <SeleccionarDiagnosticoModal
+    v-if="mostrarModalDiagnosticos"
+    :diagnosticos-iniciales="diagnosticosSeleccionados"
+    @cerrar="mostrarModalDiagnosticos = false"
+    @guardar="guardarDiagnosticos"
+  />
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import SeleccionarDiagnosticoModal from '@/components/ElementosGraficos/SeleccionarDiagnostico.vue'
 
 const router = useRouter()
 const route = useRoute()
 
+// Estado del modal
+const mostrarModalDiagnosticos = ref(false)
+
+// Diagnósticos seleccionados
+const diagnosticosSeleccionados = ref([])
+
+// Computed para mostrar en el input
+const diagnosticosSeleccionadosTexto = computed(() => {
+  if (diagnosticosSeleccionados.value.length === 0) {
+    return ''
+  } else if (diagnosticosSeleccionados.value.length === 1) {
+    return diagnosticosSeleccionados.value[0].nombre
+  } else {
+    return `${diagnosticosSeleccionados.value.length} diagnósticos seleccionados`
+  }
+})
+
+// Métodos para manejar diagnósticos
+const guardarDiagnosticos = (nuevosDiagnosticos) => {
+  diagnosticosSeleccionados.value = nuevosDiagnosticos
+  // También puedes actualizar el campo de cirugia.diagnostico si lo necesitas
+  if (nuevosDiagnosticos.length > 0) {
+    cirugia.diagnostico = nuevosDiagnosticos.map(d => d.nombre).join(', ')
+  } else {
+    cirugia.diagnostico = ''
+  }
+}
+
+const eliminarDiagnostico = (id) => {
+  const index = diagnosticosSeleccionados.value.findIndex(d => d.id === id)
+  if (index !== -1) {
+    diagnosticosSeleccionados.value.splice(index, 1)
+  }
+}
+
+// Resto del código original (sin cambios)...
 const abrirRegistroTipoCirugia = () => {
   router.push({
     path: '/registro/registroTipoCirugia',

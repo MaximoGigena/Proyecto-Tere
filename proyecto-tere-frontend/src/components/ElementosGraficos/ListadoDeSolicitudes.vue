@@ -1,4 +1,3 @@
-<!-- ListadoDeSolicitudes.vue -->
 <template>
   <div class="relative mt-3 px-3">
     <!-- Flecha izquierda -->
@@ -24,6 +23,7 @@
         <p class="text-gray-500 text-sm">No hay solicitudes pendientes</p>
       </div>
       
+      <!-- ¡IMPORTANTE! Usar EXACTAMENTE la misma estructura que en la versión vieja -->
       <router-link
         v-for="(perfil, index) in perfilesConPaletas" 
         :key="index"
@@ -49,6 +49,7 @@
             :src="perfil.img"
             class="w-16 h-16 rounded-full object-cover border border-white"
             :alt="perfil.nombre"
+            @error="setDefaultAvatar"
           />
           <span
             class="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] px-1.5 py-0.5 text-white rounded-full shadow-sm"
@@ -83,7 +84,7 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const listaPerfiles = ref(null);
 
-// Definir props y eventos
+// Definir props y eventos - IGUAL QUE LA VERSIÓN VIEJA
 const props = defineProps({
   perfiles: {
     type: Array,
@@ -93,26 +94,12 @@ const props = defineProps({
 
 const emit = defineEmits(['abrir-perfil']);
 
-// Función para formatear fecha
-const formatFecha = (fecha) => {
-  if (!fecha) return '';
-  
-  try {
-    // Si ya está en formato legible, devolver tal cual
-    if (typeof fecha === 'string' && fecha.includes('/')) {
-      const [fechaPart] = fecha.split(' ');
-      return fechaPart;
-    }
-    
-    // Si es un objeto Date o timestamp
-    const date = new Date(fecha);
-    return date.toLocaleDateString('es-ES');
-  } catch (e) {
-    return fecha;
-  }
+// Función para fallback de avatar (añadida pero compatible)
+const setDefaultAvatar = (event) => {
+  event.target.src = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png';
 };
 
-// Paletas de colores
+// Paletas de colores - EXACTAMENTE IGUAL
 const palettes = [
   { bgClass: 'bg-gradient-to-r from-blue-400 to-orange-300', badgeClass: 'bg-blue-600' },
   { bgClass: 'bg-gradient-to-r from-green-400 to-yellow-300', badgeClass: 'bg-green-600' },
@@ -125,10 +112,12 @@ const palettes = [
 // Variable reactiva para los perfiles con paletas
 const perfilesConPaletas = reactive([]);
 
-// Función para actualizar perfiles con paletas
+// Función para actualizar perfiles con paletas - SIMPLIFICADA COMO LA VIEJA
 const actualizarPerfilesConPaletas = () => {
+  console.log('🔄 ListadoDeSolicitudes: Actualizando perfiles...');
+  
   // Limpiar el array
-  perfilesConPaletas.length = 0;
+  perfilesConPaletas.splice(0, perfilesConPaletas.length);
   
   // Si hay perfiles en props, usarlos
   if (props.perfiles && props.perfiles.length > 0) {
@@ -136,13 +125,16 @@ const actualizarPerfilesConPaletas = () => {
     
     props.perfiles.forEach((perfil, index) => {
       const paletteIndex = index % palettes.length;
-      perfilesConPaletas.push({
-        ...perfil,
-        ...palettes[paletteIndex]
-      });
+      
+      // Mantener la estructura exacta que funcionaba
+      const perfilConPaleta = {
+        ...perfil,  // Mantener todas las propiedades originales
+        ...palettes[paletteIndex]  // Añadir colores
+      };
+      
+      perfilesConPaletas.push(perfilConPaleta);
+      console.log(`  ${index + 1}. ID: ${perfilConPaleta.id}, Nombre: ${perfilConPaleta.nombre}`);
     });
-    
-    console.log('Perfiles con paletas:', perfilesConPaletas);
   } else {
     console.log('No hay perfiles para mostrar en el carrusel');
   }
@@ -151,12 +143,13 @@ const actualizarPerfilesConPaletas = () => {
 // Inicializar perfiles con paletas
 actualizarPerfilesConPaletas();
 
-// Observar cambios en las props
+// Observar cambios en las props - IGUAL QUE LA VERSIÓN VIEJA
 watch(() => props.perfiles, () => {
+  console.log('🔍 Props cambiaron');
   actualizarPerfilesConPaletas();
 }, { deep: true });
 
-// Funciones de scroll
+// Funciones de scroll - IGUALES
 function scrollLeft() {
   if (listaPerfiles.value) {
     listaPerfiles.value.scrollBy({
@@ -175,20 +168,52 @@ function scrollRight() {
   }
 }
 
-// Función para abrir perfil
+// Función para abrir perfil - IGUAL QUE LA VERSIÓN VIEJA
 function abrirPerfilUsuario(userId) {
+  console.log('👤 Abriendo perfil de usuario:', userId);
+  
+  // Emitir el evento al componente padre
   emit('abrir-perfil', userId);
+  
+  // Encontrar el perfil completo
   const perfil = perfilesConPaletas.find(p => p.id === userId);
   
-  router.push({
-    name: 'user-profile-list',
-    params: { userId },
-    query: { 
-      from: 'chats-list',
-      solicitud_id: perfil?.solicitud_id,
-      mascota_nombre: perfil?.mascota_nombre,
-      fecha_solicitud: perfil?.fecha_solicitud
-    }
-  });
+  if (perfil) {
+    console.log('Perfil encontrado:', perfil);
+    
+    // Navegar al perfil del usuario - IGUAL QUE LA VERSIÓN VIEJA
+    router.push({
+      name: 'user-profile-list',
+      params: { userId },
+      query: { 
+        from: 'chats-list',
+        solicitud_id: perfil.solicitud_id,
+        mascota_nombre: perfil.mascota_nombre,
+        fecha_solicitud: perfil.fecha_solicitud
+      }
+    });
+  }
 }
 </script>
+
+<style scoped>
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(134, 239, 172, 0.4);
+  border-radius: 20px;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+</style>

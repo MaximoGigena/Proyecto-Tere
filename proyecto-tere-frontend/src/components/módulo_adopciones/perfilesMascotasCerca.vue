@@ -35,75 +35,77 @@
         </button>
       </div>
       
-      <!-- Filtros activos -->
-      <div v-if="filtrosActivos && !cargando && !error" class="mb-4 p-3 bg-blue-50 rounded-lg">
-        <div class="flex items-center justify-between">
-          <div class="flex flex-wrap gap-2">
-            <span v-for="(value, key) in filtrosActuales" :key="key" 
-                  class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
-              {{ key }}: {{ Array.isArray(value) ? value.join(', ') : value }}
-              <button @click="removerFiltro(key)" class="ml-2 text-blue-600 hover:text-blue-800">
-                ×
-              </button>
-            </span>
+      <!-- SI NO ESTÁ CARGANDO Y NO HAY ERROR -->
+      <div v-else>
+        <!-- Filtros activos (siempre visible cuando hay filtros) -->
+        <div v-if="filtrosActivos" class="mb-4 p-3 bg-blue-50 rounded-lg">
+          <div class="flex items-center justify-between">
+            <div class="flex flex-wrap gap-2">
+              <span v-for="(value, key) in filtrosActuales" :key="key" 
+                    class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                {{ key }}: {{ Array.isArray(value) ? value.join(', ') : value }}
+                <button @click="removerFiltro(key)" class="ml-2 text-blue-600 hover:text-blue-800">
+                  ×
+                </button>
+              </span>
+            </div>
+            <button @click="limpiarTodosFiltros" class="text-sm text-blue-600 hover:text-blue-800">
+              Limpiar todos
+            </button>
           </div>
-          <button @click="limpiarTodosFiltros" class="text-sm text-blue-600 hover:text-blue-800">
-            Limpiar todos
+        </div>
+        
+        <!-- No results state -->
+        <div v-if="ofertas.length === 0" class="text-center p-8">
+          <p class="text-gray-500">No hay mascotas disponibles para adopción en este momento</p>
+          <button v-if="filtrosActivos" @click="limpiarTodosFiltros" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+            Limpiar filtros
           </button>
         </div>
-      </div>
-      
-      <!-- No results state -->
-      <div v-else-if="ofertas.length === 0 && !cargando && !error" class="text-center p-8">
-        <p class="text-gray-500">No hay mascotas disponibles para adopción en este momento</p>
-        <button v-if="filtrosActivos" @click="limpiarTodosFiltros" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-          Limpiar filtros
-        </button>
-      </div>
-      
-      <!-- Ofertas disponibles -->
-      <div v-else-if="ofertas.length > 0" class="grid grid-cols-3 gap-6 justify-items-center pb-28">
-        <div
-          v-for="(oferta) in ofertas"
-          :key="oferta.id_oferta"
-          class="text-center"
-        >
-          <router-link :to="{
-            path: `/explorar/cerca/${oferta.id_oferta}`,
-            query: { 
-              from: 'cerca',
-              mascota_id: oferta.mascota.id,
-              oferta_id: oferta.id_oferta
-            }
-          }" class="block group">
-            <!-- Imagen de la mascota -->
-            <div class="relative overflow-hidden rounded-lg shadow group-hover:shadow-lg transition-shadow duration-200">
-              <img
-                :src="oferta.mascota.foto_principal_url || 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg'"
-                :alt="oferta.mascota.nombre"
-                class="w-[220px] h-[220px] object-cover transform group-hover:scale-105 transition-transform duration-300"
-              />
-              <!-- Badge de especie -->
-              <div class="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full">
-                <span class="text-xs font-medium text-gray-800 capitalize">
-                  {{ oferta.mascota.especie }}
-                </span>
+        
+        <!-- Ofertas disponibles -->
+        <div v-else class="grid grid-cols-3 gap-6 justify-items-center pb-28">
+          <div
+            v-for="(oferta) in ofertas"
+            :key="oferta.id_oferta"
+            class="text-center"
+          >
+            <router-link :to="{
+              path: `/explorar/cerca/${oferta.id_oferta}`,
+              query: { 
+                from: 'cerca',
+                mascota_id: oferta.mascota.id,
+                oferta_id: oferta.id_oferta
+              }
+            }" class="block group">
+              <!-- Imagen de la mascota -->
+              <div class="relative overflow-hidden rounded-lg shadow group-hover:shadow-lg transition-shadow duration-200">
+                <img
+                  :src="oferta.mascota.foto_principal_url || 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg'"
+                  :alt="oferta.mascota.nombre"
+                  class="w-[220px] h-[220px] object-cover transform group-hover:scale-105 transition-transform duration-300"
+                />
+                <!-- Badge de especie -->
+                <div class="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full">
+                  <span class="text-xs font-medium text-gray-800 capitalize">
+                    {{ oferta.mascota.especie }}
+                  </span>
+                </div>
               </div>
-            </div>
-            
-            <!-- Información de la mascota -->
-            <div class="mt-3">
-              <p class="text-sm text-gray-800">
-                {{ oferta.mascota.rango_etario }} / 
-                {{ oferta.mascota.sexo === 'macho' ? 'Macho' : 'Hembra' }}
-              </p>
-              <p class="text-lg font-semibold text-gray-900 mt-1">{{ oferta.mascota.nombre }}</p>
-            </div>
-          </router-link>
+              
+              <!-- Información de la mascota -->
+              <div class="mt-3">
+                <p class="text-sm text-gray-800">
+                  {{ oferta.mascota.rango_etario }} / 
+                  {{ oferta.mascota.sexo === 'macho' ? 'Macho' : 'Hembra' }}
+                </p>
+                <p class="text-lg font-semibold text-gray-900 mt-1">{{ oferta.mascota.nombre }}</p>
+              </div>
+            </router-link>
+          </div>
         </div>
       </div>
     </div>
-
     <!-- Overlay de filtros -->
     <transition name="fade">
       <div 
@@ -158,30 +160,63 @@ const cargarOfertas = async () => {
       throw new Error('No hay token de autenticación')
     }
     
-    // Preparar parámetros para la API
-    const params = { ...filtrosActuales.value }
-    
-    // Si hay rangos de edad, convertirlos a JSON
-    if (params.rangos_edad) {
-      params.rangos_edad = JSON.stringify(params.rangos_edad)
+    // 🔥 ARREGLO CRÍTICO: Extraer valores REALES de los Proxy
+    const construirParams = (obj) => {
+      const params = new URLSearchParams()
+      
+      for (const key in obj) {
+        const value = obj[key]
+        
+        // Si es un Proxy de array, extraer sus valores
+        if (Array.isArray(value) || (value && typeof value === 'object' && '0' in value)) {
+          // Extraer valores del Proxy
+          const arrayValores = [...value]
+          if (arrayValores.length > 0) {
+            // Para arrays simples como ['macho'], axios los maneja bien
+            params.append(key, arrayValores.join(','))
+          }
+        } 
+        // Si hay rangos de edad, convertirlos a JSON
+        else if (key === 'rangos_edad' && value) {
+          const edadesArray = [...value]
+          params.append(key, JSON.stringify(edadesArray))
+        }
+        // Para valores simples
+        else if (value && value !== '') {
+          params.append(key, value)
+        }
+      }
+      
+      return params
     }
     
-    const response = await axios.get('/api/adopciones/ofertas-disponibles', {
-      params,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
-      }
-    })
+    // Construir parámetros CORRECTAMENTE
+    const params = construirParams(filtrosActuales.value)
+    console.log('PARAMS REALES CONSTRUIDOS:', Object.fromEntries(params))
+    
+    const response = await axios.get(`/api/adopciones/ofertas-disponibles?${params.toString()}`, {
+       headers: {
+         'Authorization': `Bearer ${token}`,
+         'Accept': 'application/json'
+       }
+     })
+    
+    console.log('RESPUESTA API:', response.data)
     
     if (response.data.success) {
-      // Asegúrate de que estás accediendo a data.data
       ofertas.value = response.data.data || []
+      console.log(`✅ CARGADAS ${ofertas.value.length} OFERTAS`)
+      
+      // Debug adicional
+      if (ofertas.value.length > 0) {
+        console.log('Primera oferta cargada:', ofertas.value[0].mascota?.nombre)
+      }
     } else {
       throw new Error(response.data.message || 'Error al cargar ofertas')
     }
   } catch (err) {
-    console.error('Error al cargar ofertas:', err)
+    console.error('❌ Error al cargar ofertas:', err)
+    console.error('Detalles:', err.response?.data)
     error.value = err.response?.data?.message || err.message || 'Error al cargar las ofertas'
     
     if (err.response?.status === 401) {
@@ -193,10 +228,31 @@ const cargarOfertas = async () => {
 }
 
 const aplicarFiltros = (nuevosFiltros) => {
-  // Actualizar filtros actuales
-  filtrosActuales.value = { ...nuevosFiltros }
+  console.log('🎯 NUEVOS FILTROS RECIBIDOS:', nuevosFiltros)
   
-  // Recargar ofertas con los nuevos filtros
+  // Extraer valores REALES de los proxies de Vue
+  const filtrosReales = {}
+  
+  for (const key in nuevosFiltros) {
+    const valor = nuevosFiltros[key]
+    
+    if (Array.isArray(valor)) {
+      // Si es array (puede ser proxy), extraer valores
+      filtrosReales[key] = [...valor]
+    } else if (valor && typeof valor === 'object') {
+      // Si es objeto (proxy), extraer propiedades
+      filtrosReales[key] = { ...valor }
+    } else {
+      filtrosReales[key] = valor
+    }
+  }
+  
+  console.log('🎯 FILTROS REALES:', filtrosReales)
+  
+  // Actualizar filtros actuales con valores REALES, no proxies
+  filtrosActuales.value = { ...filtrosReales }
+  
+  // Recargar ofertas
   cargarOfertas()
   mostrarOverlay.value = false
 }

@@ -1,15 +1,49 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
-import { onMounted } from 'vue'
-import home from './components/home.vue'
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import api from '@/services/api'
 import { useAuth } from '@/composables/useAuth'
 import './assets/styles.css'
 
-
+const router = useRouter()
 const { checkAuth, processTokenFromUrl } = useAuth()
 
+// Interceptor global para manejar errores de suspensión
+api.interceptors.response.use(
+  response => response,
+  error => {
+    console.log('🔍 Interceptor global - Error detectado:', error.response?.status)
+    
+    // Si es error 403, verificar si es por suspensión
+    if (error.response?.status === 403) {
+      const data = error.response.data
+      const isSuspended = data.code === 'ACCOUNT_SUSPENDED' || 
+                         data.message?.includes('suspend') ||
+                         data.redirect_to === '/cuenta-suspendida'
+      
+      if (isSuspended) {
+        console.log('🚨 Usuario suspendido detectado en interceptor')
+        // Guardar datos de suspensión
+        if (data.data) {
+          localStorage.setItem('suspension_data', JSON.stringify(data.data))
+        } else {
+          localStorage.setItem('suspension_data', JSON.stringify({
+            razon: data.message || 'Cuenta suspendida',
+            estado: 'suspendido'
+          }))
+        }
+        // Redirigir inmediatamente
+        if (router.currentRoute.value.path !== '/cuenta-suspendida') {
+          console.log('🔄 Redirigiendo a cuenta-suspendida')
+          router.replace('/cuenta-suspendida')
+        }
+      }
+    }
+    
+    return Promise.reject(error)
+  }
+)
 
-// En App.vue - AGREGAR ESTO
 onMounted(async () => {
   console.log('🔐 APP - Verificando autenticación...')
   
@@ -17,13 +51,29 @@ onMounted(async () => {
   const token = localStorage.getItem('auth_token')
   console.log('📦 Token en localStorage:', token ? 'SÍ' : 'NO')
   
+  // Verificar si ya hay datos de suspensión
+  const suspensionData = localStorage.getItem('suspension_data')
+  if (suspensionData) {
+    try {
+      const data = JSON.parse(suspensionData)
+      if (data.estado === 'suspendido' || data.esta_suspendido) {
+        console.log('🚫 Usuario ya marcado como suspendido, redirigiendo...')
+        if (router.currentRoute.value.path !== '/cuenta-suspendida') {
+          router.replace('/cuenta-suspendida')
+          return
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing suspension data:', e)
+    }
+  }
+  
   // Procesar token SIEMPRE al cargar la app
   const hasToken = await processTokenFromUrl()
   if (hasToken) {
     console.log('✅ Token procesado desde URL')
   }
 })
-
 </script>
 
 <template>

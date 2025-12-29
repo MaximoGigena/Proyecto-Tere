@@ -203,44 +203,26 @@ function aplicarFiltros() {
   // Preparar filtros para enviar a la API
   const filtrosParaEnviar = {}
   
-  // Convertir especies a minúsculas para coincidir con la base de datos
+  // Especies: enviar como array explícito
   if (filtros.especie.length) {
-    filtrosParaEnviar.especie = filtros.especie.map(esp => esp.toLowerCase())
+    // IMPORTANTE: Usar JSON.stringify para enviar como array JSON
+    filtrosParaEnviar.especie = JSON.stringify(
+      filtros.especie.map(esp => esp.toLowerCase())
+    )
   }
   
-  // Convertir sexo a minúsculas
+  // Sexo: también como array JSON
   if (filtros.sexo.length) {
-    filtrosParaEnviar.sexo = filtros.sexo.map(s => s.toLowerCase())
+    filtrosParaEnviar.sexo = JSON.stringify(
+      filtros.sexo.map(s => s.toLowerCase())
+    )
   }
   
-  // Agregar ubicación si existe
-  if (filtros.ubicacion) {
-    filtrosParaEnviar.ubicacion = filtros.ubicacion
-  }
-  
-  // Agregar rango de edad
+  // Edad: enviar como array JSON
   if (filtros.edad.length) {
-    // Convertir rangos de edad a meses aproximados
-    const rangosEdad = []
-    
-    filtros.edad.forEach(rango => {
-      switch(rango.toLowerCase()) {
-        case 'cachorro':
-          rangosEdad.push({ min: 0, max: 12 }) // 0-12 meses
-          break
-        case 'joven':
-          rangosEdad.push({ min: 13, max: 36 }) // 1-3 años
-          break
-        case 'adulto':
-          rangosEdad.push({ min: 37, max: 84 }) // 3-7 años
-          break
-        case 'abuelo':
-          rangosEdad.push({ min: 85, max: 999 }) // 7+ años
-          break
-      }
-    })
-    
-    filtrosParaEnviar.rangos_edad = rangosEdad
+    filtrosParaEnviar.rangos_edad = JSON.stringify(
+      filtros.edad.map(rango => rango.toLowerCase())
+    )
   }
   
   emit('filtrar', filtrosParaEnviar)
