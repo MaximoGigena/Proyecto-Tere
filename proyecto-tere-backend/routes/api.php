@@ -17,6 +17,11 @@ use App\Http\Controllers\ControllersTiposProcedimiento\TipoCirugiaController;
 use App\Http\Controllers\ControllersTiposProcedimiento\TipoPaliativoController;
 use App\Http\Controllers\ControllersTiposProcedimiento\TipoFarmacoController;
 use App\Http\Controllers\ControllersProcedimientos\DesparasitacionController;
+use App\Http\Controllers\ControllersProcedimientos\RevisionController;
+use App\Http\Controllers\ControllersProcedimientos\AlergiaController;
+use App\Http\Controllers\ControllersProcedimientos\CirugiaController;
+use App\Http\Controllers\ControllersProcedimientos\DiagnosticoController;
+use App\Http\Controllers\ControllersProcedimientos\TipoProcedimientoController;
 use App\Http\Controllers\CentroVeterinarioController;
 use App\Http\Controllers\ControllersProcedimientos\VacunaController;
 use App\Http\Controllers\TelegramController;
@@ -27,6 +32,12 @@ use App\Http\Controllers\ManejarOfertasController;
 use App\Http\Controllers\SolicitudAdopcionController;
 use App\Http\Controllers\ProcesoAdopcionController;
 use App\Http\Controllers\HistorialTransferenciaController;
+use App\Http\Controllers\ChatController;
+use App\Http\Controllers\MensajeController;
+use App\Http\Controllers\DenunciaController;
+use App\Http\Controllers\FiltrosMascotasController;
+use App\Http\Controllers\SancionController;
+use App\Http\Controllers\NotificacionController;
 use App\Models\OfertaAdopcion;
 use App\Models\ContactoUsuario;
 use App\Models\User;
@@ -47,12 +58,6 @@ Route::prefix('telegram')->group(function () {
     
     // ✅ CORREGIDO: Ruta para verificar por email
     Route::get('/verificar-por-email', [TelegramController::class, 'verificarChatIdPorEmail']);
-    
-    // Rutas protegidas
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/guardar-chat-id', [TelegramController::class, 'guardarChatId']);
-        Route::get('/usuarios/{usuarioId}/telegram-chat-id', [TelegramController::class, 'obtenerChatId']);
-    });
 });
 
 // En api.php - agregar esto temporalmente
@@ -96,31 +101,14 @@ Route::get('/auth/google', [GoogleAuthController::class, 'redirectToGoogle']);
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback']);
 Route::post('/auth/google/complete-registration', [GoogleAuthController::class, 'completeRegistration']);
 
-// Ruta temporal para debugging
-Route::get('/user-debug', function (Request $request) {
-    $user = $request->user();
-    
-    // Cargar todas las relaciones posibles
-    $user->load(['userable']);
-    
-    return response()->json([
-        'user' => $user,
-        'userable' => $user->userable,
-        'userable_id' => $user->userable_id,
-        'userable_type' => $user->userable_type,
-        'relations_loaded' => $user->getRelations(),
-    ]);
-})->middleware('auth:sanctum');
-
 // =============================================
 // RUTAS PROTEGIDAS - CON AUTENTICACIÓN
 // =============================================
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::class])->group(function () {
+    
     // Rutas para la gestión de usuarios
-
     Route::post('/actualizar-datos-opcionales', [RegistrarUsuarioController::class, 'actualizarDatosOpcionales']);
     Route::post('/actualizar-datos-contacto', [RegistrarUsuarioController::class, 'actualizarDatosContacto']);
-
     Route::get('/usuarios/{id}', [RegistrarUsuarioController::class, 'show']);
     Route::post('/usuarios/{id}', [RegistrarUsuarioController::class, 'update']);
     
@@ -136,6 +124,22 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
+    // Ruta temporal para debugging
+    Route::get('/user-debug', function (Request $request) {
+        $user = $request->user();
+        
+        // Cargar todas las relaciones posibles
+        $user->load(['userable']);
+        
+        return response()->json([
+            'user' => $user,
+            'userable' => $user->userable,
+            'userable_id' => $user->userable_id,
+            'userable_type' => $user->userable_type,
+            'relations_loaded' => $user->getRelations(),
+        ]);
+    });
+
     // Ubicación
     Route::post('/guardar-ubicacion', [UserLocationController::class, 'store']);
 
@@ -148,6 +152,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/mascotas/{id}', [MascotaController::class, 'update']);
     Route::get('/mascotas/motivos/baja', [MascotaController::class, 'obtenerMotivosBaja']);
     Route::post('/mascotas/{id}/baja', [MascotaController::class, 'darDeBaja']);
+
+    Route::prefix('notificaciones')->group(function () {
+        Route::get('/', [NotificacionController::class, 'index']);
+        Route::get('/estadisticas', [NotificacionController::class, 'estadisticas']);
+        Route::put('/{id}/leer', [NotificacionController::class, 'marcarComoLeida']);
+        Route::put('/leer-todas', [NotificacionController::class, 'marcarTodasComoLeidas']);
+        Route::delete('/{id}', [NotificacionController::class, 'destroy']);
+    });
 
     // NUEVAS RUTAS PARA ADOPCIONES
     // Obtener todas las mascotas del usuario autenticado
@@ -179,11 +191,21 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Ruta para guardar notas en una solicitud
     Route::put('/solicitudes/{id}/notas', [SolicitudAdopcionController::class, 'guardarNotas']);
+
+    // Obtener opciones de filtro
+    Route::get('/filtros/opciones', [FiltrosMascotasController::class, 'obtenerOpcionesFiltro']);
+    
+    // Obtener especies disponibles
+    Route::get('/filtros/especies-disponibles', [FiltrosMascotasController::class, 'obtenerEspeciesDisponibles']);
     
     // =============================================
     // RUTAS PARA ADOPCIONES (GRUPO SEPARADO)
     // =============================================
     Route::prefix('adopciones')->group(function () {
+
+        // Rutas para el sistema de swipe
+        Route::get('/ofertas-para-swipe', [ManejarOfertasController::class, 'obtenerOfertasParaSwipe']);
+        Route::post('/registrar-interaccion', [ManejarOfertasController::class, 'registrarInteraccion']);
         // Ofertas de adopción
         Route::get('/ofertas-disponibles', [OfertaAdopcionController::class, 'getOfertasDisponibles']);
         Route::get('/', [OfertaAdopcionController::class, 'index']);
@@ -200,13 +222,14 @@ Route::middleware('auth:sanctum')->group(function () {
             $controller = new OfertaAdopcionController();
             return $controller->cancelarPorMascota($mascotaId);
         });
+       
         
         // Ruta para obtener oferta por mascota ID (debe estar dentro de adopciones)
         Route::get('/ofertas/mascota/{mascotaId}', [OfertaAdopcionController::class, 'getOfertaPorMascota']);
         
         // Rutas para manejar ofertas (mantener compatibilidad)
         Route::get('/ofertas/{idOferta}', [ManejarOfertasController::class, 'obtenerOferta']);
-        
+
         // ✅ Ruta de prueba
         Route::get('/test-ofertas-simple', function() {
             Log::info('Test ofertas simple llamado');
@@ -263,19 +286,6 @@ Route::middleware('auth:sanctum')->group(function () {
         });
     });
 
-    // =============================================
-    // RUTAS PARA ADMINISTRADORES
-    // =============================================
-    Route::get('/solicitudes-pendientes', [VeterinarioController::class, 'obtenerSolicitudesPendientes']);
-    Route::post('/solicitudes/{id}/aprobar', [VeterinarioController::class, 'aprobarSolicitud']);
-    Route::post('/solicitudes/{id}/rechazar', [VeterinarioController::class, 'rechazarSolicitud']);
-
-
-    // Rutas para administradores
-    Route::get('/solicitudes-pendientes', [VeterinarioController::class, 'obtenerSolicitudesPendientes']);
-    Route::post('/solicitudes/{id}/aprobar', [VeterinarioController::class, 'aprobarSolicitud']);
-    Route::post('/solicitudes/{id}/rechazar', [VeterinarioController::class, 'rechazarSolicitud']);
-
     Route::prefix('procesos-adopcion')->group(function () {
         Route::get('/', [ProcesoAdopcionController::class, 'index']);
         Route::get('/{id}', [ProcesoAdopcionController::class, 'show']);
@@ -293,17 +303,15 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Rutas para la gestión de tipos de vacuna - SOLO VETERINARIOS
-        
     Route::prefix('tipos-vacuna')->group(function () {
         Route::get('/', [TipoVacunaController::class, 'index']);
         Route::post('/', [TipoVacunaController::class, 'store']);
         Route::get('/{tipoVacuna}', [TipoVacunaController::class, 'show']);
-        Route::put('/{}', [TipoVacunaController::class, 'update']);
+        Route::put('/{tipoVacuna}', [TipoVacunaController::class, 'update']);
         Route::post('/{tipoVacuna}', [TipoVacunaController::class, 'update']);
         Route::delete('/{tipoVacuna}', [TipoVacunaController::class, 'destroy']);
     });
 
-    
     // Rutas para la gestión de tipos de desparasitación - SOLO VETERINARIOS
     Route::prefix('tipos-desparasitacion')->group(function () {
         Route::get('/', [TipoDesparasitacionController::class, 'index']);
@@ -429,8 +437,44 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/desparasitaciones', [DesparasitacionController::class, 'index']);
         Route::post('/desparasitaciones', [DesparasitacionController::class, 'store']);
+
+        // Revisiones médicas
+        Route::get('/revisiones', [RevisionController::class, 'index']);
+        Route::post('/revisiones', [RevisionController::class, 'store']);
+        Route::get('/revisiones/{revision}', [RevisionController::class, 'show']);
+        Route::put('/revisiones/{revision}', [RevisionController::class, 'update']);
+        Route::delete('/revisiones/{revision}', [RevisionController::class, 'destroy']);
+
+        Route::prefix('alergias')->group(function () {
+            Route::get('/', [AlergiaController::class, 'index']);
+            Route::post('/', [AlergiaController::class, 'store']);
+            Route::get('/tipos', [AlergiaController::class, 'getTiposAlergia']);
+            Route::get('/{alergiaId}', [AlergiaController::class, 'show']);
+            Route::put('/{alergiaId}', [AlergiaController::class, 'update']);
+            Route::delete('/{alergiaId}', [AlergiaController::class, 'destroy']);
+        });
+
+        Route::get('/cirugias', [CirugiaController::class, 'index'])->name('cirugias.index');
+        Route::post('/cirugias', [CirugiaController::class, 'store'])->name('cirugias.store');
+        Route::get('/cirugias/{cirugia}', [CirugiaController::class, 'show'])->name('cirugias.show');
+        Route::put('/cirugias/{cirugia}', [CirugiaController::class, 'update'])->name('cirugias.update');
+        Route::delete('/cirugias/{cirugia}', [CirugiaController::class, 'destroy'])->name('cirugias.destroy');
+
+        Route::get('/diagnosticos', [DiagnosticoController::class, 'index']);
+        Route::post('/diagnosticos', [DiagnosticoController::class, 'store']);
+        Route::get('/diagnosticos/estadisticas', [DiagnosticoController::class, 'estadisticas']);
+        
+        Route::prefix('diagnosticos/{diagnostico}')->group(function () {
+            Route::get('/', [DiagnosticoController::class, 'show']);
+            Route::put('/', [DiagnosticoController::class, 'update']);
+            Route::delete('/', [DiagnosticoController::class, 'destroy']);
+            Route::post('/marcar-resuelto', [DiagnosticoController::class, 'marcarComoResuelto']);
+        });
     });
     
+    Route::get('/cirugias/archivos/{archivo}/descargar', [CirugiaController::class, 'descargarArchivo'])
+    ->name('cirugias.archivo.download');
+
     // Listar todas las vacunas de una mascota
     Route::get('/mascotas/{mascotaId}/vacunas', [VacunaController::class, 'index']);
 
@@ -440,6 +484,81 @@ Route::middleware('auth:sanctum')->group(function () {
     // Rutas para la integración con Telegram (estas SÍ necesitan autenticación)
     Route::post('/send-document', [TelegramController::class, 'sendDocument']);
     Route::get('/send-stored-document/{filename}', [TelegramController::class, 'sendStoredDocument']);
+    
+    // Rutas protegidas de Telegram
+    Route::post('/telegram/guardar-chat-id', [TelegramController::class, 'guardarChatId']);
+    Route::get('/usuarios/{usuarioId}/telegram-chat-id', [TelegramController::class, 'obtenerChatId']);
+
+    // Chats
+    Route::prefix('chats')->group(function () {
+        Route::get('/', [ChatController::class, 'index']); // Listar chats
+        Route::post('/crear', [ChatController::class, 'crearObtenerChat']); // Crear/obtener chat
+        Route::get('/{chatId}', [ChatController::class, 'show']); // Ver chat específico
+        Route::delete('/{chatId}', [ChatController::class, 'destroy']); // Eliminar chat
+        Route::post('/{chatId}/leido', [ChatController::class, 'marcarLeido']); // Marcar como leído
+        
+        // Mensajes
+        Route::get('/{chatId}/mensajes', [MensajeController::class, 'index']); // Listar mensajes
+        Route::post('/{chatId}/mensajes', [MensajeController::class, 'store']); // Enviar mensaje
+        Route::delete('/{chatId}/mensajes/{mensajeId}', [MensajeController::class, 'destroy']); // Eliminar mensaje
+        Route::post('/{chatId}/mensajes/leidos', [MensajeController::class, 'marcarLeidos']); // Marcar mensajes como leídos
+        Route::get('/{chatId}/buscar', [MensajeController::class, 'buscar']); // Buscar en mensajes
+    });
+
+    // =============================================
+    // RUTAS PARA TODOS LOS USUARIOS AUTENTICADOS
+    // =============================================
+    
+    // Denuncias para todos los usuarios (crear y verificar)
+    Route::prefix('denuncias')->group(function () {
+        Route::post('/', [DenunciaController::class, 'store']);
+        Route::get('/categorias', [DenunciaController::class, 'categorias']);
+        Route::get('/verificar', [DenunciaController::class, 'verificarDenuncia']);
+    });
+
+    // Sanciones - rutas para usuarios normales
+    Route::get('/usuario/{usuario}/sanciones', [SancionController::class, 'obtenerSancionesUsuario']);
+    Route::get('/usuario/{usuario}/verificar-restricciones', [SancionController::class, 'verificarRestriccionesUsuario']);
+    Route::get('/usuario/sancion-activa', [SancionController::class, 'obtenerSancionActivaUsuario']);
+    
+    // =============================================
+    // RUTAS PARA ADMINISTRADORES (SÓLO ACCESO ADMIN)
+    // =============================================
+   Route::middleware(['auth:sanctum', \App\Http\Middleware\AdminMiddleware::class])->group(function () {
+        
+        // Denuncias - administración (solo para admin)
+        Route::prefix('denuncias')->group(function () {
+            Route::get('/', [DenunciaController::class, 'index']);
+            Route::get('/{id}', [DenunciaController::class, 'show']);
+            Route::put('/{id}/estado', [DenunciaController::class, 'actualizarEstado']);
+            Route::put('/{id}/notas', [DenunciaController::class, 'actualizarNotas']);
+            Route::delete('/{id}', [DenunciaController::class, 'destroy']);
+            Route::get('/filtros/opciones', [DenunciaController::class, 'getFiltrosOpciones']);
+        });
+
+        // Sanciones - administración (solo para admin)
+        Route::prefix('sanciones')->group(function () {
+            Route::get('/', [SancionController::class, 'index']);
+            Route::post('/denuncia/{denuncia}/aplicar', [SancionController::class, 'aplicarSancion']);
+            Route::post('/{sancion}/revocar', [SancionController::class, 'revocarSancion']);
+            Route::get('/denuncia/{denuncia}/recomendacion', [SancionController::class, 'recomendarSancion']);
+            Route::get('/historial', [SancionController::class, 'obtenerHistorialSancionesUsuario']);
+            Route::get('/activa', [SancionController::class, 'obtenerSancionActivaUsuario']);
+        });
+
+        // Administración de veterinarios (solo para admin)
+        Route::get('/solicitudes-pendientes', [VeterinarioController::class, 'obtenerSolicitudesPendientes']);
+        Route::post('/solicitudes/{id}/aprobar', [VeterinarioController::class, 'aprobarSolicitud']);
+        Route::post('/solicitudes/{id}/rechazar', [VeterinarioController::class, 'rechazarSolicitud']);
+    });
+});
+
+// Rutas que pueden acceder usuarios autenticados, incluso si están suspendidos
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Rutas que pueden acceder incluso usuarios suspendidos
+    Route::get('/api/usuario/sancion-activa', [SancionController::class, 'obtenerSancionActivaUsuario']);
+    Route::post('/logout', [CerrarSesionController::class, 'logout']);
 });
 
 // =============================================
@@ -454,4 +573,3 @@ Route::post('/registro-ubicacion', function (Request $request) {
     ]);
     return response()->json(['ok' => true]);
 });
-

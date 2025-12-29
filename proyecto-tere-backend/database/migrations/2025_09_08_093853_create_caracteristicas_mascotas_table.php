@@ -25,6 +25,13 @@ return new class extends Migration
                 'Dietas especiales'
             ])->nullable();
             $table->enum('energia', ['Bajo', 'Medio', 'Alto'])->nullable();
+            $table->enum('ejercicio', [ 
+                'Diariamente',
+                'Varias veces por semana',
+                'Semanalmente',
+                'Ocasionalmente',
+                'No realiza ejercicio'
+            ])->nullable();
             $table->enum('comportamiento_animales', [
                 'Social',
                 'Territorial',

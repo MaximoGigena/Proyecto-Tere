@@ -36,9 +36,15 @@ return new class extends Migration
                 'autolimitada',
                 'progresiva'
             ]);
-            $table->text('criterios_diagnosticos');
             
-            // Datos opcionales
+            // NUEVOS CAMPOS para criterios diagnósticos desglosados
+            $table->text('sintomas_caracteristicos')->nullable(); // Se eliminó el campo viejo
+            $table->text('examenes_requeridos')->nullable();
+            $table->text('señales_clinicas_mayores')->nullable();
+            $table->text('señales_clinicas_menores')->nullable();
+            $table->text('criterios_exclusion')->nullable();
+            
+            // Datos opcionales (mantenidos)
             $table->text('tratamiento_sugerido')->nullable();
             $table->text('riesgos_complicaciones')->nullable();
             $table->text('recomendaciones_clinicas')->nullable();

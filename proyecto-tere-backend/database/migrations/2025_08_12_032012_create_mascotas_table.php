@@ -18,6 +18,7 @@ return new class extends Migration
             $table->date('fecha_nacimiento')->nullable();
             $table->string('edad_actual')->nullable();
             $table->enum('sexo', ['macho', 'hembra']);
+            $table->boolean('castrado')->nullable();
             $table->timestamp('deleted_at')->nullable();
             $table->foreignId('usuario_id')
             ->references('id')

@@ -6,23 +6,26 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\CaracteristicasMascota;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Traits\Auditable;
 
 class Mascota extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, auditable;
 
     protected $fillable = [
         'nombre',
         'especie',
         'fecha_nacimiento', // Ahora es string dd/mm/yyyy
         'sexo',
+        'castrado',
         'usuario_id'
     ];
 
     protected $casts = [
-        // Remover el casting date para fecha_nacimiento
+        'castrado' => 'boolean',
     ];
 
     public function baja(): HasOne
@@ -317,5 +320,10 @@ class Mascota extends Model
             ->first();
         
         return $ultimaTransferencia->fecha_transferencia ?? null;
+    }
+
+    public function getCastradoAttribute($value)
+    {
+        return $value === null ? null : (bool) $value;
     }
 }

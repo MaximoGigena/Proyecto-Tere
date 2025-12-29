@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\ProcesoMedico;
 use App\Models\TiposProcedimientos\TipoAlergia;
 
 class Alergia extends Model
@@ -42,5 +43,13 @@ class Alergia extends Model
     public function tipoAlergia()
     {
         return $this->belongsTo(TipoAlergia::class);
+    }
+
+    /**
+     * Get the proceso medico associated with this alergia.
+     */
+    public function procesoMedico()
+    {
+        return $this->morphOne(ProcesoMedico::class, 'procesable');
     }
 }

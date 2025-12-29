@@ -4,23 +4,18 @@ namespace App\Http;
 
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
 
-
 class Kernel extends HttpKernel
 {
     /**
      * The application's global HTTP middleware stack.
-     *
-     * These middleware are run during every request to your application.
      */
     protected $middleware = [
-        // \App\Http\Middleware\TrustHosts::class,
         \App\Http\Middleware\TrustProxies::class,
         \Illuminate\Http\Middleware\HandleCors::class,
         \App\Http\Middleware\PreventRequestsDuringMaintenance::class,
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \App\Http\Middleware\TrimStrings::class,
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
-        // REMOVER todos los middlewares personalizados de aquí
     ];
 
     /**
@@ -34,19 +29,19 @@ class Kernel extends HttpKernel
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\SetAuditVariables::class,
         ],
 
         'api' => [
-           \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\SetAuditVariables::class,
         ],
     ];
 
     /**
      * The application's route middleware.
-     *
-     * These middleware may be assigned to groups or used individually.
      */
     protected $routeMiddleware = [
         'auth' => \App\Http\Middleware\Authenticate::class,
@@ -60,10 +55,13 @@ class Kernel extends HttpKernel
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         
-        // TUS MIDDLEWERS PERSONALIZADOS - SOLO AQUÍ
+        // TUS MIDDLEWERS PERSONALIZADOS
+        'admin' => \App\Http\Middleware\AdminMiddleware::class,    
         'user.type' => \App\Http\Middleware\CheckUserType::class,
-        'admin' => \App\Http\Middleware\AdminMiddleware::class,
         'veterinario' => \App\Http\Middleware\VeterinarioMiddleware::class,
+        'verificar.sanciones' => \App\Http\Middleware\VerificarSanciones::class,
+        
+        // ✅ CAMBIA ESTO: Solo uno de los dos
+        'suspended' => \App\Http\Middleware\CheckUserSuspended::class,
     ];
 }
-

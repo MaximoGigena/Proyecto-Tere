@@ -1,20 +1,20 @@
 <?php
+// app/Models/ProcedimientosMedicos/Revision.php
 
-namespace App\Models;
+namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\TiposProcedimientos\TipoRevision;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\ProcesoMedico;
 
 class Revision extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
+    protected $table = 'revisiones';
+
     protected $fillable = [
         'tipo_revision_id',
         'fecha_revision',
@@ -26,11 +26,6 @@ class Revision extends Model
         'recomendaciones_tutor',
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
     protected $casts = [
         'fecha_revision' => 'datetime',
         'fecha_proxima_revision' => 'date',
@@ -42,5 +37,13 @@ class Revision extends Model
     public function tipoRevision()
     {
         return $this->belongsTo(TipoRevision::class);
+    }
+
+    /**
+     * Get the proceso medico asociado
+     */
+    public function procesoMedico()
+    {
+        return $this->morphOne(ProcesoMedico::class, 'procesable');
     }
 }

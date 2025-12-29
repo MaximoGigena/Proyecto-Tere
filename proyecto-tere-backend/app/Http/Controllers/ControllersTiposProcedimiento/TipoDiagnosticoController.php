@@ -79,12 +79,18 @@ class TipoDiagnosticoController extends Controller
                 'clasificacion_otro' => $request->clasificacion_otro,
                 'especies' => $request->especies,
                 'evolucion' => $request->evolucion,
-                'criterios_diagnosticos' => $request->criterios_diagnosticos,
+                // NUEVOS CAMPOS
+                'sintomas_caracteristicos' => $request->sintomas_caracteristicos,
+                'examenes_requeridos' => $request->examenes_requeridos,
+                'señales_clinicas_mayores' => $request->señales_clinicas_mayores,
+                'señales_clinicas_menores' => $request->señales_clinicas_menores,
+                'criterios_exclusion' => $request->criterios_exclusion,
+                // Campos opcionales existentes
                 'tratamiento_sugerido' => $request->tratamiento_sugerido,
                 'riesgos_complicaciones' => $request->riesgos_complicaciones,
                 'recomendaciones_clinicas' => $request->recomendaciones_clinicas,
                 'observaciones' => $request->observaciones,
-                'veterinario_id' => $veterinarioId, // Usar el ID correcto
+                'veterinario_id' => $veterinarioId,
                 'activo' => true
             ];
 
@@ -156,7 +162,7 @@ class TipoDiagnosticoController extends Controller
 
             $tipoDiagnostico = TipoDiagnostico::where('activo', true)->findOrFail($id);
 
-            // Reglas de validación para actualización (ignorar unique para el mismo registro)
+            // Reglas de validación para actualización
             $rules = TipoDiagnostico::rules();
             $rules['nombre'] = 'required|string|max:255|unique:tipos_diagnostico,nombre,' . $id;
 
@@ -178,7 +184,13 @@ class TipoDiagnosticoController extends Controller
                 'clasificacion_otro' => $request->clasificacion_otro,
                 'especies' => $request->especies,
                 'evolucion' => $request->evolucion,
-                'criterios_diagnosticos' => $request->criterios_diagnosticos,
+                // NUEVOS CAMPOS
+                'sintomas_caracteristicos' => $request->sintomas_caracteristicos,
+                'examenes_requeridos' => $request->examenes_requeridos,
+                'señales_clinicas_mayores' => $request->señales_clinicas_mayores,
+                'señales_clinicas_menores' => $request->señales_clinicas_menores,
+                'criterios_exclusion' => $request->criterios_exclusion,
+                // Campos opcionales existentes
                 'tratamiento_sugerido' => $request->tratamiento_sugerido,
                 'riesgos_complicaciones' => $request->riesgos_complicaciones,
                 'recomendaciones_clinicas' => $request->recomendaciones_clinicas,
@@ -305,11 +317,6 @@ class TipoDiagnosticoController extends Controller
                 ->groupBy('clasificacion')
                 ->get();
 
-            $porEspecie = TipoDiagnostico::where('activo', true)
-                ->select('especie', DB::raw('count(*) as total'))
-                ->groupBy('especie')
-                ->get();
-
             $porEvolucion = TipoDiagnostico::where('activo', true)
                 ->select('evolucion', DB::raw('count(*) as total'))
                 ->groupBy('evolucion')
@@ -320,7 +327,6 @@ class TipoDiagnosticoController extends Controller
                 'data' => [
                     'total' => $total,
                     'por_clasificacion' => $porClasificacion,
-                    'por_especie' => $porEspecie,
                     'por_evolucion' => $porEvolucion
                 ]
             ]);

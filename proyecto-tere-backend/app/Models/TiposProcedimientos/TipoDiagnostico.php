@@ -30,7 +30,13 @@ class TipoDiagnostico extends Model
         'clasificacion_otro',
         'especies',
         'evolucion',
-        'criterios_diagnosticos',
+        // NUEVOS CAMPOS
+        'sintomas_caracteristicos',
+        'examenes_requeridos',
+        'señales_clinicas_mayores',
+        'señales_clinicas_menores',
+        'criterios_exclusion',
+        // Campos opcionales existentes
         'tratamiento_sugerido',
         'riesgos_complicaciones',
         'recomendaciones_clinicas',
@@ -49,20 +55,6 @@ class TipoDiagnostico extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
-
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'especies' => 'array',
-            'created_at' => 'datetime',
-            'updated_at' => 'datetime',
-        ];
-    }
 
     public function veterinario()
     {
@@ -123,7 +115,9 @@ class TipoDiagnostico extends Model
     public function scopeBuscar($query, $termino)
     {
         return $query->where('nombre', 'like', "%{$termino}%")
-                    ->orWhere('descripcion', 'like', "%{$termino}%");
+                    ->orWhere('descripcion', 'like', "%{$termino}%")
+                    ->orWhere('sintomas_caracteristicos', 'like', "%{$termino}%")
+                    ->orWhere('examenes_requeridos', 'like', "%{$termino}%");
     }
 
     /**
@@ -195,6 +189,20 @@ class TipoDiagnostico extends Model
     }
 
     /**
+     * Get todos los criterios diagnósticos como array
+     */
+    public function getCriteriosCompletosAttribute(): array
+    {
+        return [
+            'sintomas_caracteristicos' => $this->sintomas_caracteristicos ? explode(', ', $this->sintomas_caracteristicos) : [],
+            'examenes_requeridos' => $this->examenes_requeridos ? explode(', ', $this->examenes_requeridos) : [],
+            'señales_clinicas_mayores' => $this->señales_clinicas_mayores ? explode(', ', $this->señales_clinicas_mayores) : [],
+            'señales_clinicas_menores' => $this->señales_clinicas_menores ? explode(', ', $this->señales_clinicas_menores) : [],
+            'criterios_exclusion' => $this->criterios_exclusion ? explode(', ', $this->criterios_exclusion) : [],
+        ];
+    }
+
+    /**
      * Check if diagnóstico es crónico
      */
     public function getEsCronicoAttribute(): bool
@@ -244,10 +252,17 @@ class TipoDiagnostico extends Model
             'descripcion' => 'required|string',
             'clasificacion' => 'required|in:infeccioso,genetico,nutricional,ambiental,traumatico,degenerativo,neoplasico,otro',
             'clasificacion_otro' => 'nullable|required_if:clasificacion,otro|string|max:255',
-            'especies' => 'required|array|min:1', // Cambiado a array
-            'especies.*' => 'in:canino,felino,equino,bovino,ave,pez,otro', // Validación para cada elemento
+            'especies' => 'required|array|min:1',
+            'especies.*' => 'in:canino,felino,equino,bovino,ave,pez,otro',
             'evolucion' => 'required|in:aguda,cronica,recurrente,autolimitada,progresiva',
-            'criterios_diagnosticos' => 'required|string',
+            // NUEVAS VALIDACIONES para criterios diagnósticos
+            'sintomas_caracteristicos' => 'required|string',
+            'examenes_requeridos' => 'required|string',
+            'señales_clinicas_mayores' => 'required|string',
+            // Validaciones opcionales
+            'señales_clinicas_menores' => 'nullable|string',
+            'criterios_exclusion' => 'nullable|string',
+            // Validaciones existentes
             'tratamiento_sugerido' => 'nullable|string',
             'riesgos_complicaciones' => 'nullable|string',
             'recomendaciones_clinicas' => 'nullable|string',
@@ -266,10 +281,13 @@ class TipoDiagnostico extends Model
             'descripcion.required' => 'La descripción general es obligatoria.',
             'clasificacion.required' => 'La clasificación es obligatoria.',
             'clasificacion_otro.required_if' => 'Debe especificar la clasificación cuando selecciona "Otro".',
-            'especies.required' => 'Debe seleccionar al menos una especie objetivo.', // Mensaje actualizado
+            'especies.required' => 'Debe seleccionar al menos una especie objetivo.',
             'especies.min' => 'Debe seleccionar al menos una especie objetivo.',
             'evolucion.required' => 'La evolución típica es obligatoria.',
-            'criterios_diagnosticos.required' => 'Los criterios diagnósticos son obligatorios.',
+            // NUEVOS MENSAJES
+            'sintomas_caracteristicos.required' => 'Debe especificar al menos un síntoma característico.',
+            'examenes_requeridos.required' => 'Debe especificar al menos un examen requerido.',
+            'señales_clinicas_mayores.required' => 'Debe especificar al menos una señal clínica mayor.',
         ];
     }
 

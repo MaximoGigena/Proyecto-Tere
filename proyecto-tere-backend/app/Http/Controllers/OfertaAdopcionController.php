@@ -20,12 +20,13 @@ class OfertaAdopcionController extends Controller
     {
         try {
             $user = Auth::user();
+            $usuarioId = $user->userable->id;
             
             $ofertas = OfertaAdopcion::with(['mascota' => function($query) {
                 // CORRECCIÓN: No seleccionar 'foto' porque no existe como campo
                 $query->select('id', 'nombre', 'especie');
             }])
-            ->where('id_usuario_responsable', $user->id)
+            ->where('id_usuario_responsable', $usuarioId)
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function($oferta) {
@@ -56,7 +57,10 @@ class OfertaAdopcionController extends Controller
         DB::beginTransaction();
         
         try {
+
+            
             $user = Auth::user();
+            $usuarioId = $user->userable->id; 
             
             // Log para depuración
             Log::info('Creando oferta de adopción', [
@@ -86,14 +90,17 @@ class OfertaAdopcionController extends Controller
                 $query->where('es_principal', true)->first();
             }])
             ->where('id', $request->mascotaId)
-            ->where('usuario_id', $user->id)
+            ->where('usuario_id', $usuarioId) // Cambiar esto
             ->first();
             
             if (!$mascota) {
-                Log::error('Mascota no pertenece al usuario', [
-                    'mascota_id' => $request->mascotaId,
-                    'usuario_id' => $user->id
-                ]);
+            Log::error('Mascota no pertenece al usuario', [
+                'mascota_id' => $request->mascotaId,
+                'usuario_id' => $usuarioId, // Actualizar
+                'user_id' => $user->id,
+                'userable_type' => $user->userable_type,
+                'userable_id' => $user->userable_id
+            ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'La mascota no existe o no pertenece al usuario'
@@ -116,7 +123,7 @@ class OfertaAdopcionController extends Controller
             // Crear la oferta
             $oferta = OfertaAdopcion::create([
                 'id_mascota' => $request->mascotaId,
-                'id_usuario_responsable' => $user->id,
+                'id_usuario_responsable' => $usuarioId, // <- CAMBIAR esto a $usuarioId
                 'estado_oferta' => 'publicada',
                 'permiso_historial_medico' => $request->permisos['compartirHistorialMedico'],
                 'permiso_contacto_tutor' => $request->permisos['compartirMediosContacto'],
@@ -170,6 +177,23 @@ class OfertaAdopcionController extends Controller
     public function show($id)
     {
         try {
+
+            Log::info('OfertaAdopcionController@show llamado', [
+            'id_recibido' => $id,
+            'es_numerico' => is_numeric($id),
+            'url_completa' => request()->fullUrl()
+        ]);
+        
+        // Si el ID no es numérico, podría ser una ruta incorrecta
+        if (!is_numeric($id)) {
+            Log::warning('ID no numérico recibido en show', ['id' => $id]);
+            return response()->json([
+                'success' => false,
+                'message' => 'ID inválido',
+                'debug' => '¿Estás intentando acceder a otra ruta? ID recibido: ' . $id
+            ], 400);
+        }
+
             // No verificar que sea del usuario autenticado
             // Solo verificar que exista y esté publicada
             $oferta = OfertaAdopcion::with([
@@ -202,6 +226,7 @@ class OfertaAdopcionController extends Controller
                 'nombre' => $mascota->nombre,
                 'especie' => $mascota->especie,
                 'sexo' => $mascota->sexo,
+                'castrado' => $mascota->castrado,
                 'fecha_nacimiento' => $mascota->fecha_nacimiento,
                 'usuario_id' => $mascota->usuario_id,
                 'caracteristicas' => $caracteristicas,
@@ -422,14 +447,25 @@ class OfertaAdopcionController extends Controller
     {
         try {
             $user = Auth::user();
+            $usuarioId = $user->userable->id;
             
             Log::info('Obteniendo mascotas disponibles para usuario', [
                 'usuario_id' => $user->id,
-                'user_class' => get_class($user)
+                'user_class' => get_class($user),
+                'userable_type' => $user->userable_type ?? 'N/A',
+                'userable_id' => $user->userable_id ?? 'N/A'
             ]);
             
+            
+            if (!$usuarioId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró información del usuario'
+                ], 404);
+            }
+            
             // Obtener IDs de mascotas que ya tienen ofertas activas
-            $mascotasConOfertaActiva = OfertaAdopcion::where('id_usuario_responsable', $user->id)
+            $mascotasConOfertaActiva = OfertaAdopcion::where('id_usuario_responsable', $usuarioId)
                 ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
                 ->pluck('id_mascota')
                 ->toArray();
@@ -437,9 +473,7 @@ class OfertaAdopcionController extends Controller
             Log::info('Mascotas con oferta activa', ['ids' => $mascotasConOfertaActiva]);
             
             // Obtener mascotas del usuario que no están en ofertas activas
-            // IMPORTANTE: Verificar el nombre exacto de la columna de usuario en la tabla mascotas
-            // Si no es 'usuario_id', podría ser 'user_id' o 'id_usuario'
-            $mascotas = Mascota::where('usuario_id', $user->id) // <-- CORREGIR ESTO SI ES NECESARIO
+            $mascotas = Mascota::where('usuario_id', $usuarioId) // <-- CORRECCIÓN AQUÍ
                 ->whereNotIn('id', $mascotasConOfertaActiva)
                 ->whereNull('deleted_at') // Solo mascotas no eliminadas
                 ->get()
@@ -490,12 +524,13 @@ class OfertaAdopcionController extends Controller
     {
         try {
             $user = Auth::user();
+            $usuarioId = $user->userable->id;
             
             $ofertas = OfertaAdopcion::with(['mascota' => function($query) {
                 // No seleccionar 'foto' porque no existe
                 $query->select('id', 'nombre', 'especie');
             }])
-            ->where('id_usuario_responsable', $user->id)
+            ->where('id_usuario_responsable', $usuarioId)
             ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
             ->get()
             ->map(function($oferta) {
@@ -525,10 +560,11 @@ class OfertaAdopcionController extends Controller
 
     /**
      * Obtener todas las ofertas de adopción disponibles (excepto las del usuario autenticado)
+     * CON FILTROS
      */
     public function getOfertasDisponibles(Request $request)
     {
-        Log::info('=== INICIO getOfertasDisponibles ===');
+        Log::info('=== INICIO getOfertasDisponibles CON FILTROS ===');
         Log::info('Request data:', $request->all());
         
         try {
@@ -544,15 +580,18 @@ class OfertaAdopcionController extends Controller
             
             Log::info('Usuario autenticado:', ['id' => $user->id, 'email' => $user->email]);
             
-            // ✅ CORRECCIÓN: Usar solo campos que existen en la tabla usuarios
+            // ✅ Consulta base con relaciones necesarias para filtros
             $query = OfertaAdopcion::with([
                 'mascota' => function($query) {
-                    $query->with(['fotos' => function($q) {
-                        $q->where('es_principal', true);
-                    }]);
+                    $query->with([
+                        'fotos' => function($q) {
+                            $q->where('es_principal', true);
+                        },
+                        'caracteristicas',
+                        'edadRelacion' // Necesario para filtro de edad
+                    ]);
                 },
-                // Solo campos que existen en la tabla usuarios
-                'usuarioResponsable:id,nombre' // ← Solo 'nombre', no 'email' ni 'apellido'
+                'usuarioResponsable:id,nombre'
             ])
             ->where('estado_oferta', 'publicada');
             
@@ -561,9 +600,14 @@ class OfertaAdopcionController extends Controller
             // Excluir ofertas del usuario autenticado
             $query->where('id_usuario_responsable', '!=', $user->id);
             
-            Log::info('Ejecutando consulta...');
+            // ✅ APLICAR FILTROS usando el controlador de filtros
+            $filtrosController = new FiltrosMascotasController();
+            $query = $filtrosController->aplicarFiltros($query, $request);
+            
+            Log::info('Consulta después de filtros:', ['sql' => $query->toSql()]);
+            
             $ofertas = $query->orderBy('created_at', 'desc')->get();
-            Log::info('Total ofertas encontradas: ' . $ofertas->count());
+            Log::info('Total ofertas encontradas después de filtros: ' . $ofertas->count());
             
             $ofertasFormateadas = $ofertas->map(function($oferta) {
                 try {
@@ -578,18 +622,13 @@ class OfertaAdopcionController extends Controller
                         return null;
                     }
                     
-                    // Calcular rango etario
-                    $edadMeses = $oferta->mascota->edad_meses ?? 0;
+                    // ✅ Usar FiltrosMascotasController para determinar rango etario CORRECTAMENTE
                     $rangoEtario = 'Adulto';
-                    
-                    if ($edadMeses <= 12) {
-                        $rangoEtario = 'Cachorro';
-                    } elseif ($edadMeses <= 36) {
-                        $rangoEtario = 'Joven';
-                    } elseif ($edadMeses <= 84) {
-                        $rangoEtario = 'Adulto';
-                    } else {
-                        $rangoEtario = 'Abuelo';
+                    if ($oferta->mascota->edadRelacion && $oferta->mascota->edadRelacion->dias !== null) {
+                        $rangoEtario = FiltrosMascotasController::determinarRangoEtario(
+                            $oferta->mascota->especie,
+                            $oferta->mascota->edadRelacion->dias
+                        );
                     }
                     
                     return [
@@ -599,9 +638,9 @@ class OfertaAdopcionController extends Controller
                             'nombre' => $oferta->mascota->nombre ?? 'Sin nombre',
                             'especie' => $oferta->mascota->especie ?? 'Desconocido',
                             'sexo' => $oferta->mascota->sexo ?? 'Desconocido',
-                            'edad_meses' => $edadMeses,
+                            'castrado' => $oferta->mascota->castrado,
                             'edad_formateada' => $oferta->mascota->edad_formateada ?? 'Edad no especificada',
-                            'rango_etario' => $rangoEtario,
+                            'rango_etario' => $rangoEtario, // <-- USAR EL RANGO CORRECTO
                             'caracteristicas' => is_string($oferta->mascota->caracteristicas ?? '') 
                                 ? json_decode($oferta->mascota->caracteristicas, true) 
                                 : ($oferta->mascota->caracteristicas ?? []),
@@ -610,7 +649,6 @@ class OfertaAdopcionController extends Controller
                         'usuario_responsable' => [
                             'id' => $oferta->usuarioResponsable->id,
                             'nombre' => $oferta->usuarioResponsable->nombre ?? 'Usuario',
-                            // No incluir 'email' ni 'ubicacion' porque no existen en la tabla
                         ],
                         'permisos' => [
                             'historial_medico' => $oferta->permiso_historial_medico ?? false,
@@ -625,7 +663,7 @@ class OfertaAdopcionController extends Controller
                 }
             })->filter()->values();
             
-            Log::info('Ofertas formateadas: ' . $ofertasFormateadas->count());
+            Log::info('Ofertas formateadas después de filtros: ' . $ofertasFormateadas->count());
             
             return response()->json([
                 'success' => true,
@@ -634,6 +672,7 @@ class OfertaAdopcionController extends Controller
                 'debug' => [
                     'user_id' => $user->id,
                     'filters_applied' => $request->all(),
+                    'filters_processed' => true,
                     'query_time' => now()->toDateTimeString(),
                 ]
             ]);
@@ -702,6 +741,7 @@ class OfertaAdopcionController extends Controller
                 'especie' => $oferta->mascota->especie,
                 'raza' => $oferta->mascota->raza,
                 'sexo' => $oferta->mascota->sexo,
+                'castrado' => $oferta->mascota->castrado,
                 'edad_formateada' => $oferta->mascota->edad_formateada,
                 'foto_principal_url' => $oferta->mascota->foto_principal_url,
                 'caracteristicas' => is_string($oferta->mascota->caracteristicas ?? '') 

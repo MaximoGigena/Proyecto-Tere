@@ -17,25 +17,38 @@ class MascotaController extends Controller
 {
     public function store(Request $request)
     {
+        Log::info('Datos recibidos en store:', $request->all());
+        Log::info('Castrado recibido:', ['value' => $request->castrado, 'type' => gettype($request->castrado)]);
+        Log::info('Todos los campos:', array_keys($request->all()));
+        
         // Validar los datos obligatorios
-        $request->validate([
+        $validated = $request->validate([
             'nombre' => 'required|string|max:255',
             'especie' => 'required|in:canino,felino,equino,bovino,ave,pez,otro',
             'fecha_nacimiento' => 'required|string|date_format:d/m/Y|before:today',
             'sexo' => 'required|in:macho,hembra',
+            'castrado' => 'required|in:0,1,true,false', // Acepta múltiples formatos
             'fotos.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp'
         ]);
+        
+        Log::info('Datos validados:', $validated);
 
         $usuario = Auth::user()->userable;
 
-        // Crear la mascota (sin edad_actual)
+        // Convertir castrado a booleano
+        $castrado = filter_var($request->castrado, FILTER_VALIDATE_BOOLEAN);
+
+        // Crear la mascota
         $mascota = Mascota::create([
             'nombre' => $request->nombre,
             'especie' => $request->especie,
             'sexo' => $request->sexo,
-            'fecha_nacimiento' => $request->fecha_nacimiento, // Guardar como string dd/mm/yyyy
+            'castrado' => $castrado, // Usar el valor convertido
+            'fecha_nacimiento' => $request->fecha_nacimiento,
             'usuario_id' => $usuario->id
         ]);
+
+        Log::info('Mascota creada:', ['id' => $mascota->id, 'castrado' => $mascota->castrado]);
 
         // Crear las características opcionales si existen
         if ($mascota->id) {
@@ -45,11 +58,14 @@ class MascotaController extends Controller
                 'pelaje' => $request->pelaje,
                 'alimentacion' => $request->alimentacion,
                 'energia' => $request->energia,
+                'ejercicio' => $request->ejercicio,
                 'comportamiento_animales' => $request->comportamiento_animales,
                 'comportamiento_ninos' => $request->comportamiento_ninos,
                 'personalidad' => $request->personalidad,
                 'descripcion' => $request->descripcion
             ]);
+            
+            Log::info('Características creadas:', $caracteristicas->toArray());
         }
 
         // Procesar las fotos
@@ -105,6 +121,7 @@ class MascotaController extends Controller
                     'nombre' => $mascota->nombre,
                     'especie' => $mascota->especie,
                     'sexo' => $mascota->sexo,
+                    'castrado' => $mascota->castrado,
                     'fecha_nacimiento' => $mascota->fecha_nacimiento,
                     'usuario_id' => $mascota->usuario_id, // ← CRUCIAL: incluir usuario_id
                     'caracteristicas' => $mascota->caracteristicas,
@@ -146,6 +163,7 @@ class MascotaController extends Controller
             'especie' => 'required|in:canino,felino,equino,bovino,ave,pez,otro',
             'fecha_nacimiento' => 'required|string|date_format:d/m/Y|before:today',
             'sexo' => 'required|in:macho,hembra',
+            'castrado' => 'required|boolean',
             'nuevas_fotos.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp',
             'fotos_eliminar.*' => 'nullable|integer'
         ]);
@@ -163,6 +181,7 @@ class MascotaController extends Controller
             'especie' => $request->especie,
             'fecha_nacimiento' => $request->fecha_nacimiento, // Guardar como string dd/mm/yyyy
             'sexo' => $request->sexo,
+            'castrado' => $request->castrado,
         ]);
 
         // Actualizar características
@@ -173,6 +192,7 @@ class MascotaController extends Controller
                 'pelaje' => $request->pelaje,
                 'alimentacion' => $request->alimentacion,
                 'energia' => $request->energia,
+                'ejercicio' => $request->ejercicio,
                 'comportamiento_animales' => $request->comportamiento_animales,
                 'comportamiento_ninos' => $request->comportamiento_ninos,
                 'personalidad' => $request->personalidad,
@@ -469,25 +489,25 @@ class MascotaController extends Controller
         $user = Auth::user();
         $usuario = $user->userable;
         
-        // 1. Obtener todas las mascotas del usuario
-        $todasLasMascotas = Mascota::with([
+        // 1. Obtener IDs de mascotas que YA tienen ofertas de adopción activas
+        $mascotasEnAdopcionIds = \App\Models\OfertaAdopcion::where('id_usuario_responsable', $user->id)
+            ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
+            ->pluck('id_mascota')
+            ->toArray();
+        
+        Log::info('Mascotas en adopción activa:', ['ids' => $mascotasEnAdopcionIds]);
+        
+        // 2. Obtener todas las mascotas del usuario que NO están en adopción activa
+        $mascotasDisponibles = Mascota::with([
             'caracteristicas', 
             'fotos', 
             'edadRelacion'
         ])
         ->where('usuario_id', $usuario->id)
         ->whereNull('deleted_at')
-        ->get();
-        
-        // 2. Obtener IDs de mascotas que ya están en adopción
-        // Necesitas el modelo Adopcion (si no existe, créalo)
-        // Si no tienes el modelo Adopcion aún, puedes hacerlo más simple:
-        $mascotasEnAdopcionIds = []; // Por ahora vacío, lo implementaremos después
-        
-        // 3. Filtrar mascotas que NO están en adopción
-        $mascotasDisponibles = $todasLasMascotas->filter(function($mascota) use ($mascotasEnAdopcionIds) {
-            return !in_array($mascota->id, $mascotasEnAdopcionIds);
-        })->map(function ($mascota) {
+        ->whereNotIn('id', $mascotasEnAdopcionIds)
+        ->get()
+        ->map(function ($mascota) {
             return [
                 'id' => $mascota->id,
                 'nombre' => $mascota->nombre,
@@ -503,6 +523,11 @@ class MascotaController extends Controller
                 'caracteristicas' => $mascota->caracteristicas
             ];
         });
+
+        Log::info('Mascotas disponibles encontradas:', [
+            'count' => $mascotasDisponibles->count(),
+            'ids' => $mascotasDisponibles->pluck('id')->toArray()
+        ]);
 
         return response()->json([
             'success' => true,

@@ -21,7 +21,7 @@ return new class extends Migration
             $table->string('userable_type');
             $table->rememberToken();
             $table->timestamps();
-            $table->enum('estado', ['pendiente', 'activo', 'inactivo'])->default('pendiente');
+            $table->enum('estado', ['pendiente', 'activo', 'inactivo', 'suspendido', 'bloqueado'])->default('pendiente');
             $table->index(['userable_type', 'userable_id']);
 
             $table->string('google_id')->nullable()->unique();
