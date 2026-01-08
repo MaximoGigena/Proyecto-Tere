@@ -1,14 +1,18 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\TiposProcedimientos\TipoPaliativo;
+use App\Models\FarmacoAsociado;
+use App\Models\ProcesoMedico;
 
 class CuidadoPaliativo extends Model
 {
     use HasFactory;
+
+    protected $table = 'cuidados_paliativos';
 
     /**
      * The attributes that are mass assignable.
@@ -227,5 +231,40 @@ class CuidadoPaliativo extends Model
         }
 
         return explode("\n", $this->medicacion_complementaria);
+    }
+
+    /**
+     * Fármacos asociados al cuidado paliativo
+     */
+    public function farmacosAsociados()
+    {
+        return $this->morphMany(FarmacoAsociado::class, 'farmacable');
+    }
+    
+    /**
+     * Agregar un fármaco al cuidado paliativo
+     */
+    public function agregarFarmaco(array $datos)
+    {
+        return $this->farmacosAsociados()->create(array_merge(
+            $datos,
+            ['farmacable_type' => self::class]
+        ));
+    }
+    
+    /**
+     * Obtener fármacos por momento de aplicación
+     */
+    public function farmacosPorMomento($momento)
+    {
+        return $this->farmacosAsociados()
+                    ->with('tipoFarmaco')
+                    ->where('momento_aplicacion', $momento)
+                    ->get();
+    }
+
+    public function procesoMedico()
+    {
+        return $this->morphOne(ProcesoMedico::class, 'procesable');
     }
 }

@@ -21,6 +21,9 @@ use App\Http\Controllers\ControllersProcedimientos\RevisionController;
 use App\Http\Controllers\ControllersProcedimientos\AlergiaController;
 use App\Http\Controllers\ControllersProcedimientos\CirugiaController;
 use App\Http\Controllers\ControllersProcedimientos\DiagnosticoController;
+use App\Http\Controllers\ControllersProcedimientos\PaliativoController;
+use App\Http\Controllers\ControllersProcedimientos\TerapiaController;
+use App\Http\Controllers\ControllersProcedimientos\FarmacoController;
 use App\Http\Controllers\ControllersProcedimientos\TipoProcedimientoController;
 use App\Http\Controllers\CentroVeterinarioController;
 use App\Http\Controllers\ControllersProcedimientos\VacunaController;
@@ -434,6 +437,9 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         Route::get('/vacunas/{vacuna}', [VacunaController::class, 'show'])->name('vacunas.show');
         Route::get('/vacunas/{vacuna}/editar', [VacunaController::class, 'edit'])->name('vacunas.edit');
         Route::put('/vacunas/{vacuna}', [VacunaController::class, 'update'])->name('vacunas.update');
+        Route::get('/vacunas/{vacuna}', [VacunaController::class, 'show'])->name('api.vacunas.show');
+        Route::put('/vacunas/{vacuna}', [VacunaController::class, 'updateApi'])->name('api.vacunas.update');
+
 
         Route::get('/desparasitaciones', [DesparasitacionController::class, 'index']);
         Route::post('/desparasitaciones', [DesparasitacionController::class, 'store']);
@@ -469,6 +475,47 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
             Route::put('/', [DiagnosticoController::class, 'update']);
             Route::delete('/', [DiagnosticoController::class, 'destroy']);
             Route::post('/marcar-resuelto', [DiagnosticoController::class, 'marcarComoResuelto']);
+        });
+
+        Route::prefix('terapias')->group(function () {
+            Route::get('/', [TerapiaController::class, 'index']);
+            Route::post('/', [TerapiaController::class, 'store']);
+            Route::get('/activas', [TerapiaController::class, 'activas']);
+        });
+
+        Route::prefix('farmacos')->group(function () {
+            Route::get('/', [FarmacoController::class, 'index']);
+            Route::post('/', [FarmacoController::class, 'store']);
+            Route::get('/{id}', [FarmacoController::class, 'show']);
+            Route::put('/{farmaco}', [FarmacoController::class, 'update']);
+            Route::delete('/{farmaco}', [FarmacoController::class, 'destroy']);
+            Route::get('/{farmacoId}/archivos', [FarmacoController::class, 'obtenerArchivos']);
+        });
+
+         Route::prefix('cirugias')->group(function () {
+            Route::get('/', [CirugiaController::class, 'index']);
+            Route::post('/', [CirugiaController::class, 'store']);
+            Route::get('/estadisticas', [CirugiaController::class, 'estadisticas']);
+            
+            Route::prefix('{cirugia}')->group(function () {
+                Route::get('/', [CirugiaController::class, 'show']);
+                Route::put('/', [CirugiaController::class, 'update']);
+                Route::delete('/', [CirugiaController::class, 'destroy']);
+                Route::get('/archivos/{archivo}/descargar', [CirugiaController::class, 'descargarArchivo']);
+            });
+        });
+        // Agregar estas nuevas rutas para procedimientos paliativos
+        Route::prefix('paliativos')->group(function () {
+            Route::get('/', [PaliativoController::class, 'index']);
+            Route::post('/', [PaliativoController::class, 'store']);
+            Route::get('/estadisticas', [PaliativoController::class, 'estadisticas']);
+            
+            Route::prefix('{paliativo}')->group(function () {
+                Route::get('/', [PaliativoController::class, 'show']);
+                Route::put('/', [PaliativoController::class, 'update']);
+                Route::delete('/', [PaliativoController::class, 'destroy']);
+                Route::get('/archivos/{archivo}/descargar', [PaliativoController::class, 'descargarArchivo']);
+            });
         });
     });
     
@@ -555,9 +602,12 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
 
 // Rutas que pueden acceder usuarios autenticados, incluso si están suspendidos
 
-Route::middleware('auth:sanctum')->group(function () {
-    // Rutas que pueden acceder incluso usuarios suspendidos
-    Route::get('/api/usuario/sancion-activa', [SancionController::class, 'obtenerSancionActivaUsuario']);
+// Rutas que pueden acceder usuarios autenticados, incluso si están suspendidos
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Rutas para sanciones que pueden acceder usuarios suspendidos
+    Route::get('/usuario/sancion-activa-detallada', [SancionController::class, 'obtenerSancionActivaDetallada']);
+    Route::get('/usuario/historial-sanciones', [SancionController::class, 'obtenerHistorialSancionesUsuario']);
+    Route::get('/usuario/sancion-activa', [SancionController::class, 'obtenerSancionActivaUsuario']);
     Route::post('/logout', [CerrarSesionController::class, 'logout']);
 });
 

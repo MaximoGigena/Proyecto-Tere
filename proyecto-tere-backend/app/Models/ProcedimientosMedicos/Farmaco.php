@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\ProcesoMedico;
 use App\Models\TiposProcedimientos\TipoFarmaco;
 
 class Farmaco extends Model
@@ -101,5 +102,13 @@ class Farmaco extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Obtener el proceso médico asociado.
+     */
+    public function procesoMedico()
+    {
+        return $this->morphOne(ProcesoMedico::class, 'procesable');
     }
 }

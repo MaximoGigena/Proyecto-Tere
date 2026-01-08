@@ -649,14 +649,30 @@ class SancionController extends Controller
         }
     }
 
-    /**
-     * Obtener información detallada de sanción activa del usuario autenticado
-     */
-    public function obtenerSancionActivaDetallada(Request $request)
+     public function obtenerSancionActivaDetallada(Request $request)
     {
         try {
+            Log::info('🔍 Iniciando obtención de sanción activa detallada', [
+                'user_id' => Auth::id(),
+                'user' => Auth::user() ? Auth::user()->email : 'No autenticado'
+            ]);
+            
             /** @var User $usuario */
             $usuario = Auth::user();
+            
+            if (!$usuario) {
+                Log::warning('⚠️ Usuario no autenticado en obtenerSancionActivaDetallada');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autenticado'
+                ], 401);
+            }
+            
+            Log::info('👤 Usuario autenticado', [
+                'usuario_id' => $usuario->id,
+                'email' => $usuario->email,
+                'estado' => $usuario->estado
+            ]);
             
             // Obtener sanciones activas
             $sancionesActivas = Sancion::activas()
@@ -664,7 +680,13 @@ class SancionController extends Controller
                 ->orderBy('fecha_inicio', 'desc')
                 ->get();
             
+            Log::info('📋 Sanciones activas encontradas:', [
+                'total' => $sancionesActivas->count(),
+                'sanciones' => $sancionesActivas->pluck('id')
+            ]);
+            
             if ($sancionesActivas->isEmpty()) {
+                Log::info('ℹ️ No hay sanciones activas para el usuario', ['usuario_id' => $usuario->id]);
                 return response()->json([
                     'success' => false,
                     'message' => 'No hay sanciones activas'
@@ -674,14 +696,29 @@ class SancionController extends Controller
             // Tomar la sanción más reciente
             $sancion = $sancionesActivas->first();
             
+            Log::info('🎯 Sanción seleccionada:', [
+                'sancion_id' => $sancion->id,
+                'tipo' => $sancion->tipo,
+                'estado' => $sancion->estado,
+                'fecha_inicio' => $sancion->fecha_inicio,
+                'fecha_fin' => $sancion->fecha_fin
+            ]);
+            
             // Calcular días restantes
             $diasRestantes = null;
             if ($sancion->fecha_fin) {
                 $hoy = now();
                 $fin = $sancion->fecha_fin;
                 $diasRestantes = $hoy->diffInDays($fin, false);
+                Log::info('📅 Cálculo de días restantes:', [
+                    'hoy' => $hoy,
+                    'fin' => $fin,
+                    'dias_restantes' => $diasRestantes
+                ]);
+                
                 if ($diasRestantes < 0) {
                     $diasRestantes = 0;
+                    Log::info('⏰ Sanción expirada, verificando...');
                     $sancion->verificarExpiracion();
                 }
             }
@@ -693,8 +730,8 @@ class SancionController extends Controller
                 'nivel' => $sancion->nivel,
                 'razon' => $sancion->razon,
                 'descripcion' => $sancion->descripcion,
-                'fecha_inicio' => $sancion->fecha_inicio,
-                'fecha_fin' => $sancion->fecha_fin,
+                'fecha_inicio' => $sancion->fecha_inicio ? $sancion->fecha_inicio->toDateTimeString() : null,
+                'fecha_fin' => $sancion->fecha_fin ? $sancion->fecha_fin->toDateTimeString() : null,
                 'duracion_dias' => $sancion->duracion_dias,
                 'es_permanente' => $sancion->tipo === 'BLOQUEO_PERMANENTE' || is_null($sancion->fecha_fin),
                 'puede_apelar' => $sancion->tipo !== 'BLOQUEO_PERMANENTE' && $sancion->estado === 'ACTIVA',
@@ -702,9 +739,14 @@ class SancionController extends Controller
                 'restricciones' => $sancion->restricciones ?? [],
                 'dias_restantes' => $diasRestantes,
                 'notas_admin' => $sancion->notas_admin,
-                'created_at' => $sancion->created_at,
-                'updated_at' => $sancion->updated_at
+                'created_at' => $sancion->created_at ? $sancion->created_at->toDateTimeString() : null,
+                'updated_at' => $sancion->updated_at ? $sancion->updated_at->toDateTimeString() : null
             ];
+            
+            Log::info('✅ Sanción activa encontrada y formateada', [
+                'sancion_id' => $sancion->id,
+                'data_keys' => array_keys($data)
+            ]);
             
             return response()->json([
                 'success' => true,
@@ -713,68 +755,17 @@ class SancionController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            Log::error('Error obteniendo sanción activa detallada:', [
+            Log::error('❌ Error obteniendo sanción activa detallada:', [
                 'error' => $e->getMessage(),
-                'user_id' => Auth::id()
+                'trace' => $e->getTraceAsString(),
+                'user_id' => Auth::id(),
+                'request_url' => $request->fullUrl(),
+                'request_method' => $request->method()
             ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener información detallada de sanción'
-            ], 500);
-        }
-    }
-
-    /**
-     * Obtener historial de sanciones del usuario autenticado
-     */
-    public function obtenerHistorialSancionesUsuario(Request $request)
-    {
-        try {
-            /** @var User $usuario */
-            $usuario = Auth::user();
-            
-            $sanciones = Sancion::with(['denuncia'])
-                ->where('usuario_id', $usuario->id)
-                ->orderBy('created_at', 'desc')
-                ->get();
-            
-            $sancionesFormateadas = $sanciones->map(function ($sancion) {
-                return [
-                    'id' => $sancion->id,
-                    'tipo' => $sancion->tipo,
-                    'nivel' => $sancion->nivel,
-                    'razon' => $sancion->razon,
-                    'fecha_inicio' => $sancion->fecha_inicio,
-                    'fecha_fin' => $sancion->fecha_fin,
-                    'duracion_dias' => $sancion->duracion_dias,
-                    'estado' => $sancion->estado,
-                    'descripcion' => $sancion->descripcion,
-                    'created_at' => $sancion->created_at
-                ];
-            });
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Historial de sanciones obtenido',
-                'data' => $sancionesFormateadas,
-                'estadisticas' => [
-                    'total' => $sanciones->count(),
-                    'activas' => $sanciones->where('estado', 'ACTIVA')->count(),
-                    'finalizadas' => $sanciones->whereIn('estado', ['CUMPLIDA', 'EXPIRADA'])->count(),
-                    'revocadas' => $sanciones->where('estado', 'REVOCADA')->count()
-                ]
-            ]);
-            
-        } catch (\Exception $e) {
-            Log::error('Error obteniendo historial de sanciones:', [
-                'error' => $e->getMessage(),
-                'user_id' => Auth::id()
-            ]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener historial de sanciones'
+                'message' => 'Error al obtener información detallada de sanción: ' . $e->getMessage()
             ], 500);
         }
     }

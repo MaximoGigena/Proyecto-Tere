@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\TiposProcedimientos\TipoDiagnostico;
+use App\Models\ProcesoMedico;
 
 class Diagnostico extends Model
 {
@@ -163,5 +164,10 @@ class Diagnostico extends Model
     public function getFechaDiagnosticoFormateadaAttribute()
     {
         return $this->fecha_diagnostico->format('d/m/Y');
+    }
+
+     public function procesoMedico()
+    {
+        return $this->morphOne(ProcesoMedico::class, 'procesable');
     }
 }
