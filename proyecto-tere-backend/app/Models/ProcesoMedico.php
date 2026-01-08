@@ -43,4 +43,20 @@ class ProcesoMedico extends Model
     {
         return $this->morphTo();
     }
+
+    /**
+     * Relación polimórfica con ProcesoMedico
+     */
+    public function procesoMedico()
+    {
+        return $this->morphOne(ProcesoMedico::class, 'procesable');
+    }
+
+    /**
+     * Relación con FarmacoAsociado
+     */
+    public function farmacosAsociados()
+    {
+        return $this->morphMany(FarmacoAsociado::class, 'farmacable');
+    }
 }

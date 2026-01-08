@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\TiposProcedimientos\TipoTerapia;
+use App\Models\ProcesoMedico;
 
 class Terapia extends Model
 {
@@ -127,5 +128,10 @@ class Terapia extends Model
         }
 
         return null;
+    }
+
+    public function procesoMedico()
+    {
+        return $this->morphOne(ProcesoMedico::class, 'procesable');
     }
 }

@@ -1,10 +1,13 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\TiposProcedimientos\TipoCirugia;
+use App\Models\ArchivoCirugia;
+use App\Models\ProcesoMedico;
+use App\Models\FarmacoAsociado;
 
 class Cirugia extends Model
 {
@@ -103,5 +106,35 @@ class Cirugia extends Model
     public function procesoMedico()
     {
         return $this->morphOne(ProcesoMedico::class, 'procesable');
+    }
+
+    /**
+     * Fármacos asociados a la cirugía
+     */
+    public function farmacosAsociados()
+    {
+        return $this->morphMany(FarmacoAsociado::class, 'farmacable');
+    }
+    
+    /**
+     * Agregar un fármaco a la cirugía
+     */
+    public function agregarFarmaco(array $datos)
+    {
+        return $this->farmacosAsociados()->create(array_merge(
+            $datos,
+            ['farmacable_type' => self::class]
+        ));
+    }
+    
+    /**
+     * Obtener fármacos por etapa
+     */
+    public function farmacosPorEtapa($etapa)
+    {
+        return $this->farmacosAsociados()
+                    ->with('tipoFarmaco')
+                    ->where('etapa_aplicacion', $etapa)
+                    ->get();
     }
 }

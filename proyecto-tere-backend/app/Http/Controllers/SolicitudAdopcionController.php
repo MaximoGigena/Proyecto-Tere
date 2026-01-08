@@ -252,6 +252,14 @@ class SolicitudAdopcionController extends Controller
 
             Log::info('Solicitudes encontradas: ' . $solicitudes->count());
 
+            Log::info('DEBUG - Solicitudes encontradas:');
+                foreach ($solicitudes as $solicitud) {
+                    Log::info('Solicitud ID: ' . $solicitud->idSolicitud . 
+                            ' | Mascota ID: ' . $solicitud->idMascota . 
+                            ' | Mascota Nombre: ' . $solicitud->mascota->nombre . 
+                            ' | Usuario Solicitante: ' . $solicitud->idUsuarioSolicitante);
+                }
+
             // Formatear la respuesta para el frontend
             $solicitudesFormateadas = $solicitudes->map(function($solicitud) {
                 $userSolicitante = $solicitud->usuario;
@@ -278,18 +286,21 @@ class SolicitudAdopcionController extends Controller
                     $nombre = $userSolicitante->name ?? 'Usuario';
                 }
                 
+                // En el método solicitudesRecibidas(), dentro del map(), cambia:
                 return [
                     'id' => $solicitud->idSolicitud,
-                    'solicitante_id' => $userSolicitante->id,
+                    'solicitud_id' => $solicitud->idSolicitud,
+                    'solicitante_id' => $userSolicitante->id, // ¡ESTA ES LA CLAVE!
                     'nombre' => $nombre,
                     'img' => $fotoUrl,
                     'mascota_id' => $solicitud->mascota->id,
                     'mascota_nombre' => $solicitud->mascota->nombre,
                     'mascota_foto' => $solicitud->mascota->foto_principal_url ??
-                                'https://cdn.pixabay.com/photo/2017/09/25/13/12/dog-2785074_960_720.jpg',
+                                    'https://cdn.pixabay.com/photo/2017/09/25/13/12/dog-2785074_960_720.jpg',
                     'fecha_solicitud' => $solicitud->fechaSolicitud->format('d/m/Y H:i'),
                     'estado' => $solicitud->estadoSolicitud,
-                    'estado_color' => $solicitud->getEstadoConColorAttribute()
+                    'estado_color' => $solicitud->getEstadoConColorAttribute(),
+                    'unique_key' => $userSolicitante->id . '_' . $solicitud->mascota->id . '_' . $solicitud->idSolicitud
                 ];
             });
 
@@ -419,6 +430,7 @@ class SolicitudAdopcionController extends Controller
                 
                 return [
                     'id' => $solicitud->idSolicitud,
+                    'solicitud_id' => $solicitud->idSolicitud,
                     'solicitante_id' => $userSolicitante->id,
                     'nombre' => $nombre,
                     'img' => $fotoUrl,

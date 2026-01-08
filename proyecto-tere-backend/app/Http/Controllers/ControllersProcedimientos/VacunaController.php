@@ -149,6 +149,72 @@ class VacunaController extends Controller
         }
     }
 
+    /**
+     * Obtener una vacuna específica para edición
+     */
+    public function show($id): JsonResponse
+    {
+        try {
+            Log::info('🔍 Buscando vacuna con ID:', ['id' => $id]);
+            
+            $vacuna = Vacuna::with([
+                'tipo',
+                'procesoMedico.centroVeterinario',
+                'procesoMedico.veterinario'
+            ])->find($id);
+
+            if (!$vacuna) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vacuna no encontrada'
+                ], 404);
+            }
+
+            // Verificar permisos - ejemplo básico
+            $user = auth()->user();
+            $veterinarioId = $vacuna->procesoMedico->veterinario_id ?? null;
+            
+            if ($veterinarioId !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado para editar esta vacuna'
+                ], 403);
+            }
+
+            $vacunaData = [
+                'id' => $vacuna->id,
+                'tipo_vacuna_id' => $vacuna->tipo_vacuna_id,
+                'nombre' => $vacuna->tipo->nombre ?? 'Vacuna no especificada',
+                'numero_dosis' => $vacuna->numero_dosis,
+                'lote_serie' => $vacuna->lote_serie,
+                'fecha_aplicacion' => $vacuna->procesoMedico->fecha_aplicacion ?? null,
+                'fecha_proxima_dosis' => $vacuna->fecha_proxima_dosis,
+                'centro_veterinario_id' => $vacuna->procesoMedico->centro_veterinario_id ?? null,
+                'observaciones' => $vacuna->procesoMedico->observaciones ?? null,
+                'costo' => $vacuna->procesoMedico->costo ?? null,
+                'created_at' => $vacuna->created_at,
+                'updated_at' => $vacuna->updated_at
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $vacunaData
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ Error al obtener vacuna:', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno del servidor al obtener la vacuna'
+            ], 500);
+        }
+    }
+
     public function index($mascotaId): JsonResponse
     {
         try {
@@ -204,60 +270,6 @@ class VacunaController extends Controller
     }
 
     /**
-     * Mostrar detalles de una vacuna
-     */
-    public function show($id): JsonResponse
-    {
-        try {
-            Log::info('🔍 Buscando mascota con ID:', ['id' => $id]);
-            
-            $mascota = Mascota::with(['usuario', 'especie'])->find($id);
-
-            if (!$mascota) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Mascota no encontrada'
-                ], 404);
-            }
-
-            // Si necesitas verificar permisos, hazlo de otra manera
-            // Por ejemplo, verificar si el usuario autenticado es el dueño o veterinario
-            $user = auth()->user();
-            
-            // Verificación básica sin usar roles
-            if ($mascota->usuario_id !== $user->id) {
-                // Opcional: verificar si es veterinario de otras maneras
-                // Por ejemplo, si tienes un campo 'es_veterinario' en users
-                if (!isset($user->es_veterinario) || !$user->es_veterinario) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'No autorizado para ver esta mascota'
-                    ], 403);
-                }
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $mascota
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('❌ Error al obtener mascota:', [
-                'id' => $id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error interno del servidor al obtener la mascota'
-            ], 500);
-        }
-    }
-
-
-
-    /**
      * Mostrar formulario para editar vacuna
      */
     public function edit(Vacuna $vacuna)
@@ -270,24 +282,28 @@ class VacunaController extends Controller
     }
 
     /**
-     * Actualizar vacuna
+     * Actualizar vacuna (API)
      */
-    public function update(Request $request, Vacuna $vacuna)
+    public function updateApi(Request $request, $id): JsonResponse
     {
-        $validated = $request->validate([
-            'tipo_vacuna_id' => 'required|exists:tipos_vacuna,id',
-            'fecha_aplicacion' => 'required|date',
-            'numero_dosis' => 'required|string|max:50',
-            'lote_serie' => 'required|string|max:100',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinario,id',
-            'fecha_proxima_dosis' => 'nullable|date|after:fecha_aplicacion',
-            'observaciones' => 'nullable|string|max:500',
-            'costo' => 'nullable|numeric|min:0',
-        ]);
-
         try {
+            $vacuna = Vacuna::findOrFail($id);
+            
+            // Validación
+            $validated = $request->validate([
+                'tipo_vacuna_id' => 'required|exists:tipos_vacuna,id',
+                'fecha_aplicacion' => 'required|date',
+                'numero_dosis' => 'required|string|max:50',
+                'lote_serie' => 'required|string|max:100',
+                'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
+                'fecha_proxima_dosis' => 'nullable|date|after:fecha_aplicacion',
+                'observaciones' => 'nullable|string|max:500',
+                'costo' => 'nullable|numeric|min:0',
+                'medio_envio' => 'sometimes|in:email,telegram,whatsapp',
+            ]);
+
             DB::transaction(function () use ($validated, $vacuna) {
-                // 1. Actualizar la vacuna
+                // Actualizar la vacuna
                 $vacuna->update([
                     'tipo_vacuna_id' => $validated['tipo_vacuna_id'],
                     'numero_dosis' => $validated['numero_dosis'],
@@ -295,24 +311,39 @@ class VacunaController extends Controller
                     'fecha_proxima_dosis' => $validated['fecha_proxima_dosis'] ?? null,
                 ]);
 
-                // 2. Actualizar el proceso médico asociado
-                $vacuna->procesoMedico->update([
-                    'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
-                    'fecha_aplicacion' => $validated['fecha_aplicacion'],
-                    'observaciones' => $validated['observaciones'] ?? null,
-                    'costo' => $validated['costo'] ?? null,
-                ]);
+                // Actualizar el proceso médico asociado
+                if ($vacuna->procesoMedico) {
+                    $vacuna->procesoMedico->update([
+                        'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
+                        'fecha_aplicacion' => $validated['fecha_aplicacion'],
+                        'observaciones' => $validated['observaciones'] ?? null,
+                        'costo' => $validated['costo'] ?? null,
+                    ]);
+                }
             });
 
-            return redirect()
-                ->route('mascotas.historial', $vacuna->procesoMedico->mascota_id)
-                ->with('success', 'Vacuna actualizada exitosamente.');
+            Log::info('✅ Vacuna actualizada exitosamente', [
+                'vacuna_id' => $vacuna->id,
+                'mascota_id' => $vacuna->procesoMedico->mascota_id ?? null
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Vacuna actualizada exitosamente',
+                'data' => $vacuna->load(['tipo', 'procesoMedico.centroVeterinario'])
+            ]);
 
         } catch (\Exception $e) {
-            return redirect()
-                ->back()
-                ->withInput()
-                ->with('error', 'Error al actualizar la vacuna: ' . $e->getMessage());
+            Log::error('❌ Error actualizando vacuna', [
+                'vacuna_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar la vacuna: ' . $e->getMessage()
+            ], 500);
         }
     }
 

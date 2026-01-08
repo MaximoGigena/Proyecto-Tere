@@ -3,7 +3,7 @@
 
 namespace App\Http\Controllers\ControllersProcedimientos;
 
-use App\Models\Diagnostico;
+use App\Models\ProcedimientosMedicos\Diagnostico;
 use App\Models\ProcesoMedico;
 use App\Models\Mascota;
 use App\Models\TiposProcedimientos\TipoDiagnostico;
@@ -16,9 +16,18 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\EnvioDocumentosService;
 
 class DiagnosticoController extends Controller
 {
+
+    protected $envioDocumentosService;
+
+    public function __construct(EnvioDocumentosService $envioDocumentosService)
+    {
+        $this->envioDocumentosService = $envioDocumentosService;
+    }
+
     /**
      * Mostrar formulario para crear nuevo diagnóstico
      */
@@ -49,75 +58,114 @@ class DiagnosticoController extends Controller
             'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
             'costo' => 'nullable|numeric|min:0',
             'archivos.*' => 'nullable|file|max:10240', // 10MB máximo
+            'medio_envio' => 'required|in:email,telegram,whatsapp',
         ]);
 
-        try {
-            $diagnosticoCreado = null;
+       try {
+        $diagnosticoCreado = null;
+        $mascotaData = null; // Agregar esta variable
 
-            DB::transaction(function () use ($validated, $mascotaId, &$diagnosticoCreado, $request) {
-                // 1. Crear el registro específico de Diagnostico
-                $diagnostico = Diagnostico::create([
-                    'tipo_diagnostico_id' => $validated['tipo_diagnostico_id'],
-                    'nombre' => $validated['nombre'],
-                    'fecha_diagnostico' => $validated['fecha_diagnostico'],
-                    'estado' => $validated['estado'],
-                    'diagnosticos_diferenciales' => $validated['diagnosticos_diferenciales'] ?? null,
-                    'examenes_complementarios' => $validated['examenes_complementarios'] ?? null,
-                    'conducta_terapeutica' => $validated['conducta_terapeutica'] ?? null,
-                    'observaciones' => $validated['observaciones'] ?? null,
-                ]);
+        DB::transaction(function () use ($validated, $mascotaId, &$diagnosticoCreado, &$mascotaData, $request) {
+            // 1. Crear el registro específico de Diagnostico
+            $diagnostico = Diagnostico::create([
+                'tipo_diagnostico_id' => $validated['tipo_diagnostico_id'],
+                'nombre' => $validated['nombre'],
+                'fecha_diagnostico' => $validated['fecha_diagnostico'],
+                'estado' => $validated['estado'],
+                'diagnosticos_diferenciales' => $validated['diagnosticos_diferenciales'] ?? null,
+                'examenes_complementarios' => $validated['examenes_complementarios'] ?? null,
+                'conducta_terapeutica' => $validated['conducta_terapeutica'] ?? null,
+                'observaciones' => $validated['observaciones'] ?? null,
+            ]);
 
-                // 2. Crear el registro general en ProcesoMedico
-                $procesoMedico = new ProcesoMedico([
+            // 2. Crear el registro general en ProcesoMedico
+            $procesoMedico = new ProcesoMedico([
+                'mascota_id' => $mascotaId,
+                'veterinario_id' => Auth::id(),
+                'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
+                'categoria' => 'clinico',
+                'fecha_aplicacion' => $validated['fecha_diagnostico'],
+                'observaciones' => $validated['observaciones'] ?? null,
+                'costo' => $validated['costo'] ?? null,
+            ]);
+
+            // 3. Asociar el diagnóstico con el proceso médico
+            $diagnostico->procesoMedico()->save($procesoMedico);
+
+            // 4. Manejar archivos adjuntos
+            if ($request->hasFile('archivos')) {
+                $this->guardarArchivos($diagnostico, $request->file('archivos'));
+            }
+
+            // 5. Cargar relaciones para la respuesta
+            $diagnosticoCreado = $diagnostico->load([
+                'tipoDiagnostico',
+                'procesoMedico.centroVeterinario',
+                'procesoMedico.veterinario'
+            ]);
+            
+            // 6. Obtener datos de la mascota con relaciones
+            $mascotaData = Mascota::with('usuario')->find($mascotaId); // Agregar esta línea
+        });
+
+        // 7. Enviar certificado PDF después del registro exitoso
+        $mensajeEnvio = '';
+        if ($diagnosticoCreado && $mascotaData) {
+            try {
+                $resultadoEnvio = $this->envioDocumentosService->enviarCertificadoDiagnostico(
+                    $diagnosticoCreado, 
+                    $mascotaData, 
+                    $validated['medio_envio']
+                );
+
+                $mensajeEnvio = ' y certificado enviado';
+                
+                Log::info('✅ Certificado de diagnóstico enviado exitosamente', [
+                    'diagnostico_id' => $diagnosticoCreado->id,
                     'mascota_id' => $mascotaId,
-                    'veterinario_id' => Auth::id(),
-                    'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
-                    'categoria' => 'diagnostico',
-                    'fecha_aplicacion' => $validated['fecha_diagnostico'],
-                    'observaciones' => $validated['observaciones'] ?? null,
-                    'costo' => $validated['costo'] ?? null,
+                    'medio_envio' => $validated['medio_envio'],
+                    'usuario_id' => $mascotaData->usuario_id
                 ]);
 
-                // 3. Asociar el diagnóstico con el proceso médico
-                $diagnostico->procesoMedico()->save($procesoMedico);
-
-                // 4. Manejar archivos adjuntos
-                if ($request->hasFile('archivos')) {
-                    $this->guardarArchivos($diagnostico, $request->file('archivos'));
-                }
-
-                // 5. Cargar relaciones para la respuesta
-                $diagnosticoCreado = $diagnostico->load([
-                    'tipoDiagnostico',
-                    'procesoMedico.centroVeterinario',
-                    'procesoMedico.veterinario'
+            } catch (\Exception $e) {
+                $mensajeEnvio = ' (pero error enviando certificado: ' . $e->getMessage() . ')';
+                
+                Log::error('❌ Error enviando certificado de diagnóstico', [
+                    'diagnostico_id' => $diagnosticoCreado->id,
+                    'mascota_id' => $mascotaId,
+                    'medio_envio' => $validated['medio_envio'],
+                    'error' => $e->getMessage()
                 ]);
-            });
-
-            Log::info('✅ Diagnóstico registrado exitosamente', [
-                'diagnostico_id' => $diagnosticoCreado->id,
-                'mascota_id' => $mascotaId,
-                'usuario_id' => Auth::id()
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Diagnóstico registrado exitosamente',
-                'data' => $diagnosticoCreado
-            ], 201);
-
-        } catch (\Exception $e) {
-            Log::error('❌ Error completo al registrar diagnóstico', [
-                'mascota_id' => $mascotaId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al registrar el diagnóstico: ' . $e->getMessage()
-            ], 500);
+            }
         }
+
+        Log::info('✅ Diagnóstico registrado exitosamente', [
+            'diagnostico_id' => $diagnosticoCreado->id,
+            'mascota_id' => $mascotaId,
+            'usuario_id' => Auth::id()
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Diagnóstico registrado exitosamente' . $mensajeEnvio,
+            'data' => [
+                'diagnostico' => $diagnosticoCreado,
+                'envio_exitoso' => empty($mensajeEnvio) ? false : !str_contains($mensajeEnvio, 'error')
+            ]
+        ], 201);
+
+    } catch (\Exception $e) {
+        Log::error('❌ Error completo al registrar diagnóstico', [
+            'mascota_id' => $mascotaId,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Error al registrar el diagnóstico: ' . $e->getMessage()
+        ], 500);
+    }
     }
 
     /**

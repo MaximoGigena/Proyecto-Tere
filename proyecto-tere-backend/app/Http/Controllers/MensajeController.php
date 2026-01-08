@@ -1,4 +1,3 @@
-// app/Http/Controllers/MensajeController.php
 <?php
 
 namespace App\Http\Controllers;
@@ -87,6 +86,15 @@ class MensajeController extends Controller
         try {
             $user = Auth::user();
             
+            Log::info('📤 Intentando enviar mensaje', [
+                'chat_id' => $chatId,
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'contenido' => $request->contenido,
+                'tipo' => $request->tipo,
+                'ip' => $request->ip()
+            ]);
+
             $validator = validator($request->all(), [
                 'contenido' => 'required|string|max:2000',
                 'tipo' => 'nullable|in:texto,imagen,documento,audio',
@@ -94,6 +102,9 @@ class MensajeController extends Controller
             ]);
 
             if ($validator->fails()) {
+                Log::warning('❌ Validación fallida', [
+                    'errors' => $validator->errors()->toArray()
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Error de validación',
@@ -102,9 +113,27 @@ class MensajeController extends Controller
             }
 
             // Verificar que el chat existe y el usuario es participante
-            $chat = Chat::findOrFail($chatId);
+            $chat = Chat::find($chatId);
             
+            if (!$chat) {
+                Log::warning('❌ Chat no encontrado', ['chat_id' => $chatId]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chat no encontrado'
+                ], 404);
+            }
+            
+            Log::info('✅ Chat encontrado', [
+                'chat_id' => $chat->chat_id,
+                'user1_id' => $chat->user1_id,
+                'user2_id' => $chat->user2_id
+            ]);
+
             if (!$chat->esParticipante($user->id)) {
+                Log::warning('❌ Usuario no es participante', [
+                    'user_id' => $user->id,
+                    'chat_users' => [$chat->user1_id, $chat->user2_id]
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'No autorizado para enviar mensajes en este chat'
@@ -117,7 +146,14 @@ class MensajeController extends Controller
                 'user_id' => $user->id,
                 'contenido' => $request->contenido,
                 'tipo' => $request->tipo ?? 'texto',
-                'url_adjunto' => $request->url_adjunto
+                'canal' => 'interno', // Agregar este campo
+                'url_adjunto' => $request->url_adjunto,
+                'leido' => false
+            ]);
+
+            Log::info('✅ Mensaje creado', [
+                'mensaje_id' => $mensaje->mensaje_id,
+                'contenido' => $mensaje->contenido
             ]);
 
             // Actualizar último mensaje en el chat
@@ -131,8 +167,10 @@ class MensajeController extends Controller
             // Formatear respuesta
             $mensajeFormateado = $mensaje->formatearParaFrontend();
 
-            // Aquí disparar evento para WebSockets/Pusher si lo implementas
-            // broadcast(new NuevoMensajeEvent($mensajeFormateado));
+            Log::info('✅ Mensaje enviado exitosamente', [
+                'mensaje_id' => $mensaje->mensaje_id,
+                'formateado' => $mensajeFormateado
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -145,8 +183,10 @@ class MensajeController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             
-            Log::error('Error al enviar mensaje:', [
+            Log::error('❌ Error al enviar mensaje:', [
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
             

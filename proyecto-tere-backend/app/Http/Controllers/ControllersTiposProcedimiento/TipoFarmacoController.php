@@ -5,10 +5,13 @@ namespace App\Http\Controllers\ControllersTiposProcedimiento;
 use App\Http\Controllers\Controller;
 use App\Models\TiposProcedimientos\TipoFarmaco;
 use App\Models\Veterinario;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+
 
 class TipoFarmacoController extends Controller
 {
@@ -18,17 +21,72 @@ class TipoFarmacoController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $farmacos = TipoFarmaco::where('activo', true)
-                ->whereNull('deleted_at') // Solo registros no eliminados
-                ->orderBy('nombre_comercial')
-                ->get();
+            Log::info('📋 TipoFarmacoController::index llamado', [
+                'user_id' => auth()->id(),
+                'user' => auth()->user() ? [
+                    'id' => auth()->user()->id,
+                    'type' => get_class(auth()->user()),
+                    'userable_type' => auth()->user()->userable_type,
+                    'userable_id' => auth()->user()->userable_id
+                ] : null
+            ]);
+            
+            $user = auth()->user();
+            
+            // Si no hay usuario autenticado, devolver vacío
+            if (!$user) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'No autenticado'
+                ]);
+            }
+            
+            // Inicializar query
+            $query = TipoFarmaco::where('activo', true)
+                ->whereNull('deleted_at');
+            
+            // Si el usuario es veterinario, filtrar solo sus fármacos
+            if ($user->userable_type === 'App\\Models\\Veterinario') {
+                $veterinarioId = $user->userable->id;
+                $query->where('veterinario_id', $veterinarioId);
+                
+                Log::info('🏥 Filtrado por veterinario', [
+                    'veterinario_id' => $veterinarioId,
+                    'userable_id' => $user->userable_id
+                ]);
+            } else {
+                // Si no es veterinario (es usuario normal o administrador), no mostrar fármacos
+                Log::info('👤 Usuario no es veterinario, devolviendo array vacío', [
+                    'userable_type' => $user->userable_type
+                ]);
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'Solo veterinarios tienen catálogo de fármacos'
+                ]);
+            }
+            
+            $farmacos = $query->orderBy('nombre_comercial')->get();
+
+            Log::info('💊 Fármacos encontrados', [
+                'count' => $farmacos->count(),
+                'veterinario_id' => $veterinarioId ?? null,
+                'farmacos' => $farmacos->pluck('nombre_comercial')->toArray()
+            ]);
 
             return response()->json([
                 'success' => true,
                 'data' => $farmacos,
+                'count' => $farmacos->count(),
                 'message' => 'Tipos de fármaco obtenidos correctamente'
             ]);
         } catch (\Exception $e) {
+            Log::error('❌ Error en TipoFarmacoController::index', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener los tipos de fármaco: ' . $e->getMessage()
@@ -384,7 +442,20 @@ class TipoFarmacoController extends Controller
     public function porEspecie($especie): JsonResponse
     {
         try {
+            $user = auth()->user();
+            
+            if (!$user || $user->userable_type !== 'App\\Models\\Veterinario') {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'Solo veterinarios tienen catálogo de fármacos'
+                ]);
+            }
+            
+            $veterinarioId = $user->userable->id;
+            
             $farmacos = TipoFarmaco::where('activo', true)
+                ->where('veterinario_id', $veterinarioId)
                 ->porEspecie($especie)
                 ->orderBy('nombre_comercial')
                 ->get();
@@ -403,13 +474,23 @@ class TipoFarmacoController extends Controller
         }
     }
 
-    /**
-     * Obtener tipos de fármaco por categoría
-     */
     public function porCategoria($categoria): JsonResponse
     {
         try {
+            $user = auth()->user();
+            
+            if (!$user || $user->userable_type !== 'App\\Models\\Veterinario') {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'Solo veterinarios tienen catálogo de fármacos'
+                ]);
+            }
+            
+            $veterinarioId = $user->userable->id;
+            
             $farmacos = TipoFarmaco::where('activo', true)
+                ->where('veterinario_id', $veterinarioId)
                 ->porCategoria($categoria)
                 ->orderBy('nombre_comercial')
                 ->get();
@@ -428,9 +509,6 @@ class TipoFarmacoController extends Controller
         }
     }
 
-    /**
-     * Buscar fármacos por término
-     */
     public function buscar(Request $request): JsonResponse
     {
         try {
@@ -446,9 +524,22 @@ class TipoFarmacoController extends Controller
                 ], 422);
             }
 
+            $user = auth()->user();
+            
+            if (!$user || $user->userable_type !== 'App\\Models\\Veterinario') {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'Solo veterinarios tienen catálogo de fármacos'
+                ]);
+            }
+            
+            $veterinarioId = $user->userable->id;
+
             $farmacos = TipoFarmaco::buscar($request->termino)
                 ->where('activo', true)
-                ->whereNull('deleted_at') // Solo registros no eliminados
+                ->where('veterinario_id', $veterinarioId)
+                ->whereNull('deleted_at')
                 ->orderBy('nombre_comercial')
                 ->get();
 
