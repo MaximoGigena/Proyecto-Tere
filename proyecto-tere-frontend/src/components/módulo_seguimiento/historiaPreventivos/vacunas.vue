@@ -176,7 +176,14 @@ const abrirProcedimiento = (vacuna) => {
 
 const editarVacuna = (vacuna) => {
   console.log('Editar vacuna:', vacuna)
-  // Aquí puedes implementar la edición
+  router.push({
+    name: 'editarVacuna',
+    params: { vacunaId: vacuna.id },
+    query: {
+      mascotaId: mascotaId,
+      from: '/historialPreventivo/vacunas'
+    }
+  })
 }
 
 const eliminarVacuna = (id) => {

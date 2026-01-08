@@ -94,6 +94,17 @@ import axios from 'axios'
 import { useAuth } from '@/composables/useAuth'
 import { useRoute } from 'vue-router'
 
+const props = defineProps({
+  mascotaId: {
+    type: [String, Number],
+    default: null
+  },
+  ofertaId: {
+    type: [String, Number],
+    default: null
+  }
+})
+
 const emit = defineEmits(['close'])
 
 const route = useRoute()
@@ -136,29 +147,47 @@ const seleccionarCausa = (causa) => {
 
 // Obtener ID de mascota u oferta según la ruta
 const getIdentificadorDenuncia = () => {
+  // Prioridad 1: Props pasados directamente
+  if (props.mascotaId) {
+    return { mascota_id: props.mascotaId }
+  }
+  if (props.ofertaId) {
+    return { oferta_id: props.ofertaId }
+  }
+  
+  // Prioridad 2: Parámetros de ruta
   const params = route.params
   const query = route.query
   
-  // Si estamos en una oferta de adopción
+  // Para la modalidad swipe (encuentros)
+  if (route.path.startsWith('/explorar/encuentros')) {
+    // Intentar obtener del query o params
+    if (query.mascota_id) {
+      return { mascota_id: query.mascota_id }
+    }
+    if (query.oferta_id) {
+      return { oferta_id: query.oferta_id }
+    }
+    if (params.id) {
+      // En swipe, generalmente es oferta_id
+      return { oferta_id: params.id }
+    }
+  }
+  
+  // Para la vista "cerca"
   if (route.path.startsWith('/explorar/cerca/') && params.id) {
     return { oferta_id: params.id }
   }
   
-  // Si estamos en encuentros con oferta actual
-  if (route.path.startsWith('/explorar/encuentros') && params.id) {
-    return { oferta_id: params.id }
-  }
-  
-  // Si tenemos mascota_id en query
+  // Para otras rutas
   if (query.mascota_id) {
     return { mascota_id: query.mascota_id }
   }
-  
-  // Si tenemos oferta_id en query
   if (query.oferta_id) {
     return { oferta_id: query.oferta_id }
   }
   
+  console.error('No se pudo identificar la mascota u oferta para denunciar')
   return null
 }
 

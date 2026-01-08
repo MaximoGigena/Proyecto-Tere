@@ -130,6 +130,22 @@
         </div>
       </div>
     </transition>
+    
+     <!-- Overlay para mostrar el perfil de la mascota -->
+    <transition name="slide">
+      <div 
+        v-if="$route.params.id" 
+        class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+        @click.self="cerrarOverlay"
+      >
+        <div class="w-full max-w-2xl max-h-[90vh]">
+          <contenidoMascota 
+            :ofertaActual="ofertaSeleccionada"
+            @close="cerrarOverlay"
+          />
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 

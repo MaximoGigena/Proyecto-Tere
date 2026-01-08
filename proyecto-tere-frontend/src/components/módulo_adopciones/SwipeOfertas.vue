@@ -1,4 +1,4 @@
-<!-- SwipeOfertas.vue -->
+<!-- SwipeOfertas.vue - Versión corregida -->
 <template>
   <div class="relative w-full h-full">
     <!-- Vista actual -->
@@ -51,7 +51,6 @@
   </div>
 </template>
 
-// Reemplaza el script completo de SwipeOfertas.vue:
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import contenidoMascota from './contenidoMascota.vue'
@@ -118,53 +117,83 @@ async function fetchOfertasParaSwipe() {
 }
 
 async function handleLike(data) {
+  console.log('=== handleLike en SwipeOfertas ===')
   console.log('Like a mascota:', data)
   
-  // Aquí ya se registró la interacción en contenidoMascota.vue
-  // Solo necesitamos avanzar a la siguiente oferta
-  loadNextMascota()
+  // IMPORTANTE: Solo avanzar, no registrar aquí
+  // El registro se hace en contenidoMascota.vue
+  
+  // Si el like NO viene con advertencia (es decir, ya pasó por la advertencia)
+  // avanzamos inmediatamente
+  if (!data.esAdvertencia) {
+    console.log('Like directo (sin advertencia), avanzando...')
+    loadNextMascota()
+  } else {
+    console.log('Like con advertencia pendiente, esperando confirmación...')
+    // No avanzamos aquí, esperamos el evento swipe-completed
+  }
 }
 
 async function handleDislike(data) {
+  console.log('=== handleDislike en SwipeOfertas ===')
   console.log('Dislike a mascota:', data)
   
-  // Aquí ya se registró la interacción en contenidoMascota.vue
   // Solo necesitamos avanzar a la siguiente oferta
   loadNextMascota()
 }
 
 function loadNextMascota() {
+  console.log('=== loadNextMascota llamado ===')
+  console.log('Índice actual:', currentIndex.value)
+  console.log('Total ofertas:', mascotasDisponibles.value.length)
+  
   if (currentIndex.value < mascotasDisponibles.value.length - 1) {
     currentIndex.value++
+    console.log('Nuevo índice:', currentIndex.value)
     
     // Precargar más ofertas si estamos cerca del final
     if (currentIndex.value >= mascotasDisponibles.value.length - 3 && hasMore.value) {
+      console.log('Precargando más ofertas...')
       fetchOfertasParaSwipe()
     }
   } else {
+    console.log('No hay más ofertas en la lista actual')
     // No hay más ofertas disponibles
     if (hasMore.value) {
+      console.log('Intentando cargar más ofertas del servidor...')
       // Intentar cargar más ofertas
       fetchOfertasParaSwipe().then(() => {
         if (mascotasDisponibles.value.length > currentIndex.value + 1) {
           currentIndex.value++
+          console.log('Ofertas cargadas, nuevo índice:', currentIndex.value)
         } else {
+          console.log('No hay más ofertas disponibles')
           emit('no-more-ofertas')
         }
       })
     } else {
+      console.log('No hay más ofertas disponibles (hasMore = false)')
       emit('no-more-ofertas')
     }
   }
 }
 
 function loadPrevMascota() {
+  console.log('loadPrevMascota')
   if (currentIndex.value > 0) {
     currentIndex.value--
   }
 }
 
-function onSwipeCompleted(action) {
-  console.log('Swipe completado:', action)
+function onSwipeCompleted(swipeData) {
+  console.log('=== onSwipeCompleted en SwipeOfertas ===')
+  console.log('Datos del swipe completado:', swipeData)
+  
+  // Si el swipe fue un like completado (después de advertencia)
+  if (swipeData.tipo === 'like') {
+    console.log('Like completado después de advertencia, avanzando...')
+    loadNextMascota()
+  }
+  // Si fue cancelado, no hacemos nada (ya se reseteó en contenidoMascota)
 }
 </script>

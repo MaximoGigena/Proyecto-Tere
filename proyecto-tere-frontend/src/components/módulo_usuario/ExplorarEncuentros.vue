@@ -50,7 +50,7 @@
     <transition name="slide-down">
       <div
         v-if="showDonationBanner"
-        class="fixed bottom-20 right-5 z-40 w-80 p-5 rounded-2xl shadow-xl 
+        class="fixed bottom-20 left-5 z-40 w-80 p-5 rounded-2xl shadow-xl 
               bg-gradient-to-br from-gray-900 via-gray-700 to-gray-800 
               text-white border border-white/20 backdrop-blur-md 
               animate-fade-in-up"

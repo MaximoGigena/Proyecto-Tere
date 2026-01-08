@@ -53,30 +53,11 @@
         />
       </button>
     </div>
-
-    <!-- Indicadores de swipe -->
-    <div 
-      v-if="mostrandoIndicadorSwipe"
-      :class="[
-        'fixed inset-0 flex items-center justify-center z-40 pointer-events-none',
-        'transition-opacity duration-300',
-        indicadorSwipeClass
-      ]"
-    >
-      <div :class="[
-        'text-6xl font-bold px-8 py-4 rounded-2xl shadow-2xl',
-        'animate-pulse',
-        indicadorSwipeTextoClass
-      ]">
-        {{ indicadorSwipeTexto }}
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useSwipe } from '@/composables/useSwipe'
 
 // ============ INTERFACES ============
 interface SwipeData {
@@ -96,6 +77,7 @@ interface SwipeButtonProps {
   mostrarBotones?: boolean
   mostrarInstrucciones?: boolean
   contenedorElement?: HTMLElement | null
+  mostrarAdvertencia?: boolean // Nueva prop para controlar la advertencia
 }
 
 // ============ PROPS ============
@@ -104,7 +86,8 @@ const props = withDefaults(defineProps<SwipeButtonProps>(), {
   ofertaId: null,
   mostrarBotones: true,
   mostrarInstrucciones: true,
-  contenedorElement: null
+  contenedorElement: null,
+  mostrarAdvertencia: false // Por defecto no mostrar advertencia
 })
 
 // ============ EMITS ============
@@ -115,15 +98,12 @@ const emit = defineEmits<{
   (e: 'swipe-end', tipo: string): void
   (e: 'swipe-cancel', tipo: string): void
   (e: 'swipe-animation', animation: SwipeAnimation): void
+  (e: 'mostrar-advertencia', data: SwipeData): void // Nuevo evento para advertencia
 }>()
 
 // ============ REFS Y REACTIVIDAD ============
 const botonesContainer = ref<HTMLElement | null>(null)
 const procesandoSwipe = ref<boolean>(false)
-const mostrandoIndicadorSwipe = ref<boolean>(false)
-const indicadorSwipeTexto = ref<string>('')
-const indicadorSwipeClass = ref<string>('')
-const indicadorSwipeTextoClass = ref<string>('')
 
 // Variables para gestos táctiles
 let startX = 0
@@ -147,7 +127,6 @@ async function handleDislike(): Promise<void> {
   emit('swipe-start', 'dislike')
   
   try {
-    mostrarIndicadorSwipe('NO', 'red')
     emitSwipeAnimation(-100, -10)
     
     await new Promise(resolve => setTimeout(resolve, 500))
@@ -164,7 +143,6 @@ async function handleDislike(): Promise<void> {
   } finally {
     setTimeout(() => {
       resetSwipeAnimation()
-      ocultarIndicadorSwipe()
       procesandoSwipe.value = false
       emit('swipe-end', 'dislike')
     }, 100)
@@ -186,16 +164,24 @@ async function handleLike(): Promise<void> {
   emit('swipe-start', 'like')
   
   try {
-    mostrarIndicadorSwipe('LIKE', 'green')
     emitSwipeAnimation(100, 10)
     
-    await new Promise(resolve => setTimeout(resolve, 500))
+    await new Promise(resolve => setTimeout(resolve, 300))
     
-    emit('like', {
+    // Crear datos de swipe
+    const swipeData: SwipeData = {
       mascotaId: props.mascotaId || null,
       ofertaId: props.ofertaId || null,
       timestamp: new Date().toISOString()
-    })
+    }
+    
+    // Si mostrarAdvertencia es true, emitir evento para mostrar advertencia
+    // Si es false, emitir like directamente
+    if (props.mostrarAdvertencia) {
+      emit('mostrar-advertencia', swipeData)
+    } else {
+      emit('like', swipeData)
+    }
     
   } catch (error) {
     console.error('Error en handleLike:', error)
@@ -203,9 +189,11 @@ async function handleLike(): Promise<void> {
   } finally {
     setTimeout(() => {
       resetSwipeAnimation()
-      ocultarIndicadorSwipe()
       procesandoSwipe.value = false
-      emit('swipe-end', 'like')
+      // Solo emitir swipe-end si no estamos mostrando advertencia
+      if (!props.mostrarAdvertencia) {
+        emit('swipe-end', 'like')
+      }
     }, 100)
   }
 }
@@ -228,34 +216,6 @@ function resetSwipeAnimation(): void {
     transform: '',
     opacity: ''
   })
-}
-
-// ============ INDICADORES VISUALES ============
-/**
- * Muestra indicador visual del tipo de swipe
- */
-function mostrarIndicadorSwipe(texto: string, tipo: 'green' | 'red'): void {
-  indicadorSwipeTexto.value = texto
-  
-  if (tipo === 'green') {
-    indicadorSwipeClass.value = 'bg-green-50 bg-opacity-90'
-    indicadorSwipeTextoClass.value = 'text-green-700'
-  } else if (tipo === 'red') {
-    indicadorSwipeClass.value = 'bg-red-50 bg-opacity-90'
-    indicadorSwipeTextoClass.value = 'text-red-700'
-  }
-  
-  mostrandoIndicadorSwipe.value = true
-}
-
-/**
- * Oculta el indicador visual
- */
-function ocultarIndicadorSwipe(): void {
-  mostrandoIndicadorSwipe.value = false
-  indicadorSwipeTexto.value = ''
-  indicadorSwipeClass.value = ''
-  indicadorSwipeTextoClass.value = ''
 }
 
 // ============ GESTOS TÁCTILES ============
@@ -313,15 +273,6 @@ function setupSwipeGestures(): (() => void) | undefined {
         transform: `translateX(${translateX}vw) rotate(${rotation}deg)`,
         opacity: `opacity-${Math.max(70, 100 - Math.abs(deltaX) / 3)}`
       })
-      
-      // Mostrar indicador visual del tipo de swipe
-      if (deltaX > 50 && !mostrandoIndicadorSwipe.value) {
-        mostrarIndicadorSwipe('LIKE', 'green')
-      } else if (deltaX < -50 && !mostrandoIndicadorSwipe.value) {
-        mostrarIndicadorSwipe('DISLIKE', 'red')
-      } else if (Math.abs(deltaX) < 50 && mostrandoIndicadorSwipe.value) {
-        ocultarIndicadorSwipe()
-      }
     }
   }
   
@@ -341,7 +292,6 @@ function setupSwipeGestures(): (() => void) | undefined {
       }
     } else {
       resetSwipeAnimation()
-      ocultarIndicadorSwipe()
       emit('swipe-cancel', 'manual')
     }
   }
@@ -380,14 +330,6 @@ function setupSwipeGestures(): (() => void) | undefined {
           transform: `translateX(${translateX}vw) rotate(${rotation}deg)`,
           opacity: `opacity-${Math.max(70, 100 - Math.abs(deltaX) / 3)}`
         })
-        
-        if (deltaX > 50 && !mostrandoIndicadorSwipe.value) {
-          mostrarIndicadorSwipe('LIKE', 'green')
-        } else if (deltaX < -50 && !mostrandoIndicadorSwipe.value) {
-          mostrarIndicadorSwipe('DISLIKE', 'red')
-        } else if (Math.abs(deltaX) < 50 && mostrandoIndicadorSwipe.value) {
-          ocultarIndicadorSwipe()
-        }
       }
     }
     
@@ -406,7 +348,6 @@ function setupSwipeGestures(): (() => void) | undefined {
         }
       } else {
         resetSwipeAnimation()
-        ocultarIndicadorSwipe()
         emit('swipe-cancel', 'manual')
       }
       
@@ -452,8 +393,6 @@ onMounted(() => {
 defineExpose({
   handleLike,
   handleDislike,
-  mostrarIndicadorSwipe,
-  ocultarIndicadorSwipe,
   resetSwipeAnimation
 })
 </script>

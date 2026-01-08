@@ -78,34 +78,72 @@
         </div>
 
         <!-- Período de suspensión -->
-        <div class="flex items-start">
-          <svg class="w-5 h-5 text-gray-500 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div>
-            <span class="font-semibold text-gray-700">Período de suspensión:</span>
-            <div class="mt-1 space-y-1">
-              <p class="text-gray-600">
-                <span class="font-medium">Inicio:</span> 
-                {{ sancion.fecha_inicio_formateada || 'No especificada' }}
-              </p>
-              <p class="text-gray-600" v-if="sancion.fecha_fin_formateada">
-                <span class="font-medium">Fin:</span> 
-                {{ sancion.fecha_fin_formateada }}
-              </p>
-              <p class="text-gray-600" v-if="sancion.duracion_dias">
-                <span class="font-medium">Duración:</span> 
-                {{ sancion.duracion_dias }} día{{ sancion.duracion_dias > 1 ? 's' : '' }}
-              </p>
-              <p class="text-gray-600" v-if="sancion.dias_restantes !== null">
-                <span class="font-medium">Días restantes:</span> 
-                <span :class="sancion.dias_restantes <= 3 ? 'text-amber-600 font-semibold' : 'text-gray-600'">
-                  {{ sancion.dias_restantes }}
-                </span>
-              </p>
+          <div class="flex items-start">
+            <svg class="w-5 h-5 text-gray-500 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <span class="font-semibold text-gray-700">Período de suspensión:</span>
+              <div class="mt-1 space-y-2">
+                <div>
+                  <p class="text-gray-600">
+                    <span class="font-medium">Inicio:</span> 
+                    {{ sancion.fecha_inicio_formateada }}
+                  </p>
+                </div>
+                
+                <div v-if="sancion.es_permanente">
+                  <p class="text-red-600 font-semibold">
+                    <span class="font-medium">Fin:</span> 
+                    Suspensión permanente
+                  </p>
+                </div>
+                <div v-else-if="sancion.fecha_fin_formateada">
+                  <p class="text-gray-600">
+                    <span class="font-medium">Fin estimado:</span> 
+                    {{ sancion.fecha_fin_formateada }}
+                  </p>
+                </div>
+                
+                <div v-if="sancion.duracion_dias">
+                  <p class="text-gray-600">
+                    <span class="font-medium">Duración total:</span> 
+                    {{ sancion.duracion_dias }} día{{ sancion.duracion_dias > 1 ? 's' : '' }}
+                  </p>
+                </div>
+                
+                <div v-if="sancion.dias_restantes !== null">
+                  <p class="text-gray-600">
+                    <span class="font-medium">Tiempo restante:</span> 
+                    <span :class="[
+                      'ml-2 font-semibold',
+                      sancion.dias_restantes === 0 ? 'text-green-600' :
+                      sancion.dias_restantes <= 3 ? 'text-amber-600' :
+                      'text-blue-600'
+                    ]">
+                      {{ sancion.dias_restantes }} día{{ sancion.dias_restantes !== 1 ? 's' : '' }}
+                    </span>
+                  </p>
+                  <div v-if="sancion.dias_restantes > 0" class="mt-1">
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                      <div :class="[
+                        'h-2.5 rounded-full',
+                        sancion.dias_restantes <= 3 ? 'bg-amber-500' : 'bg-blue-600'
+                      ]" :style="{ width: calcularPorcentajeRestante() + '%' }"></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">
+                      {{ calcularPorcentajeRestante().toFixed(0) }}% del tiempo completado
+                    </p>
+                  </div>
+                  <div v-else-if="sancion.dias_restantes === 0" class="mt-2">
+                    <p class="text-green-600 font-semibold">
+                      ✅ Tu suspensión ha finalizado. Refresca la página o contacta a soporte.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
         <!-- Estado -->
         <div class="flex items-start">
@@ -305,56 +343,125 @@ const calcularDiasRestantes = (fechaFin: string): number | null => {
   const hoy = new Date()
   const fin = new Date(fechaFin)
   const diffTime = fin.getTime() - hoy.getTime()
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const dias = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  return dias > 0 ? dias : 0
+}
+
+// Formatear fecha completa
+const formatearFechaCompleta = (fecha: string): string => {
+  if (!fecha) return ''
+  const fechaObj = new Date(fecha)
+  return fechaObj.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 onMounted(async () => {
   try {
+    console.log('🔄 Iniciando carga de datos de sanción...')
+    
     // Intentar obtener datos del localStorage primero
     const storedSuspension = localStorage.getItem('suspension_data')
     if (storedSuspension) {
-      console.log('📦 Datos de suspensión encontrados en localStorage')
+      console.log('📦 Datos de suspensión encontrados en localStorage:', storedSuspension)
       const suspensionData = JSON.parse(storedSuspension)
       procesarDatosSancion(suspensionData)
       localStorage.removeItem('suspension_data')
       if (sancion.value.razon) {
+        console.log('✅ Datos cargados desde localStorage')
         loading.value = false
         return
       }
     }
 
-    // Si no hay datos en localStorage, intentar obtener de la API
+    // Verificar si hay token
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token')
+    if (!token) {
+      console.log('❌ No hay token de autenticación')
+      error.value = 'No estás autenticado. Serás redirigido al login.'
+      setTimeout(() => {
+        cerrarSesion()
+      }, 2000)
+      return
+    }
+
+    console.log('🔍 Solicitando información de sanción activa...')
+    
     try {
-      const response = await api.get('/usuario/sancion-activa')
+      // Verificar conexión con la API primero
+      console.log('🌐 Verificando conexión con API...')
       
-      if (response.data.success) {
+      const response = await api.get('/usuario/sancion-activa-detallada', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      })
+      
+      console.log('📥 Respuesta de API recibida:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data
+      })
+      
+      if (response.data && response.data.success) {
+        console.log('✅ Información de sanción cargada desde API:', response.data.data)
         procesarDatosSancion(response.data.data)
-        console.log('✅ Información de sanción cargada desde API:', sancion.value)
+      } else {
+        console.log('⚠️ Respuesta no exitosa:', response.data)
+        error.value = response.data?.message || 'No se pudo obtener información de la sanción'
       }
     } catch (apiError: any) {
-      console.log('ℹ️ No se pudo obtener información adicional de la API')
-      // Si hay un error 404, significa que no hay sanción activa
-      if (apiError.response?.status === 404) {
-        error.value = 'No se encontraron sanciones activas para tu cuenta.'
+      console.error('❌ Error al obtener sanción:', {
+        message: apiError.message,
+        response: apiError.response,
+        status: apiError.response?.status,
+        data: apiError.response?.data
+      })
+      
+      // Mostrar error específico según el tipo
+      if (apiError.response) {
+        if (apiError.response.status === 401) {
+          error.value = 'Sesión expirada. Serás redirigido al login.'
+          setTimeout(() => {
+            cerrarSesion()
+          }, 2000)
+        } else if (apiError.response.status === 404) {
+          error.value = 'No se encontraron sanciones activas para tu cuenta.'
+        } else if (apiError.response.status === 403) {
+          error.value = 'No tienes permisos para acceder a esta información.'
+        } else {
+          error.value = `Error del servidor (${apiError.response.status}): ${apiError.response.data?.message || 'Intenta más tarde'}`
+        }
+      } else if (apiError.request) {
+        error.value = 'No se pudo conectar con el servidor. Verifica tu conexión a internet.'
+      } else {
+        error.value = 'Error al realizar la solicitud: ' + apiError.message
       }
     }
     
   } catch (err: any) {
-    console.error('⚠️ Error general:', err)
-    
-    if (err.response?.status === 401) {
-      cerrarSesion()
-      return
-    }
-    
-    error.value = err.response?.data?.message || 
-                  'Tu cuenta está suspendida. Contacta al soporte para más información.'
+    console.error('⚠️ Error general inesperado:', err)
+    error.value = 'Error inesperado: ' + (err.message || 'Contacta al soporte')
   } finally {
     loading.value = false
+    console.log('🏁 Carga finalizada')
   }
 })
 
 function procesarDatosSancion(data: any) {
+  console.log('📊 Procesando datos de sanción:', data)
+  
+  if (!data) {
+    console.log('❌ No hay datos para procesar')
+    return
+  }
+  
   const fechaInicio = data.fecha_inicio ? new Date(data.fecha_inicio) : null
   const fechaFin = data.fecha_fin ? new Date(data.fecha_fin) : null
   
@@ -367,32 +474,24 @@ function procesarDatosSancion(data: any) {
     duracion_dias: data.duracion_dias || null,
     fecha_inicio: data.fecha_inicio || '',
     fecha_inicio_formateada: fechaInicio ? 
-      fechaInicio.toLocaleDateString('es-ES', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }) : 'No especificada',
+      formatearFechaCompleta(data.fecha_inicio) : 'No especificada',
     fecha_fin: data.fecha_fin || '',
     fecha_fin_formateada: fechaFin ? 
-      fechaFin.toLocaleDateString('es-ES', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }) : '',
-    es_permanente: data.es_permanente || data.permanente || data.tipo === 'BLOQUEO_PERMANENTE' || !data.fecha_fin,
+      formatearFechaCompleta(data.fecha_fin) : '',
+    es_permanente: data.es_permanente || data.tipo === 'BLOQUEO_PERMANENTE' || !data.fecha_fin,
     puede_apelar: data.puede_apelar || (data.tipo !== 'BLOQUEO_PERMANENTE' && data.estado === 'ACTIVA'),
     estado: data.estado || 'ACTIVA',
     restricciones: data.restricciones || [],
     restricciones_formateadas: formatRestricciones(data.restricciones || []),
-    dias_restantes: fechaFin ? calcularDiasRestantes(data.fecha_fin) : null
+    dias_restantes: data.dias_restantes !== undefined ? data.dias_restantes : 
+                   (fechaFin ? calcularDiasRestantes(data.fecha_fin) : null)
   }
+  
+  console.log('✅ Sanción procesada:', sancion.value)
 }
 
 function cerrarSesion() {
+  console.log('👋 Cerrando sesión...')
   localStorage.removeItem('token')
   localStorage.removeItem('auth_token')
   localStorage.removeItem('suspension_data')
@@ -401,6 +500,17 @@ function cerrarSesion() {
 }
 
 function contactarSoporte() {
+  console.log('📞 Contactando soporte...')
   router.push('/soporte')
+}
+
+// Calcular porcentaje de tiempo completado
+const calcularPorcentajeRestante = (): number => {
+  if (!sancion.value.duracion_dias || !sancion.value.dias_restantes || sancion.value.es_permanente) {
+    return 0
+  }
+  
+  const diasCompletados = sancion.value.duracion_dias - sancion.value.dias_restantes
+  return (diasCompletados / sancion.value.duracion_dias) * 100
 }
 </script>

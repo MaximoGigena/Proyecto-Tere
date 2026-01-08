@@ -32,10 +32,10 @@
       <!-- Imagen principal del perfil -->
       <div class="relative w-full min-h-[75vh] rounded-4xl overflow-hidden">
         <img 
-          :src="perfil.foto_principal || perfil.defaultImage" 
-          :alt="perfil.nombre" 
-          class="w-full h-130 object-cover rounded-4xl" 
-          @error="handleImageError"
+            :src="perfil.foto_principal || perfil.defaultImage" 
+            :alt="perfil.nombre" 
+            class="w-full h-130 object-cover rounded-4xl" 
+            @error="handleImageError"
         />
       
         <!-- Info del usuario -->
@@ -130,12 +130,13 @@
             class="relative overflow-hidden rounded-xl h-48 cursor-pointer hover:opacity-90 transition"
             @click="verFoto(foto)"
           >
-            <img 
-              :src="foto.url_foto || foto" 
-              :alt="'Foto ' + (index + 1) + ' de ' + perfil.nombre"
-              class="w-full h-full object-cover"
-              @error="handleImageError"
-            />
+            <!-- En la galería de fotos -->
+              <img 
+                  :src="foto.url || foto" 
+                  :alt="'Foto ' + (index + 1) + ' de ' + perfil.nombre"
+                  class="w-full h-full object-cover"
+                  @error="handleImageError"
+              />
             <div v-if="foto.es_principal" class="absolute top-2 left-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded">
               Principal
             </div>
@@ -348,8 +349,9 @@ const verFoto = (foto) => {
 
 // Manejar errores de imagen
 const handleImageError = (event) => {
-  console.log('Error cargando imagen, usando default')
-  event.target.src = perfil.value.defaultImage
+    console.log('Error cargando imagen:', event.target.src)
+    console.log('Usando default image:', perfil.value.defaultImage)
+    event.target.src = perfil.value.defaultImage
 }
 
 // Cargar perfil al montar el componente

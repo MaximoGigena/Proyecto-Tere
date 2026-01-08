@@ -1,16 +1,18 @@
 <!-- mascotasUsuario.vue -->
 <template>
   <div class="space-y-6">
+
+    <!-- Lista de mascotas -->
     <MascotaCard
-      v-for="(mascota, index) in mascotas"
+      v-for="mascota in mascotas"
       :key="mascota.id"
       :mascota="mascota"
-      :bgColor="bgColors[index % bgColors.length]"
       @click="abrirDetalleMascota(mascota.id)"
       @editar="editarMascota"
       @eliminar="eliminarMascota"
     />
 
+    <!-- Estados de carga -->
     <div v-if="loading" class="text-center py-8 flex flex-col items-center">
       <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
       <p class="mt-4 text-lg font-medium">Cargando mascotas...</p>
@@ -20,11 +22,12 @@
       <p>No tienes mascotas registradas</p>
     </div>
 
+    <!-- Botón para agregar mascota -->
     <button
       @click="abrirRegistroMascota"
-      class="text-white bg-blue-600 rounded-full px-5 py-2 text-base md:text-lg font-bold shadow-md hover:bg-blue-700 hover:scale-105 transition transform duration-200 mx-auto block"
+      class="fixed bottom-14 left-1/2  transform -translate-x-1/2 text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full px-6 py-3 text-base md:text-lg font-bold shadow-lg hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl transition-all duration-200 hover:scale-105 z-50 whitespace-nowrap"
     >
-      + Mascota
+      + Agregar Mascota
     </button>
 
     <div class="relative">

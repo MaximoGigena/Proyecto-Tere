@@ -1,3 +1,4 @@
+<!-- registarFarmaco -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -19,23 +20,25 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <!-- Columna izquierda -->
         <div class="space-y-4">
+          <!-- Selección de Tipo de Fármaco -->
           <div>
             <label class="block font-medium mb-1">Tipo de fármaco</label>
             <div class="flex gap-2">
-              <!-- Contenedor relativo para el input con ícono -->
-              <div class="relative w-full">
-                <input 
-                  v-model="farmaco.tipo" 
-                  type="text" 
-                  required 
-                  class="w-full border rounded p-2 pr-10" 
-                  placeholder="Nombre comercial o principio activo"
-                />
-                <font-awesome-icon 
-                  :icon="['fas', 'magnifying-glass']" 
-                  class="absolute inset-y-0 right-0 mt-3 text-xl flex items-center pr-3 text-gray-400 cursor-pointer hover:text-gray-600"
-                />
-              </div>
+              <select
+                v-model="farmaco.tipo_farmaco_id"
+                required
+                class="w-full border rounded p-2"
+                @change="onTipoFarmacoChange"
+              >
+                <option value="">Seleccione un tipo de fármaco</option>
+                <option
+                  v-for="tipo in tiposFarmaco"
+                  :key="tipo.id"
+                  :value="tipo.id"
+                >
+                  {{ tipo.nombre_comercial }} ({{ tipo.nombre_generico }})
+                </option>
+              </select>
 
               <!-- Botón de + Tipo -->
               <button 
@@ -48,20 +51,44 @@
             </div>
           </div>
 
-
           <div>
             <label class="block font-medium">Fecha de administración</label>
-            <input v-model="farmaco.fecha" type="datetime-local" required class="w-full border rounded p-2" />
+            <input v-model="farmaco.fecha_administracion" type="datetime-local" required class="w-full border rounded p-2" />
           </div>
 
-          <div class="flex gap-2 items-center mb-1">
-            <label class="block font-medium mb-1">Centro Veterinario donde se realizo el procedimiento</label>
-            <button 
-                  type="button"
-                  class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
-                >
-                  + Centro
-            </button>
+          <!-- Centro Veterinario -->
+          <div>
+            <label class="block font-medium mb-2">
+              Centro Veterinario donde se realizó
+            </label>
+            <div class="flex gap-2 items-center">
+              <div 
+                v-if="farmaco.centro_veterinario_id"
+                class="w-full border rounded p-2 bg-gray-50"
+              >
+                <div class="font-semibold">
+                  {{ obtenerNombreCentroSeleccionado() }}
+                </div>
+                <div class="text-sm text-gray-600">
+                  {{ obtenerDireccionCentroSeleccionado() }}
+                </div>
+              </div>
+              
+              <div 
+                v-else
+                class="w-full border rounded p-2 text-gray-400 italic"
+              >
+                Ningún centro veterinario seleccionado
+              </div>
+
+              <button 
+                type="button"
+                @click="abrirOverlayCentros"
+                class="bg-green-500 text-white text-xl px-4 py-2 rounded font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
+              >
+                + Centro
+              </button>
+            </div>
           </div>
         </div>
 
@@ -103,7 +130,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
         <div>
           <label class="block font-medium">Fecha próxima dosis (si aplica)</label>
-          <input v-model="farmaco.proximaDosis" type="datetime-local" class="w-full border rounded p-2" />
+          <input v-model="farmaco.proxima_dosis" type="datetime-local" class="w-full border rounded p-2" />
         </div>
 
         <div class="col-span-full">
@@ -169,41 +196,93 @@
         </div>
       </div>
 
+      <!-- Selección del medio de envío -->
+      <div class="mt-8">
+        <CarruselMedioEnvio 
+          v-if="usuarioId" 
+          :usuario-id="usuarioId" 
+          @update:medio="farmaco.medio_envio = $event" 
+        />
+        
+        <div v-else class="text-center py-4">
+          <p class="text-gray-500">Cargando información del dueño...</p>
+        </div>
+
+        <div v-if="farmaco.medio_envio" class="mt-4 text-center text-gray-700">
+          <span class="font-semibold">Medio seleccionado:</span>
+          <span class="ml-1 text-blue-600 font-medium">
+            {{ obtenerNombreMedio(farmaco.medio_envio) }}
+          </span>
+        </div>
+      </div>
+
       <div class="pt-4 flex items-center justify-center gap-4">
-        <button type="submit" class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors">Registrar Fármaco</button>
+        <button
+          type="button"
+          @click="cancelar"
+          class="bg-gray-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-gray-700 transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          :disabled="procesando"
+          class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
+        >
+          {{ procesando ? 'Registrando...' : 'Registrar Fármaco' }}
+        </button>
       </div>
     </form>
+
+    <!-- Componente externo del overlay -->
+    <SeleccionCentroVeterinario
+      v-if="mostrarOverlayCentros"
+      :mostrar="mostrarOverlayCentros"
+      :centros="centrosVeterinarios"
+      :centroSeleccionado="farmaco.centro_veterinario_id"
+      @cerrar="mostrarOverlayCentros = false"
+      @seleccionar="seleccionarCentro"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import SeleccionCentroVeterinario from '@/components/ElementosGraficos/SeleccionCentroVeterinario.vue'
+import CarruselMedioEnvio from '@/components/ElementosGraficos/CarruselMedioEnvio.vue'
+import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
 const route = useRoute()
+const mascotaId = route.query.mascotaId
 
-const abrirRegistroTipoFarmaco = () => {
-  router.push({
-    path: '/registro/registroTipoFarmaco',
-    query: {
-      from: '/historialClinico/farmacos/registro/farmaco'
-    }
-  });
-};
+console.log('🔍 Route query:', route.query)
+console.log('🔍 Mascota ID from query:', mascotaId)
 
+const { accessToken, isAuthenticated, checkAuth } = useAuth()
+
+// Estados reactivos
+const tiposFarmaco = ref([])
+const centrosVeterinarios = ref([])
+const mostrarOverlayCentros = ref(false)
+const procesando = ref(false)
+const mascotaData = ref(null)
+const errorCargandoMascota = ref(null)
+
+// Datos del formulario
 const farmaco = reactive({
-  tipo: '',
-  fecha: '',
+  tipo_farmaco_id: '',
+  fecha_administracion: '',
   dosis: '',
   unidad: 'mg',
-  via: '',
   frecuencia: '',
   duracion: '',
-  proximaDosis: '',
-  observaciones: '',
+  centro_veterinario_id: '',
+  proxima_dosis: '',
   reacciones: '',
-  recomendaciones: ''
+  recomendaciones: '',
+  medio_envio: ''
 })
 
 const archivos = ref(Array.from({ length: 6 }, () => ({
@@ -212,6 +291,164 @@ const archivos = ref(Array.from({ length: 6 }, () => ({
 })))
 
 const inputsArchivo = ref([])
+
+// Obtener ID del usuario dueño de la mascota
+const usuarioId = computed(() => {
+  return mascotaData.value?.usuario_id || null
+})
+
+// Función para obtener nombre del medio seleccionado
+const obtenerNombreMedio = (medioId) => {
+  const medios = {
+    email: 'Email',
+    whatsapp: 'WhatsApp',
+    telegram: 'Telegram'
+  }
+  return medios[medioId] || medioId
+}
+
+// Obtener nombre del centro seleccionado
+const obtenerNombreCentroSeleccionado = () => {
+  const centro = centrosVeterinarios.value.find(c => c.id === farmaco.centro_veterinario_id)
+  return centro ? centro.nombre : 'Centro no encontrado'
+}
+
+// Obtener dirección del centro seleccionado
+const obtenerDireccionCentroSeleccionado = () => {
+  const centro = centrosVeterinarios.value.find(c => c.id === farmaco.centro_veterinario_id)
+  return centro ? centro.direccion : ''
+}
+
+// Cargar datos de la mascota para obtener el usuario_id
+const cargarDatosMascota = async () => {
+  try {
+    console.log('🔄 Cargando datos de mascota con ID:', mascotaId)
+    
+    const response = await fetch(`/api/mascotas/${mascotaId}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    console.log('📦 Respuesta completa de mascota:', result)
+    
+    if (result.success && result.data) {
+      mascotaData.value = result.data
+      console.log('✅ Datos de mascota cargados:', mascotaData.value)
+      console.log('👤 Usuario ID encontrado:', mascotaData.value.usuario_id)
+      errorCargandoMascota.value = null
+    } else {
+      console.warn('❌ No se encontraron datos de mascota:', result)
+      mascotaData.value = null
+      errorCargandoMascota.value = result.message || 'Error al cargar datos de la mascota'
+    }
+  } catch (error) {
+    console.error('❌ Error cargando datos de mascota:', error)
+    mascotaData.value = null
+    errorCargandoMascota.value = error.message
+  }
+}
+
+// Cargar tipos de fármaco
+const cargarTiposFarmaco = async () => {
+  try {
+    console.log('🔄 Cargando tipos de fármaco desde:', '/api/tipos-farmaco');
+    console.log('🔑 Token disponible:', !!accessToken.value);
+    
+    const response = await fetch('/api/tipos-farmaco', {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('📡 Estado de respuesta:', response.status, response.statusText);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error en respuesta:', errorText);
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('📦 Resultado completo:', result);
+    
+    if (result.success && result.data) {
+      tiposFarmaco.value = result.data;
+      console.log('✅ Tipos de fármaco cargados:', tiposFarmaco.value.length, 'registros');
+      console.log('📋 Ejemplo del primer tipo:', tiposFarmaco.value[0]);
+    } else {
+      console.warn('⚠️ No se encontraron datos en la respuesta:', result);
+      tiposFarmaco.value = [];
+    }
+  } catch (error) {
+    console.error('❌ Error cargando tipos de fármaco:', error);
+    console.error('🔍 Stack trace:', error.stack);
+    
+    // Mostrar alerta más específica
+    alert('Error al cargar los tipos de fármaco: ' + error.message + 
+          '\n\nVerifica:\n1. Que estés autenticado\n2. Que el servidor esté funcionando\n3. Que la ruta /api/tipos-farmaco sea correcta');
+  }
+}
+
+// Cargar centros veterinarios
+const cargarCentrosVeterinarios = async () => {
+  try {
+    const response = await fetch('/api/centros-veterinarios', {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    centrosVeterinarios.value = result.data || []
+    console.log('🏥 Centros veterinarios cargados:', centrosVeterinarios.value.length)
+  } catch (error) {
+    console.error('Error cargando centros veterinarios:', error)
+    alert('Error al cargar los centros veterinarios')
+  }
+}
+
+const onTipoFarmacoChange = () => {
+  const tipoSeleccionado = tiposFarmaco.value.find(t => t.id == farmaco.tipo_farmaco_id)
+  if (tipoSeleccionado) {
+    console.log('Tipo de fármaco seleccionado:', tipoSeleccionado)
+  }
+}
+
+// Abrir overlay externo
+const abrirOverlayCentros = () => {
+  mostrarOverlayCentros.value = true
+}
+
+// Seleccionar centro desde overlay
+const seleccionarCentro = (centro) => {
+  farmaco.centro_veterinario_id = centro.id
+  mostrarOverlayCentros.value = false
+}
+
+// Navegar al registro de nuevo tipo
+const abrirRegistroTipoFarmaco = () => {
+  router.push({
+    path: '/registro/registroTipoFarmaco',
+    query: {
+      from: `/mascotas/${mascotaId}/farmacos/crear`,
+      mascotaId
+    }
+  })
+}
 
 const esImagen = (archivo) => {
   if (!archivo) return false
@@ -231,32 +468,147 @@ const activarInput = (index) => {
 }
 
 const quitarArchivo = (index) => {
+  if (archivos.value[index].preview) {
+    URL.revokeObjectURL(archivos.value[index].preview)
+  }
   archivos.value[index].archivo = null
   archivos.value[index].preview = null
 }
 
-const registrarFarmaco = () => {
-  const formData = new FormData()
-  
-  // Preparar datos para enviar
-  const datosEnvio = {
-    ...farmaco,
-    dosisCompleta: `${farmaco.dosis} ${farmaco.unidad}`
-  }
+// Registrar fármaco
+const registrarFarmaco = async () => {
+  if (procesando.value) return
 
-  for (const campo in datosEnvio) {
-    if (datosEnvio[campo] !== null && datosEnvio[campo] !== '') {
-      formData.append(campo, datosEnvio[campo])
-    }
-  }
+  try {
+    procesando.value = true
 
-  archivos.value.forEach((archivo, i) => {
-    if (archivo.archivo) {
-      formData.append(`archivo${i + 1}`, archivo.archivo)
+    // Validar que se seleccionó un medio de envío
+    if (!farmaco.medio_envio) {
+      alert('Por favor seleccione un medio de envío para el registro')
+      return
     }
-  })
-  
-  console.log('Datos a enviar:', formData)
-  // Aquí iría la lógica para enviar los datos al servidor
+
+    // Validaciones básicas
+    if (!farmaco.tipo_farmaco_id || !farmaco.fecha_administracion || !farmaco.frecuencia || 
+        !farmaco.duracion || !farmaco.dosis || !farmaco.unidad) {
+      alert('Por favor complete todos los campos obligatorios')
+      return
+    }
+
+    // Preparar FormData para enviar archivos
+    const formData = new FormData()
+    
+    // Agregar datos del formulario
+    Object.keys(farmaco).forEach(key => {
+      if (farmaco[key] !== null && farmaco[key] !== '') {
+        formData.append(key, farmaco[key])
+      }
+    })
+
+    // Agregar archivos
+    archivos.value.forEach((archivo, index) => {
+      if (archivo.archivo) {
+        formData.append(`archivos[${index}]`, archivo.archivo)
+      }
+    })
+
+    console.log('📤 Enviando datos a servidor:', Object.fromEntries(formData))
+
+    const response = await fetch(`/api/mascotas/${mascotaId}/farmacos`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: formData
+    })
+
+    console.log('📨 Status:', response.status)
+    
+    const responseText = await response.text()
+    console.log('📄 Respuesta cruda:', responseText)
+
+    if (!responseText.trim()) {
+      throw new Error('El servidor devolvió una respuesta vacía')
+    }
+
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('No se pudo parsear como JSON:', responseText)
+      throw new Error('El servidor no devolvió JSON válido')
+    }
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Error en la operación')
+    }
+
+    if (result.success) {
+      router.push({
+        name: 'veterinario-farmacos',
+        params: { id: mascotaId },  // ¡Aquí está el cambio!
+        query: {
+          from: 'registroFarmaco',
+          currentTab: 'Clinico',
+          ts: Date.now()
+        }
+      })
+    } else {
+      alert('Error al registrar el fármaco: ' + result.message)
+    }
+  } catch (error) {
+    console.error('❌ Error completo:', error)
+    alert('Error al registrar el fármaco: ' + error.message)
+  } finally {
+    procesando.value = false
+  }
 }
+
+const cancelar = () => {
+  router.push({
+        name: 'veterinario-farmacos',
+        params: { id: mascotaId },  // ¡Aquí está el cambio!
+        query: {
+          from: 'registroFarmaco',
+          currentTab: 'Clinico',
+          ts: Date.now()
+        }
+      })
+}
+
+// Verificar autenticación y cargar datos
+onMounted(async () => {
+  console.log('🚀 Iniciando componente RegistrarFarmaco')
+  
+  if (!isAuthenticated.value) {
+    const isAuth = await checkAuth()
+    if (!isAuth) {
+      alert('Debe iniciar sesión para acceder a esta página')
+      router.push('/login')
+      return
+    }
+  }
+
+  // Cargar datos en orden
+  await cargarDatosMascota() // Primero cargar datos de mascota para obtener usuario_id
+  
+  if (errorCargandoMascota.value) {
+    console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
+    alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
+    return
+  }
+
+  await cargarTiposFarmaco()
+  await cargarCentrosVeterinarios()
+
+  // Establecer fecha y hora actual como predeterminada
+  const ahora = new Date()
+  const offset = ahora.getTimezoneOffset() * 60000
+  const localISOTime = new Date(ahora.getTime() - offset).toISOString().slice(0, 16)
+  farmaco.fecha_administracion = localISOTime
+  
+  console.log('✅ Componente completamente cargado')
+  console.log('👤 Usuario ID final:', usuarioId.value)
+})
 </script>

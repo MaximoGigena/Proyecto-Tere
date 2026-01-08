@@ -1,4 +1,4 @@
-<!-- views/perfilUsuario -->
+<!-- views/perfilUsuario.vue -->
 <template>
   <div class="w-full h-full flex flex-col relative bg-gray-50">
     <!-- Header -->
@@ -78,6 +78,16 @@
               ID: {{ usuario.id }}
             </p>
           </div>
+
+          <!-- ============= COMPONENTE ATOMIZADO ============= -->
+          <TiempoRegistro 
+            :fecha-registro="usuario.created_at"
+            :tiempo-texto="usuario.tiempo_registro"
+            :dias-registrado="usuario.dias_registrado"
+            :show-days="true"
+            custom-class="ml-auto"
+          />
+          <!-- ================================================ -->
         </div>
 
         <!-- Tabs -->
@@ -123,6 +133,10 @@ import { computed, ref, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import axios from 'axios'
 
+// ============= IMPORTAR EL COMPONENTE =============
+import TiempoRegistro from '@/components/ElementosGraficos/EdadUsuario.vue'
+// ==================================================
+
 const router = useRouter()
 const route = useRoute()
 const { 
@@ -136,11 +150,15 @@ const {
   fetchUser 
 } = useAuth()
 
+// ============= SIMPLIFICAMOS EL USUARIO =============
 const usuario = ref({
   id: null,
   nombre: 'Cargando...',
   email: 'Cargando...',
-  foto: null
+  foto: null,
+  created_at: null,           // La fecha de creación del backend
+  tiempo_registro: null,      // El texto ya formateado del backend
+  dias_registrado: null       // Los días exactos del backend (opcional)
 })
 
 const cargando = ref(true)
@@ -149,6 +167,10 @@ const error = ref('')
 const activeTab = computed(() => {
   return route.meta.activeTab || 'mascotas'
 })
+
+// ============= ELIMINAMOS EL COMPUTED DE TIEMPO_REGISTRADO =============
+// ¡Ya no es necesario porque el componente se encarga!
+// =======================================================================
 
 // Computed para mostrar el tipo de usuario
 const tipoUsuario = computed(() => {
@@ -171,7 +193,7 @@ const editarRuta = computed(() => {
 
 // Configurar axios con interceptor
 const axiosAuth = axios.create({
-  baseURL: 'http://localhost:8000/api'  // ← AGREGAR /api AQUÍ
+  baseURL: 'http://localhost:8000/api'
 })
 
 // Interceptor para agregar el token automáticamente
@@ -195,7 +217,6 @@ const cargarUsuario = async () => {
 
     console.log('🔐 PERFIL - Verificando autenticación...')
     
-    // Verificar autenticación con el servidor
     const autenticado = await checkAuth()
     
     console.log('✅ checkAuth result:', autenticado)
@@ -206,13 +227,6 @@ const cargarUsuario = async () => {
       return
     }
 
-    console.log('✅ PERFIL - Usuario autenticado:', {
-      user: user.value,
-      userable_id: user.value?.userable_id,
-      userable_type: user.value?.userable_type
-    })
-
-    // Obtener el ID correcto del usuario
     const userId = user.value?.userable_id || user.value?.id
     console.log('🔍 ID del usuario a buscar:', userId)
     
@@ -221,14 +235,8 @@ const cargarUsuario = async () => {
     }
     
     console.log('📡 Haciendo petición a API...')
-    console.log('📡 URL:', `/usuarios/${userId}`)
     
-    // Hacer la petición a la API
     const response = await axiosAuth.get(`/usuarios/${userId}`)
-    
-    console.log('📡 Respuesta completa de API:', response)
-    console.log('📡 Status:', response.status)
-    console.log('📡 Data:', response.data)
     
     if (response.data.success && response.data.usuario) {
       const apiUsuario = response.data.usuario
@@ -239,65 +247,38 @@ const cargarUsuario = async () => {
       usuario.value.nombre = apiUsuario.nombre || 'Usuario'
       usuario.value.email = apiUsuario.email || user.value?.email || 'usuario@ejemplo.com'
       
-      console.log('📝 Datos asignados:', {
-        id: usuario.value.id,
-        nombre: usuario.value.nombre,
-        email: usuario.value.email
+      // DATOS PARA EL COMPONENTE DE TIEMPO
+      usuario.value.created_at = apiUsuario.created_at
+      usuario.value.tiempo_registro = apiUsuario.tiempo_registro || null
+      usuario.value.dias_registrado = apiUsuario.dias_registrado || 0
+      
+      // FOTO DE PERFIL - usar foto_principal directamente
+      if (apiUsuario.foto_principal) {
+        usuario.value.foto = apiUsuario.foto_principal
+        console.log('📸 Foto principal asignada:', usuario.value.foto)
+      } else {
+        // Intentar con la primera foto si hay alguna
+        if (apiUsuario.fotos && apiUsuario.fotos.length > 0) {
+          const primeraFoto = apiUsuario.fotos.find(f => f.url) || apiUsuario.fotos[0]
+          usuario.value.foto = primeraFoto.url || 
+                              (primeraFoto.ruta_foto ? `http://localhost:8000/storage/${primeraFoto.ruta_foto}` : null)
+        } else {
+          usuario.value.foto = 'https://cdn.pixabay.com/photo/2020/10/07/16/24/woman-5635665_960_720.jpg'
+        }
+      }
+      
+      console.log('📅 Datos de tiempo recibidos:', {
+        created_at: usuario.value.created_at,
+        tiempo_registro: usuario.value.tiempo_registro,
+        dias_registrado: usuario.value.dias_registrado
       })
       
-      // Manejar foto de perfil
-      if (apiUsuario.foto_principal) {
-        // Si hay foto_principal directa
-        let fotoUrl = apiUsuario.foto_principal
-        
-        // Si la URL empieza con /storage/, convertir a URL completa
-        if (fotoUrl && fotoUrl.startsWith('/storage/')) {
-          // Construir URL completa: http://localhost:8000 + /storage/...
-          fotoUrl = `http://localhost:8000${fotoUrl}`
-        }
-        
-        usuario.value.foto = fotoUrl
-        console.log('📸 Foto principal procesada:', {
-          original: apiUsuario.foto_principal,
-          final: usuario.value.foto
-        })
-      } else if (apiUsuario.fotos && apiUsuario.fotos.length > 0) {
-        // Buscar foto principal o usar la primera
-        const fotoPrincipal = apiUsuario.fotos.find(f => f.es_principal) || apiUsuario.fotos[0]
-        console.log('📸 Foto encontrada en array:', fotoPrincipal)
-        
-        let fotoUrl = null
-        
-        if (fotoPrincipal.url_foto) {
-          fotoUrl = fotoPrincipal.url_foto
-        } else if (fotoPrincipal.ruta_foto) {
-          // Construir URL completa
-          fotoUrl = `http://localhost:8000${fotoPrincipal.ruta_foto}`
-        }
-        
-        // Asegurarse de que la URL sea completa
-        if (fotoUrl && fotoUrl.startsWith('/storage/')) {
-          fotoUrl = `http://localhost:8000${fotoUrl}`
-        }
-        
-        usuario.value.foto = fotoUrl
-        console.log('📸 URL final de foto desde array:', usuario.value.foto)
-      } else {
-        console.log('📸 No se encontró foto en la respuesta')
-        usuario.value.foto = null
-      }
     } else {
-      console.error('❌ API no devolvió datos válidos:', response.data)
       throw new Error(response.data.message || 'No se pudieron obtener datos del usuario')
     }
 
   } catch (err) {
     console.error('❌ Error al cargar usuario:', err)
-    console.error('❌ Detalles del error:', {
-      message: err.message,
-      response: err.response?.data,
-      status: err.response?.status
-    })
     
     if (err.response?.status === 401) {
       error.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
@@ -311,6 +292,7 @@ const cargarUsuario = async () => {
     usuario.value.nombre = 'Usuario'
     usuario.value.email = 'usuario@ejemplo.com'
     usuario.value.foto = 'https://cdn.pixabay.com/photo/2020/10/07/16/24/woman-5635665_960_720.jpg'
+    usuario.value.tiempo_registro = 'Recién registrado'
   } finally {
     cargando.value = false
     console.log('🏁 Carga completada. Datos finales:', usuario.value)
@@ -320,7 +302,6 @@ const cargarUsuario = async () => {
 // Si necesitas forzar una recarga de datos desde el servidor, puedes usar esta función
 const recargarDatosUsuario = async () => {
   try {
-    // Forzar la obtención de datos frescos desde el servidor
     await fetchUser()
     await cargarUsuario()
   } catch (err) {
@@ -354,7 +335,6 @@ onMounted(async () => {
   opacity: 0;
 }
 
-/* Estilos adicionales para mejorar la visualización */
 img {
   object-fit: cover;
 }

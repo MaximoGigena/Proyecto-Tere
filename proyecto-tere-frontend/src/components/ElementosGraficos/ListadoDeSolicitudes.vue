@@ -23,31 +23,21 @@
         <p class="text-gray-500 text-sm">No hay solicitudes pendientes</p>
       </div>
       
-      <!-- ¡IMPORTANTE! Usar EXACTAMENTE la misma estructura que en la versión vieja -->
+      <!-- Router-link simplificado -->
       <router-link
         v-for="(perfil, index) in perfilesConPaletas" 
-        :key="index"
-        @click="abrirPerfilUsuario(perfil.id)"
-        :to="{
-          name: 'user-profile-list',
-          params: { userId: perfil.id },
-          query: { 
-            from: 'chats-list',
-            solicitud_id: perfil.solicitud_id,
-            mascota_nombre: perfil.mascota_nombre,
-            fecha_solicitud: perfil.fecha_solicitud
-          }
-        }"
+        :key="perfil.unique_key || perfil.solicitud_id || index" 
+        :to="generarRuta(perfil)"
         :class="[
-          'flex flex-col items-center shadow-sm hover:shadow-md transition rounded-xl p-3 min-w-[110px]',
+          'flex flex-col items-center shadow-sm hover:shadow-md transition rounded-xl p-3 min-w-[110px] cursor-pointer',
           perfil.bgClass
         ]"
-        :title="`Solicitud para adoptar a ${perfil.mascota_nombre || 'tu mascota'}`"
+        :title="`Solicitud ${perfil.solicitud_id} para adoptar a ${perfil.mascota_nombre || 'tu mascota'}`"
       >
         <div class="relative">
           <img
             :src="perfil.img"
-            class="w-16 h-16 rounded-full object-cover border border-white"
+            class="w-16 h-16 rounded-full object-cover border-2 border-white"
             :alt="perfil.nombre"
             @error="setDefaultAvatar"
           />
@@ -60,6 +50,9 @@
         </div>
         <span class="mt-2 text-xs font-medium text-white text-center line-clamp-2">
           {{ perfil.nombre }}
+        </span>
+        <span v-if="perfil.mascota_nombre" class="text-[10px] text-white/80 mt-1">
+          Para: {{ perfil.mascota_nombre }}
         </span>
       </router-link>
     </div>
@@ -84,7 +77,7 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const listaPerfiles = ref(null);
 
-// Definir props y eventos - IGUAL QUE LA VERSIÓN VIEJA
+// Definir props y eventos
 const props = defineProps({
   perfiles: {
     type: Array,
@@ -94,12 +87,12 @@ const props = defineProps({
 
 const emit = defineEmits(['abrir-perfil']);
 
-// Función para fallback de avatar (añadida pero compatible)
+// Función para fallback de avatar
 const setDefaultAvatar = (event) => {
   event.target.src = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png';
 };
 
-// Paletas de colores - EXACTAMENTE IGUAL
+// Paletas de colores
 const palettes = [
   { bgClass: 'bg-gradient-to-r from-blue-400 to-orange-300', badgeClass: 'bg-blue-600' },
   { bgClass: 'bg-gradient-to-r from-green-400 to-yellow-300', badgeClass: 'bg-green-600' },
@@ -112,7 +105,34 @@ const palettes = [
 // Variable reactiva para los perfiles con paletas
 const perfilesConPaletas = reactive([]);
 
-// Función para actualizar perfiles con paletas - SIMPLIFICADA COMO LA VIEJA
+// Función para generar ruta dinámica
+const generarRuta = (perfil) => {
+  // Verificar si el perfil tiene los datos necesarios
+  const solicitanteId = perfil.solicitante_id || perfil.id;
+  
+  if (!solicitanteId) {
+    console.error('Perfil sin solicitante_id:', perfil);
+    return { name: 'home' };
+  }
+  
+  // Solo pasar userId como parámetro, el resto como query
+  return {
+    name: 'user-profile-list',
+    params: { 
+      userId: solicitanteId.toString()
+    },
+    query: { 
+      from: 'chats-list',
+      solicitud_id: perfil.solicitud_id || perfil.id,
+      mascota_nombre: perfil.mascota_nombre,
+      fecha_solicitud: perfil.fecha_solicitud,
+      mascota_id: perfil.mascota_id,
+      unique_key: perfil.unique_key || `${solicitanteId}_${perfil.mascota_id}_${perfil.solicitud_id || perfil.id}`
+    }
+  };
+};
+
+// Función para actualizar perfiles con paletas
 const actualizarPerfilesConPaletas = () => {
   console.log('🔄 ListadoDeSolicitudes: Actualizando perfiles...');
   
@@ -123,18 +143,49 @@ const actualizarPerfilesConPaletas = () => {
   if (props.perfiles && props.perfiles.length > 0) {
     console.log(`ListadoDeSolicitudes: Recibidos ${props.perfiles.length} perfiles`);
     
+    // Crear un mapa para evitar duplicados (usuario + mascota)
+    const perfilesUnicos = new Map();
+    
     props.perfiles.forEach((perfil, index) => {
       const paletteIndex = index % palettes.length;
       
-      // Mantener la estructura exacta que funcionaba
-      const perfilConPaleta = {
-        ...perfil,  // Mantener todas las propiedades originales
-        ...palettes[paletteIndex]  // Añadir colores
-      };
+      // Verificar que tenga datos mínimos
+      if (!perfil.solicitante_id && !perfil.id) {
+        console.warn('Perfil sin identificador:', perfil);
+        return;
+      }
       
-      perfilesConPaletas.push(perfilConPaleta);
-      console.log(`  ${index + 1}. ID: ${perfilConPaleta.id}, Nombre: ${perfilConPaleta.nombre}`);
+      // Crear una clave única combinando usuario y mascota
+      const solicitanteId = perfil.solicitante_id || perfil.id;
+      const mascotaId = perfil.mascota_id || 'sin-mascota';
+      const claveUnica = `${solicitanteId}_${mascotaId}`;
+      
+      console.log(`Procesando: Usuario ${solicitanteId} - Mascota ${mascotaId} - Clave ${claveUnica}`);
+      
+      // Solo agregar si no existe ya este usuario+mascota
+      if (!perfilesUnicos.has(claveUnica)) {
+        // Crear perfil con paleta
+        const perfilConPaleta = {
+          ...perfil,
+          ...palettes[paletteIndex],
+          // Asegurar que todos los campos necesarios existan
+          id: perfil.solicitud_id || perfil.id, // ID de la solicitud
+          solicitud_id: perfil.solicitud_id || perfil.id,
+          solicitante_id: perfil.solicitante_id || perfil.id,
+          mascota_id: perfil.mascota_id,
+          unique_key: claveUnica + '_' + (perfil.solicitud_id || perfil.id)
+        };
+        
+        perfilesUnicos.set(claveUnica, perfilConPaleta);
+        perfilesConPaletas.push(perfilConPaleta);
+        
+        console.log(`  ✅ Agregado: Solicitud ${perfilConPaleta.solicitud_id} para ${perfilConPaleta.mascota_nombre}`);
+      } else {
+        console.log(`  ⚠️  Omitido duplicado: Ya existe solicitud para usuario ${solicitanteId} y mascota ${mascotaId}`);
+      }
     });
+    
+    console.log(`Total perfiles únicos mostrados: ${perfilesConPaletas.length}`);
   } else {
     console.log('No hay perfiles para mostrar en el carrusel');
   }
@@ -143,13 +194,13 @@ const actualizarPerfilesConPaletas = () => {
 // Inicializar perfiles con paletas
 actualizarPerfilesConPaletas();
 
-// Observar cambios en las props - IGUAL QUE LA VERSIÓN VIEJA
+// Observar cambios en las props
 watch(() => props.perfiles, () => {
-  console.log('🔍 Props cambiaron');
+  console.log('🔍 Props cambiaron, actualizando perfiles...');
   actualizarPerfilesConPaletas();
 }, { deep: true });
 
-// Funciones de scroll - IGUALES
+// Funciones de scroll
 function scrollLeft() {
   if (listaPerfiles.value) {
     listaPerfiles.value.scrollBy({
@@ -168,31 +219,12 @@ function scrollRight() {
   }
 }
 
-// Función para abrir perfil - IGUAL QUE LA VERSIÓN VIEJA
-function abrirPerfilUsuario(userId) {
-  console.log('👤 Abriendo perfil de usuario:', userId);
+// Función para abrir perfil (compatibilidad)
+function abrirPerfilUsuario(perfil) {
+  console.log('👤 Abriendo perfil desde ListadoDeSolicitudes:', perfil);
   
   // Emitir el evento al componente padre
-  emit('abrir-perfil', userId);
-  
-  // Encontrar el perfil completo
-  const perfil = perfilesConPaletas.find(p => p.id === userId);
-  
-  if (perfil) {
-    console.log('Perfil encontrado:', perfil);
-    
-    // Navegar al perfil del usuario - IGUAL QUE LA VERSIÓN VIEJA
-    router.push({
-      name: 'user-profile-list',
-      params: { userId },
-      query: { 
-        from: 'chats-list',
-        solicitud_id: perfil.solicitud_id,
-        mascota_nombre: perfil.mascota_nombre,
-        fecha_solicitud: perfil.fecha_solicitud
-      }
-    });
-  }
+  emit('abrir-perfil', perfil.solicitante_id || perfil.id);
 }
 </script>
 

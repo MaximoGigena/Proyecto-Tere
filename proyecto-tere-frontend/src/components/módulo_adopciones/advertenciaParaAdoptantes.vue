@@ -1,49 +1,67 @@
+<!-- AdvertenciaAdopcion.vue - CON TAMAÑO FIJO -->
 <template>
-  <div v-if="visible" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+  <div class="flex flex-col h-[70vh] max-h-[70vh] w-full bg-white rounded-2xl overflow-hidden">
+    <!-- Header del modal -->
+    <div class="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10 shrink-0">
+      <!-- Título a la izquierda -->
+      <h1 class="text-lg font-semibold text-gray-800">Adopción responsable</h1>
+      
+      <!-- Contenedor vacío para balancear -->
+      <div class="w-6"></div>
+      
+      <!-- Botón de cerrar a la derecha -->
+      <button @click="cerrar" class="text-gray-500 hover:text-gray-800 text-4xl font-bold">
+        ×
+      </button>
+    </div>
 
-    <!-- CONTENEDOR PRINCIPAL -->
-    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 p-6 relative">
-
-      <!-- BOTÓN CERRAR -->
-      <button @click="cerrar" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 text-2xl font-bold">×</button>
-
+    <!-- Contenido scrollable -->
+    <div class="flex-1 overflow-y-auto">
       <!-- ========================================================= -->
       <!--                 PANTALLA 1: ADVERTENCIAS                  -->
       <!-- ========================================================= -->
-      <div v-if="pantalla === 'advertencias'">
-        <header class="mb-6">
-          <h1 class="text-2xl md:text-3xl font-semibold">Advertencia y compromiso de adopción</h1>
-          <p class="text-sm text-gray-600 mt-2">
-            Antes de continuar, confirme cada punto obligatorio.
+      <div v-if="pantalla === 'advertencias'" class="p-4">
+        <header class="mb-4">
+          <p class="text-sm text-gray-600">
+            Confirme cada punto obligatorio para continuar.
           </p>
         </header>
 
-        <ul class="space-y-3">
-          <li v-for="(item, idx) in items" :key="item.id" class="flex items-start gap-3">
-            <input type="checkbox" :id="item.id" v-model="item.checked"
-              class="mt-1 h-5 w-5 rounded text-emerald-600 focus:ring-emerald-500" />
-            <div>
-              <label :for="item.id" class="font-medium text-gray-800">{{ item.title }}</label>
-              <p class="text-sm text-gray-600">{{ item.description }}</p>
-            </div>
-          </li>
-        </ul>
+        <!-- Lista de advertencias -->
+        <div class="max-h-[40vh] overflow-y-auto pr-2">
+          <ul class="space-y-3">
+            <li v-for="(item) in items" :key="item.id" class="flex items-start gap-3">
+              <input type="checkbox" :id="item.id" v-model="item.checked"
+                class="mt-0.5 h-5 w-5 rounded text-emerald-600 focus:ring-emerald-500 flex-shrink-0" />
+              <div class="min-w-0 flex-1">
+                <label :for="item.id" class="font-medium text-gray-800 text-sm block">
+                  {{ item.title }}
+                </label>
+                <p class="text-xs text-gray-600 mt-1">{{ item.description }}</p>
+              </div>
+            </li>
+          </ul>
+        </div>
 
-        <div class="pt-4 border-t flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-6">
-          <div class="text-sm text-gray-600">
-            <p>Requerido: <span class="font-semibold">todas</span> las casillas deben estar marcadas.</p>
-            <p v-if="!allChecked" class="text-red-600">Por favor confirme todos los puntos.</p>
+        <div class="pt-4 border-t mt-4">
+          <div class="text-sm text-gray-600 mb-3">
+            <p><span class="font-semibold">Todas</span> las casillas deben estar marcadas.</p>
+            <p v-if="!allChecked" class="text-red-600 text-xs mt-1">
+              Por favor confirme todos los puntos.
+            </p>
           </div>
 
-          <div class="flex gap-2">
+          <div class="flex gap-3">
             <button @click="cerrar"
-              class="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50">Cancelar</button>
+              class="flex-1 px-4 py-2 text-sm rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition-colors">
+              Cancelar
+            </button>
 
             <button
               @click="pantalla = 'confirmar'"
               :disabled="!allChecked"
               :class="[
-                'px-4 py-2 rounded-lg text-white font-medium',
+                'flex-1 px-4 py-2 text-sm rounded-lg text-white font-medium transition-colors',
                 allChecked ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-emerald-300 cursor-not-allowed'
               ]">
               Continuar
@@ -55,17 +73,14 @@
       <!-- ========================================================= -->
       <!--        PANTALLA 2: CONFIRMAR Y ENVIAR SOLICITUD           -->
       <!-- ========================================================= -->
-      <div v-if="pantalla === 'confirmar'">
-        <div class="flex justify-between items-center mb-6">
-          <h2 class="text-2xl font-bold text-gray-800">Solicitar Adopción</h2>
-        </div>
-
+      <div v-if="pantalla === 'confirmar'" class="p-4">
         <!-- INFO MASCOTA -->
-        <div v-if="mascota" class="bg-blue-50 p-4 rounded-lg mb-6">
+        <div v-if="mascota" class="bg-blue-50 p-3 rounded-lg mb-4">
           <div class="flex items-center gap-3">
-            <img :src="mascota.fotoPrincipal || burro" class="w-16 h-16 rounded-full object-cover border-2 border-blue-200">
+            <img :src="mascota.fotoPrincipal || burro" 
+                 class="w-14 h-14 rounded-full object-cover border-2 border-blue-200">
             <div>
-              <h3 class="font-bold text-lg text-gray-800">{{ mascota.nombre }}</h3>
+              <h3 class="font-bold text-base text-gray-800">{{ mascota.nombre }}</h3>
               <p class="text-sm text-gray-600">{{ mascota.edad_formateada || "Edad no disponible" }}</p>
               <p class="text-xs text-gray-500">{{ mascota.sexo }} • {{ mascota.caracteristicas?.tamano }}</p>
             </div>
@@ -73,56 +88,58 @@
         </div>
 
         <!-- Mensaje -->
-        <div class="text-center py-4">
-          <font-awesome-icon :icon="['fas', 'heart']" class="text-red-500 text-4xl mb-3" />
-          <h3 class="text-xl font-semibold text-gray-800 mb-2">
+        <div class="text-center py-3">
+          <font-awesome-icon :icon="['fas', 'heart']" class="text-red-500 text-3xl mb-2" />
+          <h3 class="text-lg font-semibold text-gray-800 mb-1">
             ¿Confirmar solicitud de adopción?
           </h3>
-          <p class="text-gray-600">
+          <p class="text-sm text-gray-600">
             Se notificará al protector/a para revisar tu solicitud.
           </p>
         </div>
 
         <!-- ACEPTAR TÉRMINOS -->
-        <div class="border-t border-b py-4">
-          <div class="flex items-start gap-3 mb-3">
+        <div class="border-t border-b py-3 mb-4">
+          <div class="flex items-start gap-3">
             <input type="checkbox" id="finales" v-model="aceptoFinal"
-              class="mt-1 h-5 w-5 rounded text-blue-600 focus:ring-blue-500" />
+              class="mt-0.5 h-5 w-5 rounded text-blue-600 focus:ring-blue-500" />
             <label for="finales" class="text-sm">
               <span class="font-medium">Confirmo que acepto los términos finales</span>
-              <p class="text-gray-600">La solicitud puede ser rechazada según criterios de adopción responsable.</p>
+              <p class="text-gray-600 mt-1">
+                La solicitud puede ser rechazada según criterios de adopción responsable.
+              </p>
             </label>
           </div>
         </div>
 
         <!-- ESTADOS -->
-        <div v-if="estado === 'cargando'" class="text-center py-4">
+        <div v-if="estado === 'cargando'" class="text-center py-3">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p class="mt-2 text-gray-600">Enviando solicitud...</p>
+          <p class="mt-2 text-sm text-gray-600">Enviando solicitud...</p>
         </div>
 
-        <div v-if="estado === 'exito'" class="bg-green-50 border border-green-200 rounded-lg p-4">
-          <h4 class="font-bold text-green-800">¡Solicitud enviada!</h4>
+        <div v-if="estado === 'exito'" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <h4 class="font-bold text-green-800 text-sm">¡Solicitud enviada!</h4>
           <p class="text-green-700 text-sm">
             Serás notificado cuando el protector/a la revise.
           </p>
-          <div class="mt-4 flex justify-center">
+          <div class="mt-3 flex justify-center">
             <button @click="verMisSolicitudes"
-              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+              class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
               Ver mis solicitudes
             </button>
           </div>
         </div>
 
-        <div v-if="estado === 'error'" class="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h4 class="font-bold text-red-800">Error al enviar solicitud</h4>
+        <div v-if="estado === 'error'" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <h4 class="font-bold text-red-800 text-sm">Error al enviar solicitud</h4>
           <p class="text-red-700 text-sm">{{ mensajeError }}</p>
         </div>
 
         <!-- BOTONES -->
-        <div v-if="estado === 'inicial'" class="flex gap-3 pt-6">
+        <div v-if="estado === 'inicial'" class="flex gap-3">
           <button @click="pantalla = 'advertencias'"
-            class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+            class="flex-1 px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
             Volver
           </button>
 
@@ -130,7 +147,7 @@
             @click="enviarSolicitud"
             :disabled="!aceptoFinal"
             :class="[
-              'flex-1 px-4 py-3 rounded-lg font-medium',
+              'flex-1 px-4 py-2 text-sm rounded-lg font-medium',
               aceptoFinal ? 'bg-blue-600 text-white hover:bg-blue-700'
                           : 'bg-blue-300 text-white cursor-not-allowed'
             ]">
@@ -138,11 +155,9 @@
           </button>
         </div>
       </div>
-
     </div>
   </div>
 </template>
-
 
 <script setup>
 import { ref, reactive, computed, defineExpose, defineProps, defineEmits } from "vue"
@@ -246,9 +261,11 @@ async function cargarDatosMascota() {
 }
 
 function cerrar() {
-  visible.value = false
+  // Emitir el evento de cierre para que el padre maneje la animación
+  emit("close")
+  
+  // Solo resetear el estado interno
   pantalla.value = "advertencias"
-  // Resetear estado
   items.forEach(item => item.checked = false)
   aceptoFinal.value = false
   estado.value = "inicial"
@@ -256,7 +273,6 @@ function cerrar() {
   ofertaId.value = null
   mascotaId.value = null
   mensajeError.value = ""
-  emit("close")
 }
 
 async function enviarSolicitud() {
@@ -369,6 +385,9 @@ function verMisSolicitudes() {
 
 async function open(ofertaIdParam = null, mascotaIdParam = null) { 
   console.log('Modal abierto con parámetros:', { ofertaIdParam, mascotaIdParam })
+  console.log('=== AdvertenciaAdopcion.open() llamado ===')
+  console.log('Parámetros recibidos:', { ofertaIdParam, mascotaIdParam })
+  console.log('Componente visible:', visible.value)
   
   // Guardar los IDs
   ofertaId.value = ofertaIdParam
@@ -383,10 +402,35 @@ async function open(ofertaIdParam = null, mascotaIdParam = null) {
   
   // Mostrar el modal
   visible.value = true
+
+  console.log('Modal visible establecido a:', visible.value)
   
   // Cargar datos de mascota
   await cargarDatosMascota()
+
+  console.log('Datos de mascota cargados:', mascota.value)
 }
 
 defineExpose({ open, cerrar })
 </script>
+
+<style scoped>
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+</style>

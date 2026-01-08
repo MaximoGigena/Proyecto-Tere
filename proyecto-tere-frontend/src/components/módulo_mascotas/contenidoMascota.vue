@@ -99,7 +99,13 @@
                 !
                 </button>
 
-                <PasoAlgo v-if="mostrar" @close="mostrar = false" />
+                <!-- Contenedor de reporte -->
+                <PasoAlgo 
+                  v-if="mostrar" 
+                  @close="mostrar = false"
+                  :mascotaId="mascotaComputed?.id"
+                  :ofertaId="ofertaActual?.id_oferta"
+                />
             </div>
 
             <!-- Descripción -->
@@ -180,7 +186,7 @@
                   v-if="showButtonsContainer"
                   ref="botonesAnimados"
                   :class="{'opacity-0 translate-y-10': !mostrarBotones, 'opacity-100 translate-y-0': mostrarBotones}"
-                  class="flex justify-center gap-14 z-20 transition-all duration-700 ease-out"
+                  class="flex justify-center gap-14 z-20 transition-all duration-700 ease-out pb-20"
                 >
 
                   <button 
@@ -196,37 +202,50 @@
                     <font-awesome-icon :icon="['fas','heart']" class="text-black text-4xl hover:text-green-400"/>
                   </button>
 
-                <BotonesSwipe
-                    v-if="$route.path.startsWith('/explorar/encuentros')"
-                    ref="botonesSwipeRef"
-                    :mascotaId="mascotaComputed?.id"
-                    :ofertaId="ofertaActual?.id_oferta || route.params.id"
-                    :mostrarBotones="mostrarBotones"
-                    :mostrarInstrucciones="true"
-                    :contenedorElement="contenedorPrincipal"
-                    @like="onLike"
-                    @dislike="onDislike"
-                    @swipe-start="onSwipeStart"
-                    @swipe-end="onSwipeEnd"
-                    @swipe-cancel="onSwipeCancel"
-                    @swipe-animation="onSwipeAnimation"
-                  />
-                </div>
-          <div class="h-20"></div>
-        </div>
-    </div>
+                <!-- En contenidoMascota.vue, modifica el BotonesSwipe -->
+                    <!-- En contenidoMascota.vue, dentro del template -->
+                    <BotonesSwipe
+                      v-if="$route.path.startsWith('/explorar/encuentros')"
+                      ref="botonesSwipeRef"
+                      :mascotaId="mascotaComputed?.id"
+                      :ofertaId="ofertaActual?.id_oferta || route.params.id"
+                      :mostrarBotones="mostrarBotones"
+                      :mostrarInstrucciones="true"
+                      :contenedorElement="contenedorPrincipal"
+                      :mostrarAdvertencia="true" 
+                      @like="onLike"
+                      @dislike="onDislike"
+                      @swipe-start="onSwipeStart"
+                      @swipe-end="onSwipeEnd"
+                      @swipe-cancel="onSwipeCancel"
+                      @swipe-animation="onSwipeAnimation"
+                      @mostrar-advertencia="onMostrarAdvertencia" 
+                    />
+            </div>
+         </div>
+     </div>
     
-    <AdvertenciaAdopcion 
-      ref="advertenciaRef" 
-      @close="handleAdopcionClose"
-      @success="onAdopcionSuccess"
-      @error="onAdopcionError"
-    />
+    <!-- Contenedor de advertencia -->
+    <transition name="slide-up">
+      <div 
+        v-if="mostrarAdvertencia"
+        class="absolute top-0 left-0 right-0 bottom-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4"
+      >
+        <div class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl max-h-[70vh] h-[70vh]">
+          <AdvertenciaAdopcion 
+            ref="advertenciaRef" 
+            @close="onAdopcionCancel"
+            @success="onAdopcionSuccess"
+            @error="onAdopcionError"
+          />
+        </div>
+      </div>
+    </transition>
 </template>
 
 <!-- El script se mantiene EXACTAMENTE IGUAL -->
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { defineProps, defineEmits } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import burro from '@/assets/burro.png'
@@ -263,6 +282,9 @@ const swipeTransform = ref('')
 const swipeClass = ref('')
 const procesandoSwipe = ref(false)
 
+// Estado para controlar la animación
+const mostrarAdvertencia = ref(false)
+
 const { registrarInteraccion } = useInteracciones()
 
 // Accede a los parámetros de la ruta
@@ -278,6 +300,73 @@ const props = defineProps({
 
 // Define emits para comunicar acciones al padre
 const emit = defineEmits(['like', 'dislike', 'close', 'next', 'prev', 'swipe-completed'])
+
+// En contenidoMascota.vue, actualiza onMostrarAdvertencia
+async function onMostrarAdvertencia(data) {
+  console.log('=== onMostrarAdvertencia llamado ===')
+  console.log('Datos recibidos:', data)
+  console.log('Mascota computada:', mascotaComputed.value)
+  console.log('Oferta actual:', props.ofertaActual)
+  
+  // Guardar posición actual de scroll
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = 0
+  }
+
+  // Primero, mostrar el contenedor de advertencia
+  mostrarAdvertencia.value = true
+  
+  // Esperar a que Vue actualice el DOM y monte el componente
+  await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 100)) // Pequeña espera adicional
+  
+  console.log('advertenciaRef después de mostrar:', advertenciaRef.value)
+  
+  // Verificar que el componente esté montado
+  if (advertenciaRef.value && typeof advertenciaRef.value.open === 'function') {
+    console.log('Contexto: Vista de encuentros (swipe) - Mostrando advertencia')
+    
+    // Usar los datos del evento para determinar qué mostrar
+    const ofertaIdParaAdvertencia = data.ofertaId || props.ofertaActual?.id_oferta
+    const mascotaIdParaAdvertencia = data.mascotaId || mascotaComputed.value?.id
+    
+    console.log('IDs para advertencia:', {
+      ofertaIdParaAdvertencia,
+      mascotaIdParaAdvertencia
+    })
+    
+    // Pasar los IDs correctos a la advertencia
+    if (ofertaIdParaAdvertencia) {
+      console.log('Abriendo advertencia con ofertaId:', ofertaIdParaAdvertencia)
+      await advertenciaRef.value.open(ofertaIdParaAdvertencia, null)
+    } else if (mascotaIdParaAdvertencia && mascotaIdParaAdvertencia !== 'demo-burro') {
+      console.log('Abriendo advertencia con mascotaId:', mascotaIdParaAdvertencia)
+      await advertenciaRef.value.open(null, mascotaIdParaAdvertencia)
+    } else {
+      console.error('No se pudo determinar el ID para la advertencia')
+      mostrarNotificacion('Error al abrir formulario de adopción', 'error')
+      mostrarAdvertencia.value = false
+      procesandoSwipe.value = false
+      return
+    }
+    
+    console.log('Advertencia abierta correctamente')
+    
+    // Desplazar al usuario hacia el modal
+    setTimeout(() => {
+      const modalElement = document.querySelector('.advertencia-container')
+      if (modalElement) {
+        modalElement.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      }
+    }, 100)
+  } else {
+    console.error('advertenciaRef no disponible o método open no encontrado')
+    console.error('advertenciaRef:', advertenciaRef.value)
+    mostrarNotificacion('Error al abrir formulario de adopción', 'error')
+    mostrarAdvertencia.value = false
+    procesandoSwipe.value = false
+  }
+}
 
 // Función para manejar el dislike
 async function onLike(data) {
@@ -386,6 +475,14 @@ function abrirAdvertencia() {
   console.log('=== abrirAdvertencia llamado ===')
   console.log('Ruta actual:', route.path)
   console.log('Mascota computada:', mascotaComputed.value)
+
+   // Guardar posición actual de scroll
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = 0 // Ir al inicio
+  }
+
+  // Mostrar la advertencia con animación
+  mostrarAdvertencia.value = true
   
   if (advertenciaRef.value) {
     // Verificar si estamos en la vista de swipe (encuentros)
@@ -435,32 +532,113 @@ function abrirAdvertencia() {
         mostrarNotificacion('No se pudo identificar la mascota para adopción', 'error')
       }
     }
+   // Desplazar al usuario hacia el modal
+    setTimeout(() => {
+      const modalElement = document.querySelector('.advertencia-container')
+      if (modalElement) {
+        modalElement.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      }
+    }, 100)
   } else {
     console.error('advertenciaRef no disponible')
     mostrarNotificacion('Error al abrir formulario', 'error')
   }
 }
 
-// Conectar los eventos del modal
-function onAdopcionSuccess(data) {
-  console.log('Adopción exitosa:', data)
+watch(mostrarAdvertencia, (newVal) => {
+  if (newVal) {
+    // Cuando se muestra la advertencia, deshabilitar scroll en el contenedor
+    if (scrollContainer.value) {
+      scrollContainer.value.style.overflow = 'hidden'
+    }
+  } else {
+    // Cuando se cierra, restaurar scroll
+    if (scrollContainer.value) {
+      scrollContainer.value.style.overflow = 'auto'
+    }
+  }
+})
+
+// En contenidoMascota.vue, actualiza onAdopcionSuccess
+async function onAdopcionSuccess(data) {
+  console.log('=== onAdopcionSuccess llamado ===')
+  console.log('Datos de adopción exitosa:', data)
   mostrarNotificacion('¡Solicitud enviada con éxito!', 'success')
+  mostrarAdvertencia.value = false
   
-  // Si estamos en la vista de swipe, emitir evento para avanzar
+  // Si estamos en la vista de swipe, completar el like
   if (route.path.startsWith('/explorar/encuentros')) {
-    emit('swipe-completed', 'like')
-    emit('next')
+    console.log('Completando flujo de swipe después de adopción')
+    
+    try {
+      // Registrar la interacción como like completado
+      const interaccionData = {
+        mascota_id: mascotaComputed.value?.id || null,
+        oferta_id: props.ofertaActual?.id_oferta || null,
+        tipo_interaccion: 'like'
+      }
+      
+      console.log('Registrando interacción final:', interaccionData)
+      
+      // Solo registrar si tenemos al menos un ID
+      if (interaccionData.mascota_id || interaccionData.oferta_id) {
+        await registrarInteraccion(interaccionData)
+        console.log('Interacción registrada correctamente')
+      }
+      
+      // Emitir eventos para avanzar
+      console.log('Emitiendo eventos para avanzar a siguiente oferta')
+      emit('swipe-completed', {
+        tipo: 'like',
+        data: data
+      })
+      emit('next')
+      
+    } catch (err) {
+      console.error('Error registrando interacción final:', err)
+      // Aún así avanzar aunque falle el registro
+      emit('swipe-completed', {
+        tipo: 'like',
+        data: data,
+        error: err.message
+      })
+      emit('next')
+    }
   }
 }
 
-function onAdopcionError(err) {
-  console.error('Error en adopción:', err)
-  mostrarNotificacion('Error al enviar solicitud: ' + err.message, 'error')
+// Manejar cancelacion en adopción
+function onAdopcionCancel() {
+  console.log('=== onAdopcionCancel llamado ===')
+  console.log('Adopción cancelada desde modal')
+  mostrarAdvertencia.value = false
+  procesandoSwipe.value = false // Resetear estado de swipe
+  
+  // Si estamos en swipe, resetear la animación
+  if (route.path.startsWith('/explorar/encuentros')) {
+    console.log('Reseteando animación de swipe cancelado')
+    resetSwipeAnimation()
+    
+    // Notificar al componente padre que el swipe fue cancelado
+    emit('swipe-cancel', 'like')
+  }
 }
 
+// Modificar handleAdopcionClose para ocultar con animación
 function handleAdopcionClose() {
   console.log('Modal de adopción cerrado')
-  // Solo resetea el estado si es necesario, no navegues
+  mostrarAdvertencia.value = false
+  
+  // Guardar posición de scroll antes de mostrar el modal
+  if (scrollContainer.value) {
+    const scrollTop = scrollContainer.value.scrollTop
+    // Restaurar scroll después de cerrar
+    requestAnimationFrame(() => {
+      if (scrollContainer.value) {
+        scrollContainer.value.scrollTop = scrollTop
+      }
+    })
+  }
 }
 
 function handleClose() {

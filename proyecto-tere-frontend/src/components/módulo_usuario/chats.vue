@@ -275,22 +275,46 @@ function usarNotificacionesEjemplo() {
 }
 
 // Computed properties - IDÉNTICO A LA VERSIÓN VIEJA
+// REEMPLAZA la computed property solicitudesRecibidasFormateadas con esto:
 const solicitudesRecibidasFormateadas = computed(() => {
-  console.log('Formateando solicitudes:', solicitudesRecibidas.value);
+  console.log('🔄 Formateando solicitudes para ListadoDeSolicitudes:', solicitudesRecibidas.value);
   
   if (!solicitudesRecibidas.value || solicitudesRecibidas.value.length === 0) {
     return [];
   }
   
-  return solicitudesRecibidas.value.map(solicitud => ({
-    id: solicitud.solicitante_id, // ¡IMPORTANTE! Esta es la clave que funcionaba
-    nombre: solicitud.nombre,
-    img: solicitud.img,
-    solicitud_id: solicitud.id,
-    mascota_nombre: solicitud.mascota_nombre,
-    fecha_solicitud: solicitud.fecha_solicitud,
-    estado: solicitud.estado
-  }));
+  // Formatear EXACTAMENTE como espera ListadoDeSolicitudes.vue
+  return solicitudesRecibidas.value.map(solicitud => {
+    console.log('Procesando solicitud:', {
+      id: solicitud.id,
+      solicitud_id: solicitud.solicitud_id,
+      solicitante_id: solicitud.solicitante_id,
+      nombre: solicitud.nombre
+    });
+    
+    return {
+      // ID de la solicitud (no del usuario)
+      id: solicitud.solicitud_id || solicitud.id,
+      // ID único de la solicitud
+      solicitud_id: solicitud.solicitud_id || solicitud.id,
+      // ID del usuario solicitante
+      solicitante_id: solicitud.solicitante_id || solicitud.id, // Fallback
+      // Nombre del solicitante
+      nombre: solicitud.nombre,
+      // Foto del solicitante
+      img: solicitud.img,
+      // ID de la mascota
+      mascota_id: solicitud.mascota_id,
+      // Nombre de la mascota
+      mascota_nombre: solicitud.mascota_nombre,
+      // Fecha de la solicitud
+      fecha_solicitud: solicitud.fecha_solicitud,
+      // Estado
+      estado: solicitud.estado,
+      // Clave única para evitar duplicados
+      unique_key: `${solicitud.solicitante_id || solicitud.id}_${solicitud.mascota_id}_${solicitud.solicitud_id || solicitud.id}`
+    };
+  });
 });
 
 const totalSolicitudesPendientes = computed(() => {
