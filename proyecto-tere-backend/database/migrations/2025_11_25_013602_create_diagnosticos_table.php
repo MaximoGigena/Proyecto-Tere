@@ -29,7 +29,7 @@ return new class extends Migration
             $table->text('examenes_complementarios')->nullable();
             $table->text('conducta_terapeutica')->nullable();
             $table->text('observaciones')->nullable();
-            
+            $table->softDeletes();
             $table->timestamps();
             
             // Índices para mejor performance

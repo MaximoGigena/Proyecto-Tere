@@ -5,13 +5,14 @@ namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\TiposProcedimientos\TipoRevision;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\ProcedimientosMedicos\Diagnostico; // Añade esta importación
 use App\Models\ProcesoMedico;
 
 class Revision extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'revisiones';
 
@@ -45,5 +46,15 @@ class Revision extends Model
     public function procesoMedico()
     {
         return $this->morphOne(ProcesoMedico::class, 'procesable');
+    }
+
+    /**
+     * RELACIÓN CON DIAGNÓSTICOS (FALTANTE)
+     */
+    public function diagnosticos()
+    {
+        return $this->belongsToMany(Diagnostico::class, 'revision_diagnosticos', 'revision_id', 'diagnostico_id')
+                    ->withPivot('observaciones', 'created_at')
+                    ->withTimestamps();
     }
 }

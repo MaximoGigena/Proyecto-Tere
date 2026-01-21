@@ -192,15 +192,17 @@ class FarmacoController extends Controller
                 ], 404);
             }
 
-            // Obtener los fármacos con sus relaciones
+            // Obtener los fármacos con sus relaciones (solo activos)
             $farmacos = Farmaco::with([
                 'tipoFarmaco',
                 'procesoMedico.centroVeterinario',
                 'procesoMedico.veterinario'
             ])
             ->whereHas('procesoMedico', function($query) use ($mascotaId) {
-                $query->where('mascota_id', $mascotaId);
+                $query->where('mascota_id', $mascotaId)
+                    ->whereNull('deleted_at'); // Solo procesos médicos activos
             })
+            ->activos() // Usamos el scope activos definido en el modelo
             ->orderBy('fecha_administracion', 'desc')
             ->get()
             ->map(function($farmaco) {
@@ -219,7 +221,9 @@ class FarmacoController extends Controller
                     'centro_veterinario' => $farmaco->procesoMedico->centroVeterinario->nombre ?? 'No especificado',
                     'veterinario' => $farmaco->procesoMedico->veterinario->name ?? 'No especificado',
                     'observaciones' => $farmaco->procesoMedico->observaciones,
-                    'created_at' => $farmaco->created_at
+                    'created_at' => $farmaco->created_at,
+                    'deleted_at' => $farmaco->deleted_at, // Incluir esta información
+                    'esta_activo' => is_null($farmaco->deleted_at) // Campo adicional para frontend
                 ];
             });
 
@@ -241,7 +245,7 @@ class FarmacoController extends Controller
     /**
      * Mostrar detalles de un fármaco específico
      */
-    public function show($id): JsonResponse
+    public function show($mascotaId, $farmacoId): JsonResponse
     {
         try {
             $farmaco = Farmaco::with([
@@ -249,7 +253,7 @@ class FarmacoController extends Controller
                 'procesoMedico.mascota',
                 'procesoMedico.centroVeterinario',
                 'procesoMedico.veterinario'
-            ])->find($id);
+            ])->find($farmacoId);
 
             if (!$farmaco) {
                 return response()->json([
@@ -258,14 +262,34 @@ class FarmacoController extends Controller
                 ], 404);
             }
 
+            // Asegurar que los nombres de los campos coincidan con Vue
+            $data = [
+                'id' => $farmaco->id,
+                'tipo_farmaco_id' => $farmaco->tipo_farmaco_id,
+                'fecha_administracion' => $farmaco->fecha_administracion,
+                'frecuencia' => $farmaco->frecuencia,
+                'duracion' => $farmaco->duracion_tratamiento, // Mapear a 'duracion'
+                'dosis' => $farmaco->dosis,
+                'unidad' => $farmaco->unidad_dosis, // Mapear a 'unidad'
+                'centro_veterinario_id' => $farmaco->procesoMedico->centro_veterinario_id ?? null,
+                'proxima_dosis' => $farmaco->proxima_dosis,
+                'reacciones' => $farmaco->reacciones_adversas,
+                'recomendaciones' => $farmaco->recomendaciones_tutor,
+                'medio_envio' => $farmaco->procesoMedico->medio_envio ?? null,
+                'tipo_farmaco' => $farmaco->tipoFarmaco,
+                'proceso_medico' => $farmaco->procesoMedico,
+                // Agregar archivos si es necesario
+                'archivos' => $this->obtenerArchivosArray($farmaco->id)
+            ];
+
             return response()->json([
                 'success' => true,
-                'data' => $farmaco
+                'data' => $data
             ]);
 
         } catch (\Exception $e) {
             Log::error('❌ Error al obtener fármaco:', [
-                'id' => $id,
+                'id' => $farmacoId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -276,11 +300,10 @@ class FarmacoController extends Controller
             ], 500);
         }
     }
-
     /**
      * Actualizar fármaco
      */
-    public function update(Request $request, Farmaco $farmaco)
+    public function update(Request $request, $mascotaId, $farmacoId)
     {
         $validated = $request->validate([
             'tipo_farmaco_id' => 'required|exists:tipos_farmaco,id',
@@ -296,32 +319,48 @@ class FarmacoController extends Controller
         ]);
 
         try {
+            // Buscar el fármaco
+            $farmaco = Farmaco::findOrFail($farmacoId);
+            
             DB::transaction(function () use ($validated, $farmaco) {
-                // 1. Actualizar el fármaco
+                // 1. Actualizar el fármaco (CORREGIR NOMBRES DE CAMPOS)
                 $farmaco->update([
                     'tipo_farmaco_id' => $validated['tipo_farmaco_id'],
                     'fecha_administracion' => $validated['fecha_administracion'],
                     'frecuencia' => $validated['frecuencia'],
-                    'duracion_tratamiento' => $validated['duracion'],
+                    'duracion_tratamiento' => $validated['duracion'], // CAMBIADO
                     'dosis' => $validated['dosis'],
-                    'unidad_dosis' => $validated['unidad'],
+                    'unidad_dosis' => $validated['unidad'], // CAMBIADO
                     'proxima_dosis' => $validated['proxima_dosis'] ?? null,
                     'reacciones_adversas' => $validated['reacciones'] ?? null,
                     'recomendaciones_tutor' => $validated['recomendaciones'] ?? null,
                 ]);
 
                 // 2. Actualizar el proceso médico asociado
-                $farmaco->procesoMedico->update([
-                    'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
-                    'fecha_aplicacion' => $validated['fecha_administracion'],
-                    'observaciones' => 'Administración de fármaco: ' . ($validated['recomendaciones'] ?? 'Sin observaciones'),
-                ]);
+                if ($farmaco->procesoMedico) {
+                    $farmaco->procesoMedico->update([
+                        'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
+                        'fecha_aplicacion' => $validated['fecha_administracion'],
+                        'observaciones' => 'Administración de fármaco: ' . ($validated['recomendaciones'] ?? 'Sin observaciones'),
+                    ]);
+                }
             });
+
+            // Cargar relaciones para la respuesta
+            $farmaco->load([
+                'tipoFarmaco',
+                'procesoMedico.centroVeterinario',
+                'procesoMedico.mascota'
+            ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Fármaco actualizado exitosamente',
-                'data' => $farmaco
+                'data' => [
+                    'farmaco' => $farmaco,
+                    'procesoMedico' => $farmaco->procesoMedico,
+                    'centro_veterinario_id' => $farmaco->procesoMedico->centro_veterinario_id ?? null
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -337,28 +376,31 @@ class FarmacoController extends Controller
     /**
      * Eliminar fármaco
      */
-    public function destroy(Farmaco $farmaco): JsonResponse
+    public function destroy($mascotaId, $farmacoId): JsonResponse
     {
         try {
-            DB::transaction(function () use ($farmaco) {
-                // Eliminar archivos adjuntos si existen
-                $directorio = 'farmacos/' . $farmaco->id;
-                if (Storage::disk('public')->exists($directorio)) {
-                    Storage::disk('public')->deleteDirectory($directorio);
-                }
+            DB::transaction(function () use ($mascotaId, $farmacoId) { // <- Añadir $mascotaId aquí
+                // Buscar el fármaco
+                $farmaco = Farmaco::findOrFail($farmacoId);
                 
-                // Eliminar el proceso médico asociado
+                // 1. Realizar baja lógica del fármaco
+                $farmaco->delete(); // Esto actualizará el campo deleted_at
+                
+                // 2. Realizar baja lógica del proceso médico asociado
                 if ($farmaco->procesoMedico) {
-                    $farmaco->procesoMedico->delete();
+                    $farmaco->procesoMedico->delete(); // También baja lógica en ProcesoMedico
                 }
-                
-                // Eliminar el fármaco
-                $farmaco->delete();
+
+                Log::info('✅ Fármaco marcado como eliminado (baja lógica)', [
+                    'farmaco_id' => $farmacoId,
+                    'mascota_id' => $mascotaId, // Ahora $mascotaId está disponible
+                    'fecha_eliminacion' => now()
+                ]);
             });
 
             return response()->json([
                 'success' => true,
-                'message' => 'Fármaco eliminado exitosamente'
+                'message' => 'Fármaco eliminado exitosamente (baja lógica)'
             ]);
 
         } catch (\Exception $e) {
@@ -435,6 +477,29 @@ class FarmacoController extends Controller
                 'message' => 'Error al cargar medios de contacto: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    // Método auxiliar para obtener archivos como array
+    private function obtenerArchivosArray($farmacoId)
+    {
+        $directorio = 'farmacos/' . $farmacoId;
+        
+        if (!Storage::disk('public')->exists($directorio)) {
+            return [];
+        }
+
+        $archivos = [];
+        $files = Storage::disk('public')->files($directorio);
+        
+        foreach ($files as $file) {
+            $archivos[] = [
+                'nombre' => basename($file),
+                'url' => Storage::url($file),
+                'tipo' => Storage::mimeType($file)
+            ];
+        }
+        
+        return $archivos;
     }
 
     /**

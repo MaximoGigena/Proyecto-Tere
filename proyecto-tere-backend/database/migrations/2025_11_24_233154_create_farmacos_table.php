@@ -30,7 +30,7 @@ return new class extends Migration
             $table->dateTime('proxima_dosis')->nullable();
             $table->text('reacciones_adversas')->nullable();
             $table->text('recomendaciones_tutor')->nullable();
-            
+            $table->softDeletes();
             $table->timestamps();
             
             // Índices para mejor performance

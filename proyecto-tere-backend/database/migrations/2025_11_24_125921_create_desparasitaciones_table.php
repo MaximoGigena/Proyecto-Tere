@@ -32,6 +32,7 @@ return new class extends Migration
             $table->text('observaciones')->nullable(); // Observaciones adicionales
             
             $table->timestamps();
+            $table->softDeletes();
             
             // Índices para mejor performance
             $table->index('tipo_desparasitacion_id');

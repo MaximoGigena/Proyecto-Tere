@@ -233,9 +233,10 @@ class VacunaController extends Controller
                 'procesoMedico.centroVeterinario',
                 'procesoMedico.veterinario'
             ])
-            ->whereHas('procesoMedico', function($query) use ($mascotaId) {
+             ->whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
             })
+            ->activas() // Añade este scope para solo traer activas
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function($vacuna) {
@@ -409,6 +410,70 @@ class VacunaController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al cargar medios de contacto: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function destroy($id): JsonResponse
+    {
+        try {
+            // Buscar la vacuna
+            $vacuna = Vacuna::find($id);
+            
+            if (!$vacuna) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vacuna no encontrada'
+                ], 404);
+            }
+
+            // Verificar permisos - solo el veterinario que la creó o admin puede eliminarla
+            $user = auth()->user();
+            $veterinarioId = $vacuna->procesoMedico->veterinario_id ?? null;
+            
+            if ($veterinarioId !== $user->id && !$user->isAdmin()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado para eliminar esta vacuna'
+                ], 403);
+            }
+
+            // PASAR $user AL CLOSURE CON "use"
+            DB::transaction(function () use ($vacuna, $user) {
+                // 1. Obtener el proceso médico asociado
+                $procesoMedico = $vacuna->procesoMedico;
+                
+                // 2. Realizar baja lógica en la vacuna
+                $vacuna->delete();
+                
+                // 3. También realizar baja lógica en el proceso médico
+                if ($procesoMedico) {
+                    $procesoMedico->delete();
+                }
+                
+                Log::info('✅ Vacuna eliminada lógicamente', [
+                    'vacuna_id' => $vacuna->id,
+                    'mascota_id' => $procesoMedico->mascota_id ?? null,
+                    'veterinario_id' => $user->id,
+                    'deleted_at' => now()
+                ]);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Vacuna eliminada correctamente'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ Error al eliminar vacuna', [
+                'vacuna_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar la vacuna: ' . $e->getMessage()
             ], 500);
         }
     }
