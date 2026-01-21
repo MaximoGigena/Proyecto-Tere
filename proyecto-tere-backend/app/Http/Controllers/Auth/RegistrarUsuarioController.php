@@ -143,7 +143,9 @@ class RegistrarUsuarioController extends Controller
     public function show($id)
     {
         try {
-            Log::info('🔍 Solicitando perfil de usuario', ['usuario_id' => $id]);
+            Log::info('🔍 ===== INICIANDO SOLICITUD DE USUARIO =====');
+            Log::info('🔍 ID recibido en show():', ['id' => $id]);
+            Log::info('🔍 Headers:', request()->headers->all());
 
             // Cargar todas las relaciones necesarias
             $usuario = Usuario::with([
@@ -152,7 +154,14 @@ class RegistrarUsuarioController extends Controller
                 'contacto', 
                 'ubicaciones',
                 'fotos'
-            ])->findOrFail($id);
+            ])->findOrFail($id);  // ← Cambiado a findOrFail
+            
+            Log::info('✅ Usuario encontrado:', [
+                'id' => $usuario->id,
+                'nombre' => $usuario->nombre,
+                'tiene_user' => $usuario->user ? 'SI' : 'NO',
+                'tiene_caracteristicas' => $usuario->caracteristicas ? 'SI' : 'NO'
+            ]);
 
             // Obtener ubicación actual (más reciente)
             $ubicacionActual = $usuario->ubicaciones()->latest('location_updated_at')->first();
@@ -259,13 +268,23 @@ class RegistrarUsuarioController extends Controller
 
             return response()->json($response);
 
-        } catch (\Exception $e) {
-            Log::error('❌ Error al obtener usuario: ' . $e->getMessage());
+            } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('❌ Usuario no encontrado (ModelNotFoundException):', [
+                'id' => $id,
+                'error' => $e->getMessage()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Usuario no encontrado'
             ], 404);
+        } catch (\Exception $e) {
+            Log::error('❌ Error al obtener usuario: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener usuario'
+            ], 500);
         }
+
     }
 
     /**

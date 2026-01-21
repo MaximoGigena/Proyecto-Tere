@@ -4,12 +4,15 @@ namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\TiposProcedimientos\TipoTerapia;
+use App\Models\ArchivosTerapia;
 use App\Models\ProcesoMedico;
+
 
 class Terapia extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -37,6 +40,7 @@ class Terapia extends Model
         'fecha_fin' => 'date',
         'frecuencia' => 'string',
         'evolucion' => 'string',
+        'deleted_at' => 'datetime',
     ];
 
     /**
@@ -133,5 +137,32 @@ class Terapia extends Model
     public function procesoMedico()
     {
         return $this->morphOne(ProcesoMedico::class, 'procesable');
+    }
+
+    // En app/Models/ProcedimientosMedicos/Terapia.php
+
+    public function archivos()
+    {
+        // Si usas un modelo Archivo con relación polimórfica
+        return $this->morphMany(ArchivosTerapia::class, 'archivable');
+        
+        // O si es una relación directa con una tabla específica
+        // return $this->hasMany(ArchivoTerapia::class);
+    }
+
+    /**
+     * Obtener solo terapias no eliminadas.
+     */
+    public function scopeSinEliminadas($query)
+    {
+        return $query->whereNull('deleted_at');
+    }
+
+    /**
+     * Obtener terapias eliminadas.
+     */
+    public function scopeEliminadas($query)
+    {
+        return $query->whereNotNull('deleted_at');
     }
 }

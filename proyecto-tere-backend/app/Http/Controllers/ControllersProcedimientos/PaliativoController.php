@@ -7,7 +7,10 @@ use App\Models\ProcedimientosMedicos\CuidadoPaliativo;
 use App\Models\ProcesoMedico;
 use App\Models\Mascota;
 use App\Models\TiposProcedimientos\TipoPaliativo;
+use App\Models\TiposProcedimientos\TipoDiagnostico;
 use App\Models\CentroVeterinario;
+use App\Models\ProcedimientoDiagnostico;
+use App\Models\ProcedimientosMedicos\Diagnostico;
 use App\Models\FarmacoAsociado;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,9 +46,9 @@ class PaliativoController extends Controller
     /**
      * Almacenar nuevo procedimiento paliativo
      */
-    public function store(Request $request, $mascotaId): JsonResponse
+     public function store(Request $request, $mascotaId): JsonResponse
     {
-        // Validación según los campos del formulario Vue
+        // Validación modificada - quitar validación automática de diagnosticos
         $validated = $request->validate([
             // Campos obligatorios del modelo CuidadoPaliativo
             'tipo_procedimiento_id' => 'required|exists:tipos_paliativo,id',
@@ -63,18 +66,18 @@ class PaliativoController extends Controller
             'recomendaciones' => 'nullable|string|max:500',
             'medio_envio' => 'required|in:email,telegram,whatsapp',
             
-            // Diagnósticos asociados
-            'diagnosticos' => 'nullable|array',
-            'diagnosticos.*' => 'exists:tipos_diagnostico,id',
+            // QUITAR esta validación porque ahora diagnosticos es un array de objetos
+            // 'diagnosticos' => 'nullable|array',
+            // 'diagnosticos.*' => 'exists:tipos_diagnostico,id',
             
             // Fármacos asociados
             'farmacos_asociados' => 'nullable|array',
-            'farmacos_asociados.*.farmaco_id' => 'required|exists:tipos_farmaco,id',
-            'farmacos_asociados.*.dosis' => 'required|numeric|min:0.001',
+            'farmacos_asociados.*.farmaco_id' => 'required_with:farmacos_asociados|exists:tipos_farmaco,id',
+            'farmacos_asociados.*.dosis' => 'required_with:farmacos_asociados|numeric|min:0.001',
             'farmacos_asociados.*.frecuencia' => 'nullable|string',
             'farmacos_asociados.*.duracion' => 'nullable|string',
             'farmacos_asociados.*.observaciones' => 'nullable|string|max:1000',
-            'farmacos_asociados.*.momento_aplicacion' => 'required|in:inicio,mantenimiento,rescue,final',
+            'farmacos_asociados.*.momento_aplicacion' => 'required_with:farmacos_asociados|in:inicio,mantenimiento,rescue,final',
             
             // Archivos adjuntos
             'archivos.*' => 'nullable|file|max:10240', // 10MB máximo
@@ -91,7 +94,7 @@ class PaliativoController extends Controller
                     'fecha_inicio' => $validated['fecha_inicio'],
                     'resultado' => $validated['resultado'],
                     'estado_mascota' => $validated['estado'],
-                    'diagnostico_base' => $this->procesarDiagnosticosBase($validated['diagnosticos'] ?? []),
+                    'diagnostico_base' => $this->procesarDiagnosticosBase($request->input('diagnosticos', [])),
                     'frecuencia_valor' => $validated['frecuencia_valor'] ?? null,
                     'frecuencia_unidad' => $validated['frecuencia_unidad'] ?? null,
                     'medicacion_complementaria' => $validated['medicacion_notas'] ?? null,
@@ -118,24 +121,30 @@ class PaliativoController extends Controller
                     $this->guardarFarmacosAsociados($paliativo, $validated['farmacos_asociados']);
                 }
 
-                // 5. Manejar archivos adjuntos
+                // 5. Guardar diagnósticos asociados (NUEVA FUNCIONALIDAD)
+                if ($request->has('diagnosticos') && is_array($request->diagnosticos)) {
+                    $this->guardarDiagnosticosAsociados($paliativo, $request->diagnosticos);
+                }
+
+                // 6. Manejar archivos adjuntos
                 if ($request->hasFile('archivos')) {
                     $this->guardarArchivos($paliativo, $request->file('archivos'));
                 }
 
-                // 6. Cargar relaciones para la respuesta
+                // 7. Cargar relaciones para la respuesta
                 $paliativoCreado = $paliativo->load([
                     'tipoPaliativo',
                     'procesoMedico.centroVeterinario',
                     'procesoMedico.veterinario',
-                    'farmacosAsociados.tipoFarmaco'
+                    'farmacosAsociados.tipoFarmaco',
+                    'diagnosticosAsociados'
                 ]);
                 
-                // 7. Obtener datos de la mascota con relaciones
+                // 8. Obtener datos de la mascota con relaciones
                 $mascotaData = Mascota::with('usuario')->find($mascotaId);
             });
 
-            // 8. Enviar certificado PDF después del registro exitoso
+            // 9. Enviar certificado PDF después del registro exitoso
             $mensajeEnvio = '';
             if ($paliativoCreado && $mascotaData) {
                 try {
@@ -170,7 +179,8 @@ class PaliativoController extends Controller
                 'paliativo_id' => $paliativoCreado->id,
                 'mascota_id' => $mascotaId,
                 'usuario_id' => Auth::id(),
-                'farmacos_asociados' => count($validated['farmacos_asociados'] ?? [])
+                'farmacos_asociados' => count($validated['farmacos_asociados'] ?? []),
+                'diagnosticos_asociados' => count($request->diagnosticos ?? [])
             ]);
 
             return response()->json([
@@ -211,54 +221,60 @@ class PaliativoController extends Controller
                 ], 404);
             }
 
-            // Obtener los paliativos con sus relaciones
+            // Obtener los paliativos ACTIVOS con sus relaciones
             $paliativos = CuidadoPaliativo::with([
                 'tipoPaliativo',
                 'procesoMedico.centroVeterinario',
                 'procesoMedico.veterinario',
-                'farmacosAsociados.tipoFarmaco'
+                'farmacosAsociados.tipoFarmaco',
+                'diagnosticosAsociados.diagnostico'
             ])
             ->whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
             })
+            ->whereNull('deleted_at') // ← SOLO REGISTROS NO ELIMINADOS
             ->orderBy('fecha_inicio', 'desc')
             ->get()
             ->map(function($paliativo) {
                 return [
                     'id' => $paliativo->id,
-                    'tipo_paliativo' => $paliativo->tipoPaliativo->nombre ?? 'Tipo no especificado',
+                    'tipo_procedimiento' => $paliativo->tipoPaliativo->nombre ?? 'Tipo no especificado',
                     'fecha_inicio' => $paliativo->fecha_inicio,
-                    'fecha_inicio_formateada' => $paliativo->fecha_inicio_formateada ?? $paliativo->fecha_inicio->format('d/m/Y H:i'),
+                    'fecha_inicio_formateada' => $paliativo->fecha_inicio->format('d/m/Y H:i'),
                     'resultado' => $paliativo->resultado,
                     'resultado_display' => $this->getResultadoDisplay($paliativo->resultado),
-                    'estado_mascota' => $paliativo->estado_mascota,
+                    'estado' => $paliativo->estado_mascota,
                     'estado_display' => $this->getEstadoDisplay($paliativo->estado_mascota),
                     'diagnostico_base' => $paliativo->diagnostico_base,
                     'centro_veterinario' => $paliativo->procesoMedico->centroVeterinario->nombre ?? 'No especificado',
                     'veterinario' => $paliativo->procesoMedico->veterinario->name ?? 'No especificado',
                     'frecuencia_valor' => $paliativo->frecuencia_valor,
                     'frecuencia_unidad' => $paliativo->frecuencia_unidad,
-                    'frecuencia_completa' => $paliativo->frecuencia_completa,
+                    'frecuencia_seguimiento' => $paliativo->frecuencia_completa,
                     'fecha_control' => $paliativo->fecha_control,
                     'fecha_control_formateada' => $paliativo->fecha_control ? $paliativo->fecha_control->format('d/m/Y') : null,
                     'observaciones' => $paliativo->observaciones,
-                    'medicacion_complementaria' => $paliativo->medicacion_complementaria,
-                    'recomendaciones_tutor' => $paliativo->recomendaciones_tutor,
+                    'medicacion_notas' => $paliativo->medicacion_complementaria,
+                    'recomendaciones' => $paliativo->recomendaciones_tutor,
                     'farmacos_asociados' => $paliativo->farmacosAsociados->map(function($farmaco) {
                         return [
                             'id' => $farmaco->id,
                             'nombre_comercial' => $farmaco->tipoFarmaco->nombre_comercial ?? 'Fármaco no especificado',
-                            'nombre_generico' => $farmaco->tipoFarmaco->nombre_generico ?? null,
-                            'dosis_prescrita' => $farmaco->dosis_prescrita,
+                            'nombre' => $farmaco->tipoFarmaco->nombre_generico ?? $farmaco->tipoFarmaco->nombre_comercial,
+                            'dosis' => $farmaco->dosis_prescrita,
                             'unidad_dosis' => $farmaco->unidad_dosis,
                             'momento_aplicacion' => $farmaco->momento_aplicacion,
-                            'momento_aplicacion_texto' => $farmaco->momento_aplicacion_texto,
-                            'observaciones' => $farmaco->observaciones
                         ];
                     }),
+                    'diagnosticos' => $paliativo->diagnosticosAsociados->map(function($diagnostico) {
+                        return [
+                            'id' => $diagnostico->diagnostico_id,
+                            'nombre' => $diagnostico->nombre_diagnostico ?? 'Diagnóstico no disponible',
+                        ];
+                    }),
+                    'is_active' => $paliativo->isActive(), // AÑADIR ESTE CAMPO
                     'created_at' => $paliativo->created_at,
-                    'requiere_seguimiento_frecuente' => $paliativo->requiereSeguimientoFrecuente(),
-                    'proxima_aplicacion' => $paliativo->calcularProximaAplicacion(),
+                    'updated_at' => $paliativo->updated_at,
                 ];
             });
 
@@ -280,20 +296,29 @@ class PaliativoController extends Controller
     /**
      * Mostrar detalles de un procedimiento paliativo específico
      */
-    public function show($mascotaId, $paliativoId): JsonResponse
+   public function show($mascotaId, $paliativoId): JsonResponse
     {
         try {
+            Log::info('🔍 PaliativoController::show - Iniciando', [
+                'mascota_id' => $mascotaId,
+                'paliativo_id' => $paliativoId,
+                'user_id' => Auth::id(),
+                'url' => request()->fullUrl()
+            ]);
+
             $paliativo = CuidadoPaliativo::with([
                 'tipoPaliativo',
                 'procesoMedico.centroVeterinario',
                 'procesoMedico.veterinario',
                 'procesoMedico.mascota',
-                'farmacosAsociados.tipoFarmaco'
+                'farmacosAsociados.tipoFarmaco',
+                // CORRECCIÓN: Cambiar 'tipoDiagnostico' por 'diagnostico'
+                'diagnosticosAsociados.diagnostico' // ✅ Relación correcta
             ])
             ->whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
             })
-            ->findOrFail($paliativoId);
+            ->first();
 
             // Cargar archivos adjuntos si existen
             $archivos = [];
@@ -303,6 +328,8 @@ class PaliativoController extends Controller
             }
 
             $paliativoArray = $paliativo->toArray();
+            
+            // Agregar campos formateados
             $paliativoArray['fecha_inicio_formateada'] = $paliativo->fecha_inicio->format('d/m/Y H:i');
             $paliativoArray['resultado_display'] = $this->getResultadoDisplay($paliativo->resultado);
             $paliativoArray['estado_display'] = $this->getEstadoDisplay($paliativo->estado_mascota);
@@ -310,16 +337,51 @@ class PaliativoController extends Controller
             $paliativoArray['fecha_control_formateada'] = $paliativo->fecha_control ? $paliativo->fecha_control->format('d/m/Y') : null;
             $paliativoArray['archivos'] = $archivos;
             $paliativoArray['medicacion_complementaria_array'] = $paliativo->medicacion_complementaria_array;
+            
+            // Fármacos asociados
             $paliativoArray['farmacos_asociados'] = $paliativo->farmacosAsociados->map(function($farmaco) {
                 return array_merge($farmaco->toArray(), [
-                    'farmaco_nombre_comercial' => $farmaco->tipoFarmaco->nombre_comercial ?? null,
-                    'farmaco_nombre_generico' => $farmaco->tipoFarmaco->nombre_generico ?? null,
-                    'momento_aplicacion_texto' => $farmaco->momento_aplicacion_texto,
-                    'dosis_formateada' => $farmaco->dosis_formateada,
-                    'frecuencia_completa' => $farmaco->frecuencia_completa,
-                    'duracion_completa' => $farmaco->duracion_completa
+                    'drug' => [
+                        'id' => $farmaco->tipoFarmaco->id ?? null,
+                        'nombre_comercial' => $farmaco->tipoFarmaco->nombre_comercial ?? null,
+                        'nombre_generico' => $farmaco->tipoFarmaco->nombre_generico ?? null,
+                        'categoria' => $farmaco->tipoFarmaco->categoria ?? null,
+                        'unidad' => $farmaco->unidad_dosis ?? 'mg'
+                    ],
+                    'dose' => $farmaco->dosis_prescrita,
+                    'frequency' => $farmaco->frecuencia_completa,
+                    'duracion' => $farmaco->duracion_completa,
+                    'notes' => $farmaco->observaciones
                 ]);
-            });
+            })->toArray();
+            
+            // Diagnosticos asociados - CORREGIDO
+            $paliativoArray['diagnosticos_asociados'] = $paliativo->diagnosticosAsociados->map(function($diagnostico) {
+                // El diagnóstico puede ser de tipo TipoDiagnostico o Diagnostico (mascota específico)
+                $diagnosticoRelacionado = $diagnostico->diagnostico;
+                
+                return [
+                    'id' => $diagnostico->diagnostico_id ?? $diagnostico->id,
+                    'nombre' => $diagnosticoRelacionado->nombre ?? 'Diagnóstico no encontrado',
+                    'descripcion' => $diagnosticoRelacionado->descripcion ?? null,
+                    'type' => $diagnostico->diagnostico_type,
+                    'model_type' => $diagnostico->diagnostico_type, // Para mayor claridad
+                    'created_at' => $diagnostico->created_at
+                ];
+            })->toArray();
+
+            // Datos del proceso médico (centro veterinario)
+            if ($paliativo->procesoMedico) {
+                $paliativoArray['proceso_medico'] = [
+                    'id' => $paliativo->procesoMedico->id,
+                    'centro_veterinario_id' => $paliativo->procesoMedico->centro_veterinario_id,
+                    'centro_veterinario' => $paliativo->procesoMedico->centroVeterinario ? [
+                        'id' => $paliativo->procesoMedico->centroVeterinario->id,
+                        'nombre' => $paliativo->procesoMedico->centroVeterinario->nombre,
+                        'direccion' => $paliativo->procesoMedico->centroVeterinario->direccion
+                    ] : null
+                ];
+            }
 
             return response()->json([
                 'success' => true,
@@ -345,10 +407,19 @@ class PaliativoController extends Controller
      */
     public function update(Request $request, $mascotaId, $paliativoId): JsonResponse
     {
+            Log::info('Intentando actualizar paliativo', [
+                'request_data' => $request->all()
+            ]);
+
+             // Verifica todos los paliativos existentes
+            $todosPaliativos = CuidadoPaliativo::all();
+            Log::info('Paliativos existentes:', $todosPaliativos->pluck('id')->toArray());
+            
+
         try {
             $paliativo = CuidadoPaliativo::whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
-            })->findOrFail($paliativoId);
+            }) ->first();
 
             $validated = $request->validate([
                 // Campos actualizables
@@ -363,6 +434,11 @@ class PaliativoController extends Controller
                 'descripcion' => 'nullable|string|max:1000',
                 'medicacion_notas' => 'nullable|string|max:500',
                 'recomendaciones' => 'nullable|string|max:500',
+                
+                // Diagnosticos - IMPORTANTE: Cambiar a sometimes en lugar de required_with
+                'diagnosticos' => 'nullable|array', // Cambiado de required_with a nullable
+                'diagnosticos.*.id' => 'required_with:diagnosticos',
+                'diagnosticos.*.type' => 'required_with:diagnosticos',
                 
                 // Fármacos asociados
                 'farmacos_asociados' => 'nullable|array',
@@ -391,6 +467,10 @@ class PaliativoController extends Controller
                     'medicacion_complementaria' => $validated['medicacion_notas'] ?? $paliativo->medicacion_complementaria,
                     'recomendaciones_tutor' => $validated['recomendaciones'] ?? $paliativo->recomendaciones_tutor,
                     'observaciones' => $validated['descripcion'] ?? $paliativo->observaciones,
+                    // Actualizar el diagnóstico base también
+                    'diagnostico_base' => isset($validated['diagnosticos']) ? 
+                        $this->procesarDiagnosticosBase($validated['diagnosticos']) : 
+                        $paliativo->diagnostico_base,
                 ]);
 
                 // 2. Actualizar el proceso médico asociado
@@ -402,7 +482,7 @@ class PaliativoController extends Controller
                     ]);
                 }
 
-                // 3. Actualizar fármacos asociados
+                // 3. Actualizar fármacos asociados (solo si se envía el array)
                 if (isset($validated['farmacos_asociados'])) {
                     // Eliminar fármacos existentes
                     $paliativo->farmacosAsociados()->delete();
@@ -411,28 +491,39 @@ class PaliativoController extends Controller
                     $this->guardarFarmacosAsociados($paliativo, $validated['farmacos_asociados']);
                 }
 
-                // 4. Manejar eliminación de archivos
+                // 4. Actualizar diagnósticos asociados (NUEVO - solo si se envía el array)
+                if (isset($validated['diagnosticos'])) {
+                    // Eliminar diagnósticos existentes
+                    $paliativo->diagnosticosAsociados()->delete();
+                    
+                    // Crear nuevos diagnósticos
+                    $this->guardarDiagnosticosAsociados($paliativo, $validated['diagnosticos']);
+                }
+
+                // 5. Manejar eliminación de archivos
                 if (isset($validated['archivos_a_eliminar'])) {
                     $this->eliminarArchivos($paliativo, $validated['archivos_a_eliminar']);
                 }
 
-                // 5. Manejar nuevos archivos
+                // 6. Manejar nuevos archivos
                 if ($request->hasFile('archivos')) {
                     $this->guardarArchivos($paliativo, $request->file('archivos'));
                 }
             });
 
-            // Recargar relaciones
+            // Recargar relaciones - CORREGIDO: Quitar .diagnostico si causa problemas
             $paliativo->load([
                 'tipoPaliativo',
                 'procesoMedico.centroVeterinario',
                 'procesoMedico.veterinario',
-                'farmacosAsociados.tipoFarmaco'
+                'farmacosAsociados.tipoFarmaco',
+                'diagnosticosAsociados' // Sin .diagnostico por ahora
             ]);
 
             Log::info('✅ Procedimiento paliativo actualizado exitosamente', [
                 'paliativo_id' => $paliativo->id,
-                'mascota_id' => $mascotaId
+                'mascota_id' => $mascotaId,
+                'diagnosticos_count' => isset($validated['diagnosticos']) ? count($validated['diagnosticos']) : 0
             ]);
 
             return response()->json([
@@ -454,7 +545,6 @@ class PaliativoController extends Controller
             ], 500);
         }
     }
-
     /**
      * Eliminar procedimiento paliativo
      */
@@ -465,33 +555,39 @@ class PaliativoController extends Controller
                 $query->where('mascota_id', $mascotaId);
             })->findOrFail($paliativoId);
 
-            DB::transaction(function () use ($paliativo) {
-                // 1. Eliminar archivos adjuntos
-                $archivosPath = "paliativos/{$paliativo->id}";
-                if (Storage::exists($archivosPath)) {
-                    Storage::deleteDirectory($archivosPath);
-                }
+            // Verificar si ya está eliminado
+            if ($paliativo->trashed()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El procedimiento paliativo ya ha sido eliminado'
+                ], 400);
+            }
 
-                // 2. Eliminar fármacos asociados
-                $paliativo->farmacosAsociados()->delete();
+            DB::transaction(function () use ($paliativo, $paliativoId, $mascotaId) { // ← AQUÍ AGREGAR $paliativoId y $mascotaId
+                // 1. Eliminar archivos adjuntos (opcional - puedes mantenerlos)
+                // $archivosPath = "paliativos/{$paliativo->id}";
+                // if (Storage::exists($archivosPath)) {
+                //     Storage::deleteDirectory($archivosPath);
+                // }
 
-                // 3. Eliminar el proceso médico (si existe)
+                // 2. Marcar como eliminado (baja lógica) en lugar de eliminar físicamente
+                $paliativo->delete();
+
+                // 3. Opcional: También marcar como eliminado el proceso médico asociado
                 if ($paliativo->procesoMedico) {
                     $paliativo->procesoMedico->delete();
                 }
-
-                // 4. Eliminar el paliativo
-                $paliativo->delete();
+                
+                Log::info('✅ Procedimiento paliativo marcado como eliminado (baja lógica)', [
+                    'paliativo_id' => $paliativoId, // ← AHORA $paliativoId ESTÁ DISPONIBLE
+                    'mascota_id' => $mascotaId,    // ← TAMBIÉN $mascotaId
+                    'deleted_at' => now()
+                ]);
             });
-
-            Log::info('✅ Procedimiento paliativo eliminado exitosamente', [
-                'paliativo_id' => $paliativoId,
-                'mascota_id' => $mascotaId
-            ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Procedimiento paliativo eliminado exitosamente'
+                'message' => 'Procedimiento paliativo eliminado correctamente'
             ]);
 
         } catch (\Exception $e) {
@@ -541,6 +637,136 @@ class PaliativoController extends Controller
                 'success' => false,
                 'message' => 'Error al obtener estadísticas: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Guardar diagnósticos asociados a un procedimiento paliativo
+     */
+    private function guardarDiagnosticosAsociados($paliativo, $diagnosticosData)
+    {
+        foreach ($diagnosticosData as $diagnosticoData) {
+            // Validar formato del dato
+            if (!is_array($diagnosticoData) || !isset($diagnosticoData['id']) || !isset($diagnosticoData['type'])) {
+                throw new \Exception('Formato de diagnóstico inválido. Se espera {id, type}');
+            }
+
+            $diagnosticoId = $diagnosticoData['id'];
+            $diagnosticoType = $diagnosticoData['type'];
+
+            // Validar que el tipo de modelo existe
+            $modelosPermitidos = [
+                'App\\Models\\TiposProcedimientos\\TipoDiagnostico',
+                'App\\Models\\ProcedimientosMedicos\\Diagnostico'
+            ];
+
+            if (!in_array($diagnosticoType, $modelosPermitidos)) {
+                throw new \Exception("Tipo de diagnóstico no permitido: {$diagnosticoType}");
+            }
+
+            // Validar que el diagnóstico existe en su respectiva tabla
+            if (!$this->diagnosticoExiste($diagnosticoId, $diagnosticoType)) {
+                throw new \Exception("Diagnóstico no encontrado: ID {$diagnosticoId} en {$diagnosticoType}");
+            }
+
+            // Obtener nombre del diagnóstico
+            $nombreDiagnostico = $this->obtenerNombreDiagnostico($diagnosticoId, $diagnosticoType);
+
+            ProcedimientoDiagnostico::create([
+                'procedimiento_id' => $paliativo->id,
+                'procedimiento_type' => get_class($paliativo),
+                'diagnostico_id' => $diagnosticoId,
+                'diagnostico_type' => $diagnosticoType,
+                'veterinario_id' => Auth::id(),
+                'estado' => 'activo',
+                'relevancia' => 'primario',
+                'observaciones' => null,
+                'nombre_diagnostico' => $nombreDiagnostico,
+            ]);
+        }
+
+        Log::info('✅ Diagnósticos asociados guardados', [
+            'paliativo_id' => $paliativo->id,
+            'diagnosticos_count' => count($diagnosticosData),
+            'tipos' => array_map(function($d) { return $d['type']; }, $diagnosticosData)
+        ]);
+    }
+
+    /**
+     * Verificar si un diagnóstico existe
+     */
+    private function diagnosticoExiste($id, $type)
+    {
+        try {
+            $model = app($type);
+            return $model::where('id', $id)->exists();
+        } catch (\Exception $e) {
+            Log::error('Error verificando existencia de diagnóstico', [
+                'id' => $id,
+                'type' => $type,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    
+    /**
+     * Obtener nombre del diagnóstico para snapshot
+     */
+    private function obtenerNombreDiagnostico($diagnosticoId, $diagnosticoType)
+    {
+        try {
+            $model = app($diagnosticoType);
+            $diagnostico = $model->find($diagnosticoId);
+            
+            if (!$diagnostico) {
+                return 'Diagnóstico no encontrado';
+            }
+            
+            // Obtener el nombre según el tipo de modelo
+            if ($diagnosticoType === 'App\\Models\\TiposProcedimientos\\TipoDiagnostico') {
+                return $diagnostico->nombre;
+            } elseif ($diagnosticoType === 'App\\Models\\ProcedimientosMedicos\\Diagnostico') {
+                return $diagnostico->nombre ?: $diagnostico->tipoDiagnostico->nombre ?? 'Diagnóstico de mascota';
+            }
+            
+            return 'Diagnóstico desconocido';
+            
+        } catch (\Exception $e) {
+            Log::error('Error obteniendo nombre de diagnóstico', [
+                'diagnostico_id' => $diagnosticoId,
+                'diagnostico_type' => $diagnosticoType,
+                'error' => $e->getMessage()
+            ]);
+            return 'Diagnóstico no disponible';
+        }
+    }
+
+    /**
+     * Procesar diagnóstico base para almacenar como texto
+     */
+    private function procesarDiagnosticosBase($diagnosticosData)
+    {
+        if (empty($diagnosticosData)) {
+            return 'Sin diagnóstico específico';
+        }
+
+        try {
+            $nombres = [];
+            foreach ($diagnosticosData as $diagnosticoData) {
+                if (is_array($diagnosticoData) && isset($diagnosticoData['id']) && isset($diagnosticoData['type'])) {
+                    $nombre = $this->obtenerNombreDiagnostico($diagnosticoData['id'], $diagnosticoData['type']);
+                    $nombres[] = $nombre;
+                }
+            }
+            
+            return count($nombres) > 0 
+                ? 'Diagnósticos asociados: ' . implode(', ', $nombres)
+                : 'Diagnósticos asociados registrados';
+        } catch (\Exception $e) {
+            Log::error('Error procesando diagnósticos base', ['error' => $e->getMessage()]);
+            return 'Diagnósticos asociados registrados en tabla separada';
         }
     }
 
@@ -614,17 +840,6 @@ class PaliativoController extends Controller
                 ]);
             }
         }
-    }
-
-    private function procesarDiagnosticosBase($diagnosticosIds)
-    {
-        if (empty($diagnosticosIds)) {
-            return 'Sin diagnóstico específico';
-        }
-
-        // Aquí podrías cargar los nombres de los diagnósticos
-        // Por ahora, simplemente devolvemos un texto con los IDs
-        return 'Diagnósticos asociados: ' . implode(', ', $diagnosticosIds);
     }
 
     private function guardarFarmacosAsociados($paliativo, $farmacosData)

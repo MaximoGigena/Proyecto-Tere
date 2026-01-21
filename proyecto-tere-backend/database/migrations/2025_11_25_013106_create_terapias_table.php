@@ -29,7 +29,7 @@ return new class extends Migration
             $table->enum('evolucion', ['mejoria', 'estable', 'empeoramiento'])->nullable();
             $table->text('recomendaciones_tutor')->nullable();
             $table->text('observaciones')->nullable();
-            
+            $table->softDeletes();
             $table->timestamps();
             
             // Índices para mejor performance

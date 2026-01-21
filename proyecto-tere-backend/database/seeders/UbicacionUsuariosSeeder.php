@@ -2,110 +2,127 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use App\Models\User;
 use App\Models\UbicacionUsuario;
-use App\Models\Usuario;
+use Illuminate\Support\Facades\DB;
 
 class UbicacionUsuariosSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        // Obtener todos los usuarios
-        $usuarios = Usuario::all();
+        // Obtener todos los Users (sin importar el tipo)
+        $users = User::all();
         
-        // Ubicaciones de ejemplo en diferentes ciudades de Argentina
+        if ($users->isEmpty()) {
+            $this->command->info('No hay usuarios para asignar ubicaciones.');
+            return;
+        }
+        
+        // Ubicaciones de ejemplo
         $ubicaciones = [
-            // Buenos Aires
             [
                 'latitude' => -34.6037,
                 'longitude' => -58.3816,
-                'location' => 'Buenos Aires, Argentina',
+                'city' => 'Buenos Aires',
+                'state' => 'Buenos Aires',
+                'country' => 'Argentina',
+                'country_code' => 'AR',
+                'accuracy' => 15.5,
             ],
-            // Córdoba
             [
                 'latitude' => -31.4201,
                 'longitude' => -64.1888,
-                'location' => 'Córdoba, Argentina',
+                'city' => 'Córdoba',
+                'state' => 'Córdoba',
+                'country' => 'Argentina',
+                'country_code' => 'AR',
+                'accuracy' => 25.0,
             ],
-            // Rosario
             [
                 'latitude' => -32.9468,
                 'longitude' => -60.6393,
-                'location' => 'Rosario, Argentina',
+                'city' => 'Rosario',
+                'state' => 'Santa Fe',
+                'country' => 'Argentina',
+                'country_code' => 'AR',
+                'accuracy' => 10.2,
             ],
-            // Mendoza
             [
-                'latitude' => -32.8895,
-                'longitude' => -68.8458,
-                'location' => 'Mendoza, Argentina',
+                'latitude' => -31.4201,
+                'longitude' => -64.4992,
+                'city' => 'Villa Carlos Paz',
+                'state' => 'Córdoba',
+                'country' => 'Argentina',
+                'country_code' => 'AR',
+                'accuracy' => 18.7,
             ],
-            // La Plata
             [
                 'latitude' => -34.9205,
                 'longitude' => -57.9536,
-                'location' => 'La Plata, Argentina',
+                'city' => 'La Plata',
+                'state' => 'Buenos Aires',
+                'country' => 'Argentina',
+                'country_code' => 'AR',
+                'accuracy' => 30.5,
             ],
         ];
         
-        foreach ($usuarios as $index => $usuario) {
-            // Cada usuario tiene al menos una ubicación
+        // Crear ubicaciones para cada usuario
+        foreach ($users as $index => $user) {
             $ubicacionIndex = $index % count($ubicaciones);
+            $ubicacion = $ubicaciones[$ubicacionIndex];
             
-            UbicacionUsuario::create([
-                'usuario_id' => $usuario->id,
-                'latitude' => $ubicaciones[$ubicacionIndex]['latitude'],
-                'longitude' => $ubicaciones[$ubicacionIndex]['longitude'],
-                'location' => $ubicaciones[$ubicacionIndex]['location'],
-                'location_updated_at' => now()->subDays(rand(0, 30)),
+            // Crear punto para PostGIS
+            $point = "POINT({$ubicacion['longitude']} {$ubicacion['latitude']})";
+            
+            // Insertar usando user_id
+            DB::table('user_locations')->insert([
+                'user_id' => $user->id, // ← user_id, no usuario_id
+                'latitude' => $ubicacion['latitude'],
+                'longitude' => $ubicacion['longitude'],
+                'location' => DB::raw("ST_GeomFromText('$point', 4326)"),
+                'country' => $ubicacion['country'],
+                'country_code' => $ubicacion['country_code'],
+                'state' => $ubicacion['state'],
+                'city' => $ubicacion['city'],
+                'source' => 'gps',
+                'accuracy' => $ubicacion['accuracy'],
+                'location_updated_at' => now()->subDays(rand(0, 7)),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
             
-            // Algunos usuarios tienen historial de ubicaciones
-            if ($index % 3 == 0) { // Cada tercer usuario
-                // Ubicación anterior
-                $otraUbicacionIndex = ($index + 1) % count($ubicaciones);
+            // Algunos usuarios tienen ubicaciones históricas (30%)
+            if ($index % 3 == 0) {
+                $numHistoricas = rand(1, 2);
                 
-                UbicacionUsuario::create([
-                    'usuario_id' => $usuario->id,
-                    'latitude' => $ubicaciones[$otraUbicacionIndex]['latitude'],
-                    'longitude' => $ubicaciones[$otraUbicacionIndex]['longitude'],
-                    'location' => $ubicaciones[$otraUbicacionIndex]['location'],
-                    'location_updated_at' => now()->subDays(rand(31, 90)),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                for ($i = 0; $i < $numHistoricas; $i++) {
+                    $historicIndex = ($ubicacionIndex + $i + 1) % count($ubicaciones);
+                    $ubicacionHistorica = $ubicaciones[$historicIndex];
+                    
+                    $pointHist = "POINT({$ubicacionHistorica['longitude']} {$ubicacionHistorica['latitude']})";
+                    
+                    DB::table('user_locations')->insert([
+                        'user_id' => $user->id, // ← user_id
+                        'latitude' => $ubicacionHistorica['latitude'],
+                        'longitude' => $ubicacionHistorica['longitude'],
+                        'location' => DB::raw("ST_GeomFromText('$pointHist', 4326)"),
+                        'country' => $ubicacionHistorica['country'],
+                        'country_code' => $ubicacionHistorica['country_code'],
+                        'state' => $ubicacionHistorica['state'],
+                        'city' => $ubicacionHistorica['city'],
+                        'source' => 'network',
+                        'accuracy' => rand(20, 100) + (rand(0, 9) / 10),
+                        'location_updated_at' => now()->subDays(rand(30, 180)),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
         }
         
-        // Usuario específico con múltiples ubicaciones
-        $usuarioActivo = $usuarios->first();
-        if ($usuarioActivo) {
-            // Crear varias ubicaciones históricas
-            $ciudades = [
-                ['lat' => -34.6037, 'lng' => -58.3816, 'name' => 'Buenos Aires'],
-                ['lat' => -34.9214, 'lng' => -57.9544, 'name' => 'La Plata'],
-                ['lat' => -31.4167, 'lng' => -64.1833, 'name' => 'Córdoba'],
-                ['lat' => -24.7859, 'lng' => -65.4117, 'name' => 'Salta'],
-            ];
-            
-            $diasAtras = 0;
-            foreach ($ciudades as $ciudad) {
-                UbicacionUsuario::create([
-                    'usuario_id' => $usuarioActivo->id,
-                    'latitude' => $ciudad['lat'],
-                    'longitude' => $ciudad['lng'],
-                    'location' => $ciudad['name'] . ', Argentina',
-                    'location_updated_at' => now()->subDays($diasAtras),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-                $diasAtras += 7; // Una semana entre cada ubicación
-            }
-        }
+        $totalUbicaciones = DB::table('user_locations')->count();
+        $this->command->info("✅ UbicacionesSeeder completado. {$totalUbicaciones} ubicaciones creadas.");
     }
 }

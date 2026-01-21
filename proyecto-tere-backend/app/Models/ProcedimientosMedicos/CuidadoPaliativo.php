@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\TiposProcedimientos\TipoPaliativo;
 use App\Models\FarmacoAsociado;
 use App\Models\ProcesoMedico;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class CuidadoPaliativo extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'cuidados_paliativos';
 
@@ -43,6 +44,7 @@ class CuidadoPaliativo extends Model
         'resultado' => 'string',
         'estado_mascota' => 'string',
         'frecuencia_unidad' => 'string',
+        'deleted_at' => 'datetime',
     ];
 
     /**
@@ -266,5 +268,30 @@ class CuidadoPaliativo extends Model
     public function procesoMedico()
     {
         return $this->morphOne(ProcesoMedico::class, 'procesable');
+    }
+    
+    /**
+     * Obtener los diagnósticos asociados al cuidado paliativo
+     */
+    public function diagnosticosAsociados()
+    {
+        return $this->hasMany(\App\Models\ProcedimientoDiagnostico::class, 'procedimiento_id')
+                    ->where('procedimiento_type', self::class);
+    }
+
+    /**
+     * Obtener los tipos de diagnóstico a través de la tabla pivote
+     */
+    public function diagnosticos()
+    {
+        return $this->belongsToMany(
+            \App\Models\TiposProcedimientos\TipoDiagnostico::class,
+            'procedimiento_diagnostico',
+            'procedimiento_id',
+            'diagnostico_id'
+        )->wherePivot('diagnostico_type', 'App\\Models\\TiposProcedimientos\\TipoDiagnostico')
+        ->wherePivot('procedimiento_type', self::class)
+        ->withPivot(['estado', 'relevancia', 'observaciones', 'created_at'])
+        ->withTimestamps();
     }
 }

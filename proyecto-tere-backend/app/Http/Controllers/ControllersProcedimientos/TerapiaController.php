@@ -169,6 +169,7 @@ class TerapiaController extends Controller
     /**
      * Obtener todas las terapias de una mascota
      */
+    // En el método index del controlador:
     public function index($mascotaId): JsonResponse
     {
         try {
@@ -181,7 +182,7 @@ class TerapiaController extends Controller
                 ], 404);
             }
 
-            // Obtener las terapias con sus relaciones
+            // Obtener las terapias SIN ELIMINADAS
             $terapias = Terapia::with([
                 'tipoTerapia',
                 'procesoMedico.centroVeterinario',
@@ -190,12 +191,13 @@ class TerapiaController extends Controller
             ->whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
             })
+            ->whereNull('deleted_at') // AÑADIR: excluir eliminadas
             ->orderBy('fecha_inicio', 'desc')
             ->get()
             ->map(function($terapia) {
                 return [
                     'id' => $terapia->id,
-                    'tipo' => $terapia->tipoTerapia->nombre ?? 'Terapia no especificada',
+                    'tipo_terapia' => $terapia->tipoTerapia->nombre ?? 'Terapia no especificada',
                     'tipo_terapia_id' => $terapia->tipo_terapia_id,
                     'fecha_inicio' => $terapia->fecha_inicio,
                     'fecha_fin' => $terapia->fecha_fin,
@@ -208,6 +210,7 @@ class TerapiaController extends Controller
                     'veterinario' => $terapia->procesoMedico->veterinario->name ?? 'No especificado',
                     'costo' => $terapia->procesoMedico->costo ?? null,
                     'esta_activa' => $terapia->estaActiva(),
+                    'eliminada' => !is_null($terapia->deleted_at), // AÑADIR: estado de eliminación
                     'created_at' => $terapia->created_at
                 ];
             });
@@ -235,9 +238,9 @@ class TerapiaController extends Controller
         try {
             $terapia = Terapia::with([
                 'tipoTerapia',
-                'procesoMedico.mascota',
                 'procesoMedico.centroVeterinario',
-                'procesoMedico.veterinario'
+                'procesoMedico.veterinario',
+                'procesoMedico.mascota',
             ])->find($id);
 
             if (!$terapia) {
@@ -247,16 +250,42 @@ class TerapiaController extends Controller
                 ], 404);
             }
 
+            // Formatear la respuesta de manera consistente
+            $formattedData = [
+                'id' => $terapia->id,
+                'tipo_terapia_id' => $terapia->tipo_terapia_id,
+                'fecha_inicio' => $terapia->fecha_inicio,
+                'frecuencia' => $terapia->frecuencia,
+                'duracion_tratamiento' => $terapia->duracion_tratamiento,
+                'fecha_fin' => $terapia->fecha_fin,
+                'evolucion' => $terapia->evolucion,
+                'recomendaciones_tutor' => $terapia->recomendaciones_tutor,
+                'observaciones' => $terapia->observaciones,
+                'centro_veterinario_id' => $terapia->procesoMedico->centro_veterinario_id ?? null,
+                'costo' => $terapia->procesoMedico->costo ?? null,
+                'medio_envio' => $terapia->procesoMedico->medio_envio ?? null, // Agregar si existe
+                'proceso_medico' => $terapia->procesoMedico ? [
+                    'id' => $terapia->procesoMedico->id,
+                    'mascota_id' => $terapia->procesoMedico->mascota_id,
+                    'veterinario_id' => $terapia->procesoMedico->veterinario_id,
+                    'centro_veterinario_id' => $terapia->procesoMedico->centro_veterinario_id,
+                    'observaciones' => $terapia->procesoMedico->observaciones,
+                    'costo' => $terapia->procesoMedico->costo,
+                ] : null,
+                'tipo_terapia' => $terapia->tipoTerapia,
+                'created_at' => $terapia->created_at,
+                'updated_at' => $terapia->updated_at,
+            ];
+
             return response()->json([
                 'success' => true,
-                'data' => $terapia
+                'data' => $formattedData
             ]);
 
         } catch (\Exception $e) {
             Log::error('❌ Error al obtener terapia:', [
                 'id' => $id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error' => $e->getMessage()
             ]);
 
             return response()->json([
@@ -281,8 +310,27 @@ class TerapiaController extends Controller
     /**
      * Actualizar terapia
      */
-    public function update(Request $request, Terapia $terapia)
-    {
+    public function update(Request $request, $id)
+    { 
+        // Debug: Ver qué datos llegan
+        Log::info('📥 Datos recibidos en update terapia:', [
+            'terapia_id' => $id,
+            'all_data' => $request->all(),
+            'content_type' => $request->header('Content-Type'),
+            'input_data' => $request->input()
+        ]);
+        
+        // Buscar la terapia primero
+        $terapia = Terapia::with('procesoMedico')->find($id);
+        
+        if (!$terapia) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terapia no encontrada'
+            ], 404);
+        }
+
+        // Validación CORREGIDA (centros_veterinarios en plural)
         $validated = $request->validate([
             'tipo_terapia_id' => 'required|exists:tipos_terapia,id',
             'fecha_inicio' => 'required|date',
@@ -292,9 +340,12 @@ class TerapiaController extends Controller
             'evolucion' => 'nullable|in:' . implode(',', Terapia::getEvolucionesPermitidas()),
             'recomendaciones_tutor' => 'nullable|string|max:500',
             'observaciones' => 'nullable|string|max:500',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinario,id',
+            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
             'costo' => 'nullable|numeric|min:0',
+            'medio_envio' => 'nullable|string|in:email,whatsapp,telegram',
         ]);
+        
+        Log::info('✅ Datos validados:', $validated);
 
         try {
             DB::transaction(function () use ($validated, $terapia) {
@@ -311,29 +362,36 @@ class TerapiaController extends Controller
                 ]);
 
                 // 2. Actualizar el proceso médico asociado
-                $terapia->procesoMedico->update([
-                    'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
-                    'fecha_aplicacion' => $validated['fecha_inicio'],
-                    'observaciones' => $validated['observaciones'] ?? null,
-                    'costo' => $validated['costo'] ?? null,
-                ]);
+                if ($terapia->procesoMedico) {
+                    $terapia->procesoMedico->update([
+                        'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
+                        'fecha_aplicacion' => $validated['fecha_inicio'],
+                        'observaciones' => $validated['observaciones'] ?? null,
+                        'costo' => $validated['costo'] ?? null,
+                    ]);
+                }
             });
+
+            // Cargar relaciones actualizadas
+            $terapia->load(['tipoTerapia', 'procesoMedico.centroVeterinario']);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Terapia actualizada exitosamente',
-                'data' => $terapia->fresh()->load(['tipoTerapia', 'procesoMedico.centroVeterinario'])
+                'data' => $terapia
             ]);
 
         } catch (\Exception $e) {
             Log::error('❌ Error al actualizar terapia', [
                 'terapia_id' => $terapia->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al actualizar la terapia: ' . $e->getMessage()
+                'message' => 'Error al actualizar la terapia: ' . $e->getMessage(),
+                'errors' => $validated // Para debugging
             ], 500);
         }
     }
@@ -341,15 +399,53 @@ class TerapiaController extends Controller
     /**
      * Eliminar terapia
      */
-    public function destroy(Terapia $terapia): JsonResponse
+    public function destroy($id): JsonResponse
     {
         try {
+            // Buscar la terapia con su proceso médico
+            $terapia = Terapia::with('procesoMedico')->find($id);
+            
+            if (!$terapia) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Terapia no encontrada'
+                ], 404);
+            }
+
+            // Verificar si ya está eliminada
+            if ($terapia->deleted_at) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta terapia ya fue eliminada anteriormente'
+                ], 400);
+            }
+
             DB::transaction(function () use ($terapia) {
-                // Eliminar primero el proceso médico asociado
-                $terapia->procesoMedico()->delete();
-                // Luego eliminar la terapia
-                $terapia->delete();
+                // 1. Marcar el proceso médico como eliminado (si también quieres baja lógica)
+                if ($terapia->procesoMedico) {
+                    // Si ProcesoMedico también usa SoftDeletes
+                    if (method_exists($terapia->procesoMedico, 'delete')) {
+                        $terapia->procesoMedico->delete(); // Esto hará baja lógica si tiene SoftDeletes
+                    } else {
+                        // Si no tiene SoftDeletes, podrías marcar un campo como 'eliminado'
+                        $terapia->procesoMedico->update(['activo' => false]);
+                    }
+                }
+
+                // 2. Baja lógica de la terapia
+                $terapia->delete(); // Esto marcará deleted_at automáticamente
+
+                // 3. Opcional: Registrar quién eliminó y cuándo
+                $terapia->update([
+                    'deleted_by' => Auth::id(), // Si quieres registrar quién lo eliminó
+                ]);
             });
+
+            Log::info('✅ Terapia marcada como eliminada (baja lógica)', [
+                'terapia_id' => $terapia->id,
+                'deleted_by' => Auth::id(),
+                'deleted_at' => now()
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -358,7 +454,7 @@ class TerapiaController extends Controller
 
         } catch (\Exception $e) {
             Log::error('❌ Error al eliminar terapia', [
-                'terapia_id' => $terapia->id,
+                'terapia_id' => $id,
                 'error' => $e->getMessage()
             ]);
 

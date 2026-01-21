@@ -247,6 +247,33 @@ class User extends Authenticatable
         ];
     }
 
+    // Agregar dentro de la clase:
+    public function ubicaciones()
+    {
+        return $this->hasMany(UbicacionUsuario::class, 'user_id');
+    }
+
+    public function ubicacionActual()
+    {
+        return $this->hasOne(UbicacionUsuario::class, 'user_id')
+                    ->latestOfMany('location_updated_at');
+    }
+
+    public function mascotas()
+    {
+        // Para obtener mascotas a través de Usuario
+        if ($this->userable_type === 'App\Models\Usuario' && $this->userable) {
+            return $this->userable->mascotas();
+        }
+        return collect();
+    }
+
+    // Para compatibilidad (si algún código llama a ubicacion() sin paréntesis)
+    public function getUbicacionAttribute()
+    {
+        return $this->ubicacionActual;
+    }
+
     /**
      * Get the attributes that should be cast.
      *

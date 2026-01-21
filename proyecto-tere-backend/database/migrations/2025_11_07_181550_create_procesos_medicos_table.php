@@ -35,6 +35,7 @@ return new class extends Migration
             $table->date('fecha_aplicacion');
             $table->text('observaciones')->nullable();
             $table->decimal('costo', 8, 2)->nullable(); // Un campo útil que podría servir para todos
+            $table->softDeletes();
             
             $table->timestamps();
             

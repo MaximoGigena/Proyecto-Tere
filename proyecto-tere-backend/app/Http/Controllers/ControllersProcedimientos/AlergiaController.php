@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Services\EnvioDocumentosService;
+use Carbon\Carbon;
 
 class AlergiaController extends Controller
 {
@@ -23,6 +24,38 @@ class AlergiaController extends Controller
     public function __construct(EnvioDocumentosService $envioDocumentosService)
     {
         $this->envioDocumentosService = $envioDocumentosService;
+    }
+
+    /**
+     * Helper para formatear fechas de manera segura
+     */
+    private function formatFechaSegura($fecha, $formato = 'Y-m-d')
+    {
+        try {
+            if (!$fecha) {
+                return null;
+            }
+
+            // Si es string, convertirlo a Carbon
+            if (is_string($fecha)) {
+                return Carbon::parse($fecha)->format($formato);
+            }
+            
+            // Si ya es un objeto Carbon o DateTime
+            if ($fecha instanceof \DateTime || $fecha instanceof Carbon) {
+                return $fecha->format($formato);
+            }
+
+            // Si es algo más (posiblemente ya formateado)
+            return (string) $fecha;
+        } catch (\Exception $e) {
+            Log::warning('⚠️ Error formateando fecha', [
+                'fecha' => $fecha,
+                'formato' => $formato,
+                'error' => $e->getMessage()
+            ]);
+            return $fecha; // Devolver el valor original si hay error
+        }
     }
 
     /**
@@ -53,7 +86,7 @@ class AlergiaController extends Controller
                 // 1. Crear el registro específico de Alergia
                 $alergia = Alergia::create([
                     'tipo_alergia_id' => $validated['tipo_alergia_id'],
-                    'fecha_deteccion' => $validated['fecha_deteccion'],
+                    'fecha_deteccion' => Carbon::parse($validated['fecha_deteccion']), // Asegurar que sea Carbon
                     'gravedad' => $validated['gravedad'],
                     'reaccion_comun' => $validated['reaccion_comun'],
                     'estado' => $validated['estado'],
@@ -69,7 +102,7 @@ class AlergiaController extends Controller
                     'veterinario_id' => Auth::id(),
                     'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
                     'categoria' => 'preventivo',
-                    'fecha_aplicacion' => $validated['fecha_deteccion'],
+                    'fecha_aplicacion' => Carbon::parse($validated['fecha_deteccion']), // También aquí
                     'observaciones' => 'Registro de alergia/sensibilidad',
                     'costo' => 0,
                 ]);
@@ -174,8 +207,8 @@ class AlergiaController extends Controller
                     'id' => $alergia->id,
                     'nombre' => $alergia->tipoAlergia->nombre ?? 'Alergia no especificada',
                     'tipo_alergia_id' => $alergia->tipo_alergia_id,
-                    'fecha_deteccion' => $alergia->fecha_deteccion ? $alergia->fecha_deteccion->format('d/m/Y') : null,
-                    'fecha_deteccion_raw' => $alergia->fecha_deteccion ? $alergia->fecha_deteccion->format('Y-m-d') : null,
+                    'fecha_deteccion' => $this->formatFechaSegura($alergia->fecha_deteccion, 'd/m/Y'),
+                    'fecha_deteccion_raw' => $this->formatFechaSegura($alergia->fecha_deteccion, 'Y-m-d'),
                     'gravedad' => $alergia->gravedad,
                     'gravedad_label' => $this->getGravedadLabel($alergia->gravedad),
                     'reaccion_comun' => $alergia->reaccion_comun,
@@ -187,7 +220,7 @@ class AlergiaController extends Controller
                     'observaciones' => $alergia->observaciones,
                     'centro_veterinario' => $alergia->procesoMedico->centroVeterinario->nombre ?? 'No especificado',
                     'veterinario' => $alergia->procesoMedico->veterinario->name ?? 'No especificado',
-                    'fecha_registro' => $alergia->created_at->format('d/m/Y H:i'),
+                    'fecha_registro' => $alergia->created_at ? $alergia->created_at->format('d/m/Y H:i') : null,
                     'created_at' => $alergia->created_at
                 ];
             });
@@ -240,6 +273,17 @@ class AlergiaController extends Controller
                 ], 404);
             }
 
+            // DIAGNÓSTICO: Verificar el tipo de dato
+            Log::debug('📊 Diagnóstico alergia:', [
+                'alergia_id' => $alergia->id,
+                'fecha_deteccion_raw' => $alergia->fecha_deteccion,
+                'type' => gettype($alergia->fecha_deteccion),
+                'is_string' => is_string($alergia->fecha_deteccion),
+                'is_object' => is_object($alergia->fecha_deteccion),
+                'class' => is_object($alergia->fecha_deteccion) ? get_class($alergia->fecha_deteccion) : 'not object',
+                'proceso_fecha_aplicacion' => $alergia->procesoMedico->fecha_aplicacion ?? null,
+            ]);
+
             // Formatear respuesta
             $alergiaData = [
                 'id' => $alergia->id,
@@ -247,7 +291,8 @@ class AlergiaController extends Controller
                     'id' => $alergia->tipoAlergia->id,
                     'nombre' => $alergia->tipoAlergia->nombre
                 ] : null,
-                'fecha_deteccion' => $alergia->fecha_deteccion ? $alergia->fecha_deteccion->format('Y-m-d') : null,
+                'tipo_alergia_id' => $alergia->tipo_alergia_id, // Agregado para el formulario
+                'fecha_deteccion' => $this->formatFechaSegura($alergia->fecha_deteccion, 'Y-m-d'),
                 'gravedad' => $alergia->gravedad,
                 'gravedad_label' => $this->getGravedadLabel($alergia->gravedad),
                 'reaccion_comun' => $alergia->reaccion_comun,
@@ -257,15 +302,16 @@ class AlergiaController extends Controller
                 'conducta_recomendada' => $alergia->conducta_recomendada,
                 'recomendaciones_tutor' => $alergia->recomendaciones_tutor,
                 'observaciones' => $alergia->observaciones,
+                'centro_veterinario_id' => $alergia->procesoMedico->centro_veterinario_id ?? null, // Agregado para el formulario
+                'medio_envio' => $alergia->procesoMedico->medio_envio ?? null, // Agregado para el formulario
                 'proceso_medico' => [
                     'centro_veterinario' => $alergia->procesoMedico->centroVeterinario ?? null,
                     'veterinario' => $alergia->procesoMedico->veterinario ?? null,
-                    'fecha_aplicacion' => $alergia->procesoMedico->fecha_aplicacion ? 
-                        $alergia->procesoMedico->fecha_aplicacion->format('d/m/Y') : null,
+                    'fecha_aplicacion' => $this->formatFechaSegura($alergia->procesoMedico->fecha_aplicacion ?? null, 'd/m/Y'),
                     'observaciones' => $alergia->procesoMedico->observaciones,
                 ],
-                'created_at' => $alergia->created_at->format('d/m/Y H:i'),
-                'updated_at' => $alergia->updated_at->format('d/m/Y H:i'),
+                'created_at' => $alergia->created_at ? $alergia->created_at->format('d/m/Y H:i') : null,
+                'updated_at' => $alergia->updated_at ? $alergia->updated_at->format('d/m/Y H:i') : null,
             ];
 
             return response()->json([
@@ -336,7 +382,8 @@ class AlergiaController extends Controller
                 // 1. Actualizar la alergia
                 $alergia->update([
                     'tipo_alergia_id' => $validated['tipo_alergia_id'] ?? $alergia->tipo_alergia_id,
-                    'fecha_deteccion' => $validated['fecha_deteccion'] ?? $alergia->fecha_deteccion,
+                    'fecha_deteccion' => isset($validated['fecha_deteccion']) ? 
+                        Carbon::parse($validated['fecha_deteccion']) : $alergia->fecha_deteccion,
                     'gravedad' => $validated['gravedad'] ?? $alergia->gravedad,
                     'reaccion_comun' => $validated['reaccion_comun'] ?? $alergia->reaccion_comun,
                     'estado' => $validated['estado'] ?? $alergia->estado,
@@ -355,7 +402,7 @@ class AlergiaController extends Controller
                         $updateData['centro_veterinario_id'] = $validated['centro_veterinario_id'];
                     }
                     if (isset($validated['fecha_deteccion'])) {
-                        $updateData['fecha_aplicacion'] = $validated['fecha_deteccion'];
+                        $updateData['fecha_aplicacion'] = Carbon::parse($validated['fecha_deteccion']);
                     }
                     
                     $procesoMedico->update($updateData);
@@ -395,6 +442,15 @@ class AlergiaController extends Controller
      */
     public function destroy($mascotaId, $alergiaId): JsonResponse
     {
+        // Redirigir al método de baja lógica
+        return $this->bajaLogica(new Request(), $mascotaId, $alergiaId);
+    }
+
+    /**
+     * Baja lógica de una alergia
+     */
+    public function bajaLogica(Request $request, $mascotaId, $alergiaId): JsonResponse
+    {
         try {
             // Verificar que la mascota exista
             $mascota = Mascota::find($mascotaId);
@@ -418,18 +474,48 @@ class AlergiaController extends Controller
                 ], 404);
             }
 
-            DB::transaction(function () use ($alergia) {
-                // Eliminar el proceso médico (esto eliminará la alergia por cascade)
-                $alergia->procesoMedico->delete();
+            // Verificar si ya está eliminada
+            if ($alergia->isEliminada()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta alergia ya fue dada de baja anteriormente'
+                ], 400);
+            }
+
+            // Realizar la baja lógica
+            DB::transaction(function () use ($alergia, $request) {
+                // Marcar la alergia como eliminada
+                $alergia->marcarComoEliminada();
+                
+                // Opcional: también marcar el proceso médico como inactivo
+                if ($alergia->procesoMedico) {
+                    $alergia->procesoMedico->update([
+                        'estado' => 'inactivo',
+                        'observaciones' => $alergia->procesoMedico->observaciones . 
+                                        ' (Dado de baja el ' . now()->format('d/m/Y') . ')'
+                    ]);
+                }
+
+                // Registrar en el log quién realizó la acción
+                Log::info('Alergia dada de baja lógicamente', [
+                    'alergia_id' => $alergia->id,
+                    'mascota_id' => $alergia->procesoMedico->mascota_id ?? null,
+                    'usuario_id' => Auth::id(),
+                    'fecha_baja' => now()->toDateTimeString()
+                ]);
             });
 
             return response()->json([
                 'success' => true,
-                'message' => 'Alergia eliminada exitosamente'
+                'message' => 'Alergia dada de baja exitosamente',
+                'data' => [
+                    'id' => $alergia->id,
+                    'deleted_at' => $alergia->deleted_at
+                ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('❌ Error al eliminar alergia:', [
+            Log::error('❌ Error en baja lógica de alergia:', [
                 'mascota_id' => $mascotaId,
                 'alergia_id' => $alergiaId,
                 'error' => $e->getMessage(),
@@ -438,7 +524,91 @@ class AlergiaController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al eliminar la alergia: ' . $e->getMessage()
+                'message' => 'Error al dar de baja la alergia: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Restaurar alergia eliminada
+     */
+    public function restaurar(Request $request, $mascotaId, $alergiaId): JsonResponse
+    {
+        try {
+            // Verificar que la mascota exista
+            $mascota = Mascota::find($mascotaId);
+            if (!$mascota) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mascota no encontrada'
+                ], 404);
+            }
+
+            // Obtener la alergia (incluyendo eliminadas)
+            $alergia = Alergia::withTrashed()
+                ->whereHas('procesoMedico', function($query) use ($mascotaId) {
+                    $query->where('mascota_id', $mascotaId);
+                })
+                ->find($alergiaId);
+
+            if (!$alergia) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Alergia no encontrada'
+                ], 404);
+            }
+
+            // Verificar si está eliminada
+            if (!$alergia->isEliminada()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta alergia no está dada de baja'
+                ], 400);
+            }
+
+            // Restaurar la alergia
+            DB::transaction(function () use ($alergia) {
+                $alergia->restaurar();
+                
+                // Opcional: restaurar también el proceso médico
+                if ($alergia->procesoMedico) {
+                    $alergia->procesoMedico->update([
+                        'estado' => 'activo',
+                        'observaciones' => str_replace(
+                            ' (Dado de baja el ' . date('d/m/Y') . ')', 
+                            '', 
+                            $alergia->procesoMedico->observaciones
+                        )
+                    ]);
+                }
+
+                Log::info('Alergia restaurada', [
+                    'alergia_id' => $alergia->id,
+                    'usuario_id' => Auth::id(),
+                    'fecha_restauracion' => now()->toDateTimeString()
+                ]);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Alergia restaurada exitosamente',
+                'data' => [
+                    'id' => $alergia->id,
+                    'deleted_at' => $alergia->deleted_at
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ Error restaurando alergia:', [
+                'mascota_id' => $mascotaId,
+                'alergia_id' => $alergiaId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al restaurar la alergia: ' . $e->getMessage()
             ], 500);
         }
     }

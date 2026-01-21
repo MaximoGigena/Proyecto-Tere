@@ -23,7 +23,7 @@ class CaracteristicasUsuariosSeeder extends Seeder
             $usuarios = Usuario::all();
         }
         
-        // Datos para características
+        // Datos para características - USAR "descripción" (con acento)
         $caracteristicas = [
             [
                 'tipoVivienda' => 'Casa',
@@ -31,7 +31,7 @@ class CaracteristicasUsuariosSeeder extends Seeder
                 'experiencia' => '2 años con mascotas',
                 'convivenciaNiños' => 'si',
                 'convivenciaMascotas' => 'si',
-                'descripcion' => 'Vivo en una casa con patio grande, ideal para mascotas.',
+                'descripción' => 'Vivo en una casa con patio grande, ideal para mascotas.', // ¡Con acento!
                 'usuario_id' => $usuarios[0]->id,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -42,7 +42,7 @@ class CaracteristicasUsuariosSeeder extends Seeder
                 'experiencia' => '5 años con perros',
                 'convivenciaNiños' => 'no',
                 'convivenciaMascotas' => 'si',
-                'descripcion' => 'Departamento espacioso cerca de parques para pasear.',
+                'descripción' => 'Departamento espacioso cerca de parques para pasear.', // ¡Con acento!
                 'usuario_id' => $usuarios[1]->id,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -53,7 +53,7 @@ class CaracteristicasUsuariosSeeder extends Seeder
                 'experiencia' => '10 años con gatos',
                 'convivenciaNiños' => 'si',
                 'convivenciaMascotas' => 'si',
-                'descripcion' => 'Amplio jardín para que las mascotas jueguen libremente.',
+                'descripción' => 'Amplio jardín para que las mascotas jueguen libremente.', // ¡Con acento!
                 'usuario_id' => $usuarios[2]->id,
                 'created_at' => now(),
                 'updated_at' => now(),

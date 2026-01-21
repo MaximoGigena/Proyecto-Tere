@@ -38,7 +38,7 @@ return new class extends Migration
             $table->text('conducta_recomendada')->nullable(); // Conducta recomendada ante exposición
             $table->text('recomendaciones_tutor')->nullable(); // Recomendaciones para el tutor
             $table->text('observaciones')->nullable();
-            
+            $table->softDeletes();
             $table->timestamps();
             
             // Índices para mejor performance

@@ -8,7 +8,9 @@ use App\Models\ProcesoMedico;
 use App\Models\Mascota;
 use App\Models\TiposProcedimientos\TipoCirugia;
 use App\Models\CentroVeterinario;
+use App\Models\TiposProcedimientos\TipoDiagnostico; 
 use App\Models\FarmacoAsociado;
+use App\Models\ProcedimientoDiagnostico;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
@@ -116,12 +118,17 @@ class CirugiaController extends Controller
                     $this->guardarFarmacosAsociados($cirugia, $validated['farmacos_asociados']);
                 }
 
-                // 5. Manejar archivos adjuntos
+                // 5. Guardar diagnósticos asociados
+                if (isset($validated['diagnosticos']) && is_array($validated['diagnosticos'])) {
+                    $this->guardarDiagnosticosAsociados($cirugia, $validated['diagnosticos']);
+                }
+
+                // 6. Manejar archivos adjuntos
                 if ($request->hasFile('archivos')) {
                     $this->guardarArchivos($cirugia, $request->file('archivos'));
                 }
 
-                // 6. Cargar relaciones para la respuesta
+                // 7. Cargar relaciones para la respuesta
                 $cirugiaCreada = $cirugia->load([
                     'tipoCirugia',
                     'procesoMedico.centroVeterinario',
@@ -129,11 +136,11 @@ class CirugiaController extends Controller
                     'farmacosAsociados.tipoFarmaco'
                 ]);
                 
-                // 7. Obtener datos de la mascota con relaciones
+                // 8. Obtener datos de la mascota con relaciones
                 $mascotaData = Mascota::with('usuario')->find($mascotaId);
             });
 
-            // 8. Enviar certificado PDF después del registro exitoso
+            // 9. Enviar certificado PDF después del registro exitoso
             $mensajeEnvio = '';
             if ($cirugiaCreada && $mascotaData) {
                 try {
@@ -214,7 +221,8 @@ class CirugiaController extends Controller
                 'tipoCirugia',
                 'procesoMedico.centroVeterinario',
                 'procesoMedico.veterinario',
-                'farmacosAsociados.tipoFarmaco'
+                'farmacosAsociados.tipoFarmaco',
+                'diagnosticosAsociados' // Solo cargar la relación directa
             ])
             ->whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
@@ -222,36 +230,30 @@ class CirugiaController extends Controller
             ->orderBy('fecha_cirugia', 'desc')
             ->get()
             ->map(function($cirugia) {
+                // Procesar diagnósticos
+                $diagnosticosArray = [];
+                if ($cirugia->diagnosticosAsociados && $cirugia->diagnosticosAsociados->count() > 0) {
+                    $diagnosticosArray = $cirugia->diagnosticosAsociados->map(function($diagnosticoAsociado) {
+                        return [
+                            'id' => $diagnosticoAsociado->diagnostico_id,
+                            'nombre' => $diagnosticoAsociado->nombre_diagnostico ?? 'Diagnóstico no especificado'
+                        ];
+                    })->toArray();
+                }
+                
+                // Formatear datos para la vista Vue
                 return [
                     'id' => $cirugia->id,
                     'tipo_cirugia' => $cirugia->tipoCirugia->nombre ?? 'Tipo no especificado',
-                    'fecha_cirugia' => $cirugia->fecha_cirugia,
-                    'fecha_cirugia_formateada' => $cirugia->fecha_cirugia->format('d/m/Y H:i'),
+                    'fecha' => $cirugia->fecha_cirugia ? $cirugia->fecha_cirugia->format('Y-m-d H:i:s') : null,
                     'resultado' => $cirugia->resultado,
-                    'resultado_display' => $this->getResultadoDisplay($cirugia->resultado),
-                    'estado_actual' => $cirugia->estado_actual,
-                    'estado_display' => $this->getEstadoDisplay($cirugia->estado_actual),
-                    'diagnostico_causa' => $cirugia->diagnostico_causa,
+                    'estado' => $cirugia->estado_actual,
                     'centro_veterinario' => $cirugia->procesoMedico->centroVeterinario->nombre ?? 'No especificado',
-                    'veterinario' => $cirugia->procesoMedico->veterinario->name ?? 'No especificado',
-                    'fecha_control_estimada' => $cirugia->fecha_control_estimada,
-                    'fecha_control_formateada' => $cirugia->fecha_control_estimada ? $cirugia->fecha_control_estimada->format('d/m/Y') : null,
+                    'fecha_control' => $cirugia->fecha_control_estimada ? $cirugia->fecha_control_estimada->format('Y-m-d') : null,
+                    'diagnosticos' => $diagnosticosArray, // Enviar en el formato que espera la vista Vue
                     'descripcion_procedimiento' => $cirugia->descripcion_procedimiento,
                     'medicacion_postquirurgica' => $cirugia->medicacion_postquirurgica,
                     'recomendaciones_tutor' => $cirugia->recomendaciones_tutor,
-                    'farmacos_asociados' => $cirugia->farmacosAsociados->map(function($farmaco) {
-                        return [
-                            'id' => $farmaco->id,
-                            'nombre_comercial' => $farmaco->tipoFarmaco->nombre_comercial ?? 'Fármaco no especificado',
-                            'nombre_generico' => $farmaco->tipoFarmaco->nombre_generico ?? null,
-                            'dosis_prescrita' => $farmaco->dosis_prescrita,
-                            'unidad_dosis' => $farmaco->unidad_dosis,
-                            'etapa_aplicacion' => $farmaco->etapa_aplicacion,
-                            'etapa_aplicacion_texto' => $farmaco->etapa_aplicacion_texto,
-                            'observaciones' => $farmaco->observaciones
-                        ];
-                    }),
-                    'created_at' => $cirugia->created_at
                 ];
             });
 
@@ -265,7 +267,8 @@ class CirugiaController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Error al cargar las cirugías: ' . $e->getMessage()
+                'message' => 'Error al cargar las cirugías: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString() // Para debug
             ], 500);
         }
     }
@@ -281,12 +284,24 @@ class CirugiaController extends Controller
                 'procesoMedico.centroVeterinario',
                 'procesoMedico.veterinario',
                 'procesoMedico.mascota',
-                'farmacosAsociados.tipoFarmaco'
+                'farmacosAsociados.tipoFarmaco',
+                'diagnosticosAsociados' // Solo cargar la relación directa
             ])
             ->whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
             })
             ->findOrFail($cirugiaId);
+
+            // Procesar diagnósticos para la respuesta
+            $diagnosticosArray = [];
+            if ($cirugia->diagnosticosAsociados && $cirugia->diagnosticosAsociados->count() > 0) {
+                $diagnosticosArray = $cirugia->diagnosticosAsociados->map(function($diagnosticoAsociado) {
+                    return [
+                        'id' => $diagnosticoAsociado->diagnostico_id,
+                        'nombre' => $diagnosticoAsociado->nombre_diagnostico ?? 'Diagnóstico no especificado'
+                    ];
+                })->toArray();
+            }
 
             // Cargar archivos adjuntos si existen
             $archivos = [];
@@ -301,6 +316,10 @@ class CirugiaController extends Controller
             $cirugiaArray['estado_display'] = $this->getEstadoDisplay($cirugia->estado_actual);
             $cirugiaArray['fecha_control_formateada'] = $cirugia->fecha_control_estimada ? $cirugia->fecha_control_estimada->format('d/m/Y') : null;
             $cirugiaArray['archivos'] = $archivos;
+            
+            // Agregar diagnósticos procesados
+            $cirugiaArray['diagnosticos'] = $diagnosticosArray;
+            
             $cirugiaArray['farmacos_asociados'] = $cirugia->farmacosAsociados->map(function($farmaco) {
                 return array_merge($farmaco->toArray(), [
                     'farmaco_nombre_comercial' => $farmaco->tipoFarmaco->nombre_comercial ?? null,
@@ -342,6 +361,7 @@ class CirugiaController extends Controller
                 $query->where('mascota_id', $mascotaId);
             })->findOrFail($cirugiaId);
 
+            // CORRECCIÓN: Cambiar los nombres de validación para que coincidan con la vista Vue
             $validated = $request->validate([
                 // Campos actualizables
                 'tipo_cirugia_id' => 'sometimes|exists:tipos_cirugia,id',
@@ -349,10 +369,12 @@ class CirugiaController extends Controller
                 'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
                 'resultado' => 'sometimes|in:satisfactorio,complicaciones,estable,critico',
                 'estado' => 'sometimes|in:recuperacion,alta,seguimiento,hospitalizado',
-                'fecha_control_estimada' => 'nullable|date',
-                'descripcion_procedimiento' => 'nullable|string|max:1000',
+                
+                // ✅ CORRECCIÓN: Cambiar nombres para coincidir con la vista Vue
+                'fecha_control' => 'nullable|date', // En la vista es fecha_control
+                'descripcion' => 'nullable|string|max:1000', // En la vista es descripcion
                 'medicacion_postquirurgica' => 'nullable|string',
-                'recomendaciones_tutor' => 'nullable|string|max:500',
+                'recomendaciones' => 'nullable|string|max:500', // En la vista es recomendaciones
                 
                 // Fármacos asociados
                 'farmacos_asociados' => 'nullable|array',
@@ -368,6 +390,10 @@ class CirugiaController extends Controller
                 'archivos.*' => 'nullable|file|max:10240',
                 'archivos_a_eliminar' => 'nullable|array',
                 'archivos_a_eliminar.*' => 'string',
+                
+                // Diagnósticos
+                'diagnosticos' => 'nullable|array',
+                'diagnosticos.*' => 'exists:tipos_diagnostico,id',
             ]);
 
             DB::transaction(function () use ($validated, $cirugia, $request) {
@@ -377,10 +403,12 @@ class CirugiaController extends Controller
                     'fecha_cirugia' => $validated['fecha'] ?? $cirugia->fecha_cirugia,
                     'resultado' => $validated['resultado'] ?? $cirugia->resultado,
                     'estado_actual' => $validated['estado'] ?? $cirugia->estado_actual,
-                    'fecha_control_estimada' => $validated['fecha_control_estimada'] ?? $cirugia->fecha_control_estimada,
-                    'descripcion_procedimiento' => $validated['descripcion_procedimiento'] ?? $cirugia->descripcion_procedimiento,
+                    
+                    // ✅ CORRECCIÓN: Usar los nombres correctos
+                    'fecha_control_estimada' => $validated['fecha_control'] ?? $cirugia->fecha_control_estimada,
+                    'descripcion_procedimiento' => $validated['descripcion'] ?? $cirugia->descripcion_procedimiento,
                     'medicacion_postquirurgica' => $validated['medicacion_postquirurgica'] ?? $cirugia->medicacion_postquirurgica,
-                    'recomendaciones_tutor' => $validated['recomendaciones_tutor'] ?? $cirugia->recomendaciones_tutor,
+                    'recomendaciones_tutor' => $validated['recomendaciones'] ?? $cirugia->recomendaciones_tutor,
                 ]);
 
                 // 2. Actualizar el proceso médico asociado
@@ -388,7 +416,7 @@ class CirugiaController extends Controller
                     $cirugia->procesoMedico->update([
                         'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? $cirugia->procesoMedico->centro_veterinario_id,
                         'fecha_aplicacion' => $validated['fecha'] ?? $cirugia->fecha_cirugia,
-                        'observaciones' => $validated['descripcion_procedimiento'] ?? $cirugia->descripcion_procedimiento,
+                        'observaciones' => $validated['descripcion'] ?? $cirugia->descripcion_procedimiento, // ✅ Usar descripcion
                     ]);
                 }
 
@@ -401,12 +429,23 @@ class CirugiaController extends Controller
                     $this->guardarFarmacosAsociados($cirugia, $validated['farmacos_asociados']);
                 }
 
-                // 4. Manejar eliminación de archivos
+                // 4. Actualizar diagnósticos asociados
+                if (isset($validated['diagnosticos'])) {
+                    // Eliminar diagnósticos existentes
+                    ProcedimientoDiagnostico::where('procedimiento_id', $cirugia->id)
+                        ->where('procedimiento_type', 'App\Models\ProcedimientosMedicos\Cirugia')
+                        ->delete();
+                    
+                    // Crear nuevos diagnósticos
+                    $this->guardarDiagnosticosAsociados($cirugia, $validated['diagnosticos']);
+                }
+
+                // 5. Manejar eliminación de archivos
                 if (isset($validated['archivos_a_eliminar'])) {
                     $this->eliminarArchivos($cirugia, $validated['archivos_a_eliminar']);
                 }
 
-                // 5. Manejar nuevos archivos
+                // 6. Manejar nuevos archivos
                 if ($request->hasFile('archivos')) {
                     $this->guardarArchivos($cirugia, $request->file('archivos'));
                 }
@@ -417,12 +456,18 @@ class CirugiaController extends Controller
                 'tipoCirugia',
                 'procesoMedico.centroVeterinario',
                 'procesoMedico.veterinario',
-                'farmacosAsociados.tipoFarmaco'
+                'farmacosAsociados.tipoFarmaco',
+                'diagnosticosAsociados'
             ]);
 
             Log::info('✅ Cirugía actualizada exitosamente', [
                 'cirugia_id' => $cirugia->id,
-                'mascota_id' => $mascotaId
+                'mascota_id' => $mascotaId,
+                'campos_opcionales' => [
+                    'fecha_control' => $validated['fecha_control'] ?? null,
+                    'descripcion' => $validated['descripcion'] ?? null,
+                    'recomendaciones' => $validated['recomendaciones'] ?? null,
+                ]
             ]);
 
             return response()->json([
@@ -435,7 +480,8 @@ class CirugiaController extends Controller
             Log::error('❌ Error al actualizar cirugía', [
                 'cirugia_id' => $cirugiaId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all() // Agregar para debug
             ]);
 
             return response()->json([
@@ -455,28 +501,34 @@ class CirugiaController extends Controller
                 $query->where('mascota_id', $mascotaId);
             })->findOrFail($cirugiaId);
 
+            // Verificar que no esté ya eliminada
+            if ($cirugia->trashed()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La cirugía ya ha sido eliminada'
+                ], 400);
+            }
+
             DB::transaction(function () use ($cirugia) {
-                // 1. Eliminar archivos adjuntos
-                $archivosPath = "cirugias/{$cirugia->id}";
-                if (Storage::exists($archivosPath)) {
-                    Storage::deleteDirectory($archivosPath);
-                }
+                // 1. Marcar la cirugía como eliminada (baja lógica)
+                $cirugia->delete(); // Soft delete
 
-                // 2. Eliminar fármacos asociados
-                $cirugia->farmacosAsociados()->delete();
-
-                // 3. Eliminar el proceso médico (si existe)
-                if ($cirugia->procesoMedico) {
+                // 2. Opcional: Marcar también el proceso médico como eliminado si también usa soft deletes
+                if ($cirugia->procesoMedico && method_exists($cirugia->procesoMedico, 'delete')) {
                     $cirugia->procesoMedico->delete();
                 }
 
-                // 4. Eliminar la cirugía
-                $cirugia->delete();
+                // 3. Guardar información de quién eliminó (opcional)
+                $cirugia->update([
+                    'eliminado_por' => Auth::id(),
+                    'motivo_eliminacion' => request()->input('motivo', 'Eliminación solicitada por usuario')
+                ]);
             });
 
-            Log::info('✅ Cirugía eliminada exitosamente', [
+            Log::info('✅ Cirugía marcada como eliminada (baja lógica)', [
                 'cirugia_id' => $cirugiaId,
-                'mascota_id' => $mascotaId
+                'mascota_id' => $mascotaId,
+                'eliminado_por' => Auth::id()
             ]);
 
             return response()->json([
@@ -497,6 +549,7 @@ class CirugiaController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Obtener estadísticas de cirugías de una mascota
@@ -567,6 +620,45 @@ class CirugiaController extends Controller
     }
 
     /**
+     * Guardar diagnósticos asociados a una cirugía
+     */
+    private function guardarDiagnosticosAsociados(Cirugia $cirugia, array $diagnosticosIds)
+    {
+        foreach ($diagnosticosIds as $diagnosticoId) {
+            // Determinar el tipo de diagnóstico (de catálogo)
+            $diagnosticoType = 'App\Models\TiposProcedimientos\TipoDiagnostico'; // CORREGIDO
+            
+            // Cargar el diagnóstico para tomar snapshot
+            $diagnostico = TipoDiagnostico::find($diagnosticoId);
+            
+            if ($diagnostico) {
+                ProcedimientoDiagnostico::create([
+                    'procedimiento_id' => $cirugia->id,
+                    'procedimiento_type' => 'App\Models\ProcedimientosMedicos\Cirugia',
+                    'diagnostico_id' => $diagnosticoId,
+                    'diagnostico_type' => $diagnosticoType,
+                    'estado' => 'activo',
+                    'relevancia' => 'primario',
+                    'observaciones' => null,
+                    'nombre_diagnostico' => $diagnostico->nombre,
+                    'evolucion' => $diagnostico->evolucion ?? null,
+                    'clasificacion' => $diagnostico->clasificacion ?? null,
+                    'sintomas_caracteristicos' => $diagnostico->sintomas_caracteristicos ?? null,
+                    'veterinario_id' => Auth::id(),
+                    'fecha_asociacion' => now(),
+                ]);
+                
+                Log::info('✅ Diagnóstico asociado a cirugía', [
+                    'cirugia_id' => $cirugia->id,
+                    'diagnostico_id' => $diagnosticoId,
+                    'diagnostico_nombre' => $diagnostico->nombre,
+                    'veterinario_id' => Auth::id()
+                ]);
+            }
+        }
+    }
+
+    /**
      * Métodos auxiliares privados
      */
     
@@ -631,7 +723,7 @@ class CirugiaController extends Controller
             $duracionUnidad = count($duracionPartes) > 1 ? $duracionPartes[1] : null;
 
             // Procesar la dosis (ej: "5 mg" -> dosis_prescrita: 5, unidad_dosis: mg)
-            $dosisPartes = explode(' ', $farmacoData['dose'] ?? '');
+            $dosisPartes = explode(' ', $farmacoData['dosis'] ?? '');
             $dosisPrescrita = count($dosisPartes) > 0 ? floatval($dosisPartes[0]) : 0;
             $unidadDosis = count($dosisPartes) > 1 ? $dosisPartes[1] : 'mg';
 

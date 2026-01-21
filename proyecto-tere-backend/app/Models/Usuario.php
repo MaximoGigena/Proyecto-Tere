@@ -42,22 +42,6 @@ class Usuario extends Model
         return $this->hasOne(ContactoUsuario::class, 'usuario_id');
     }
 
-     /**
-     * Relación con las ubicaciones del usuario
-     */
-    public function ubicaciones()
-    {
-        return $this->hasMany(UbicacionUsuario::class, 'usuario_id'); // Usar 'usuario_id'
-    }
-    
-    /**
-     * Obtener la ubicación más reciente
-     */
-    public function ubicacionActual()
-    {
-        return $this->hasOne(UbicacionUsuario::class, 'usuario_id')->latestOfMany('location_updated_at');
-    }
-
     public function fotos()
     {
         return $this->hasMany(UsuarioFoto::class);
@@ -88,5 +72,32 @@ class Usuario extends Model
     public function solicitudesAdopcion()
     {
         return $this->hasMany(SolicitudAdopcion::class, 'idUsuarioSolicitante');
+    }
+
+    // En App\Models\Usuario
+    public function ubicaciones()
+    {
+        // Relación directa a través de User
+        return $this->hasManyThrough(
+            UbicacionUsuario::class,
+            User::class,
+            'userable_id', // Foreign key on users table
+            'user_id',     // Foreign key on ubicaciones table
+            'id',          // Local key on usuarios table
+            'id'           // Local key on users table
+        )->where('users.userable_type', Usuario::class);
+    }
+
+    public function ubicacionActual()
+    {
+        return $this->hasOneThrough(
+            UbicacionUsuario::class,
+            User::class,
+            'userable_id', // Foreign key on users table
+            'user_id',     // Foreign key on ubicaciones table
+            'id',          // Local key on usuarios table
+            'id'           // Local key on users table
+        )->where('users.userable_type', Usuario::class)
+        ->latestOfMany('location_updated_at');
     }
 }
