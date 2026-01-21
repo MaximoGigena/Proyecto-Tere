@@ -316,12 +316,15 @@ const abrirProcedimiento = (paliativo) => {
 const editarPaliativo = (paliativo) => {
   console.log('Editar procedimiento paliativo:', paliativo)
   
-  // Navegar a la vista de edición
+  // Navegar a la vista de edición usando la ruta correcta
   router.push({
-    path: `/registro/paliativo/${paliativo.id}/editar`,
+    name: 'EditarPaliativo',
+    params: { 
+      id: paliativo.id // Asegúrate que coincida con :id en la ruta
+    },
     query: {
-      from: route.fullPath,
-      mascotaId: mascotaId.value
+      mascotaId: mascotaId.value,
+      from: route.fullPath
     }
   })
 }

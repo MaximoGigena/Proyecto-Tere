@@ -29,6 +29,7 @@
                   required 
                   class="w-full border rounded p-2 pr-10" 
                   placeholder="Ej: Fisioterapia postquirúrgica, Quimioterapia"
+                  :disabled="cargando"
                 />
                 <font-awesome-icon 
                   :icon="['fas', 'magnifying-glass']" 
@@ -46,12 +47,13 @@
               required 
               class="w-full border rounded p-2" 
               placeholder="Descripción detallada de la terapia"
+              :disabled="cargando"
             ></textarea>
           </div>
 
           <div>
             <label class="block font-medium mb-2">Especie objetivo</label>
-            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
+            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" :disabled="cargando" />
           </div>
         </div>
 
@@ -66,12 +68,14 @@
                 min="1" 
                 required 
                 class="w-1/2 border rounded-l p-2" 
-                placeholder="Cantidad" 
+                placeholder="Cantidad"
+                :disabled="cargando"
               />
               <select 
                 v-model="terapia.duracionUnidad" 
                 required 
                 class="w-1/2 border rounded-r p-2"
+                :disabled="cargando"
               >
                 <option value="sesiones">Sesiones</option>
                 <option value="dias">Días</option>
@@ -83,7 +87,7 @@
 
           <div>
             <label class="block font-medium">Frecuencia sugerida</label>
-            <select v-model="terapia.frecuencia" required class="w-full border rounded p-2">
+            <select v-model="terapia.frecuencia" required class="w-full border rounded p-2" :disabled="cargando">
               <option value="">Seleccione una opción</option>
               <option value="diaria">Diaria</option>
               <option value="semanal">Semanal</option>
@@ -93,26 +97,82 @@
             </select>
           </div>
 
+          <!-- REQUISITOS O CONDICIONES PREVIAS - MODIFICADO -->
           <div>
             <label class="block font-medium">Requisitos o condiciones previas</label>
-            <textarea 
-              v-model="terapia.requisitos" 
-              rows="3" 
-              required 
-              class="w-full border rounded p-2" 
-              placeholder="Condiciones que debe cumplir el paciente para esta terapia"
-            ></textarea>
+            <div class="flex gap-2">
+              <textarea 
+                v-model="inputRequisitos" 
+                rows="3" 
+                class="w-full border rounded p-2" 
+                placeholder="Condiciones que debe cumplir el paciente para esta terapia (una por línea)"
+                :disabled="cargando"
+              ></textarea>
+              <button 
+                type="button"
+                @click="agregarItem('requisitos')"
+                class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-blue-600 transition-colors disabled:bg-blue-300"
+                :disabled="cargando || !inputRequisitos.trim()"
+              >
+                <font-awesome-icon :icon="['fas', 'plus']" />
+              </button>
+            </div>
+            <!-- Lista de requisitos agregados -->
+            <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+              <div v-if="requisitosAgregados.length > 0" class="mt-2 space-y-1">
+                <div v-for="(requisito, index) in requisitosAgregados" :key="index" 
+                    class="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                  <span>{{ requisito }}</span>
+                  <button 
+                    type="button"
+                    @click="eliminarItem('requisitos', index)"
+                    class="text-red-500 hover:text-red-700"
+                    :disabled="cargando"
+                  >
+                    <font-awesome-icon :icon="['fas', 'times']" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
+          <!-- INDICACIONES CLÍNICAS COMUNES - MODIFICADO -->
           <div>
             <label class="block font-medium">Indicaciones clínicas comunes</label>
-            <textarea 
-              v-model="terapia.indicaciones" 
-              rows="3" 
-              required 
-              class="w-full border rounded p-2" 
-              placeholder="Casos o condiciones donde se recomienda esta terapia"
-            ></textarea>
+            <div class="flex gap-2">
+              <textarea 
+                v-model="inputIndicaciones" 
+                rows="3" 
+                class="w-full border rounded p-2" 
+                placeholder="Casos o condiciones donde se recomienda esta terapia (una por línea)"
+                :disabled="cargando"
+              ></textarea>
+              <button 
+                type="button"
+                @click="agregarItem('indicaciones')"
+                class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-blue-600 transition-colors disabled:bg-blue-300"
+                :disabled="cargando || !inputIndicaciones.trim()"
+              >
+                <font-awesome-icon :icon="['fas', 'plus']" />
+              </button>
+            </div>
+            <!-- Lista de indicaciones agregadas -->
+            <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+              <div v-if="indicacionesAgregadas.length > 0" class="mt-2 space-y-1">
+                <div v-for="(indicacion, index) in indicacionesAgregadas" :key="index" 
+                    class="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                  <span>{{ indicacion }}</span>
+                  <button 
+                    type="button"
+                    @click="eliminarItem('indicaciones', index)"
+                    class="text-red-500 hover:text-red-700"
+                    :disabled="cargando"
+                  >
+                    <font-awesome-icon :icon="['fas', 'times']" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -125,34 +185,121 @@
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
+        <!-- CONTRAINDICACIONES - MODIFICADO -->
         <div>
           <label class="block font-medium">Contraindicaciones</label>
-          <textarea 
-            v-model="terapia.contraindicaciones" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Situaciones donde no aplicar esta terapia"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputContraindicaciones" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Situaciones donde no aplicar esta terapia (una por línea)"
+              :disabled="cargando"
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('contraindicaciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors disabled:bg-green-300"
+              :disabled="cargando || !inputContraindicaciones.trim()"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de contraindicaciones agregadas -->
+          <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="contraindicacionesAgregadas.length > 0" class="mt-2 space-y-1">
+              <div v-for="(contraindicacion, index) in contraindicacionesAgregadas" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ contraindicacion }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('contraindicaciones', index)"
+                  class="text-red-500 hover:text-red-700"
+                  :disabled="cargando"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- RIESGOS O EFECTOS SECUNDARIOS - MODIFICADO -->
         <div>
           <label class="block font-medium">Riesgos o efectos secundarios</label>
-          <textarea 
-            v-model="terapia.riesgos" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Posibles efectos adversos conocidos"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRiesgos" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Posibles efectos adversos conocidos (una por línea)"
+              :disabled="cargando"
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('riesgos')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors disabled:bg-green-300"
+              :disabled="cargando || !inputRiesgos.trim()"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de riesgos agregados -->
+          <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="riesgosAgregados.length > 0" class="mt-2 space-y-1">
+              <div v-for="(riesgo, index) in riesgosAgregados" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ riesgo }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('riesgos', index)"
+                  class="text-red-500 hover:text-red-700"
+                  :disabled="cargando"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- RECOMENDACIONES CLÍNICAS - MODIFICADO -->
         <div class="col-span-full">
           <label class="block font-medium">Recomendaciones clínicas</label>
-          <textarea 
-            v-model="terapia.recomendaciones" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Consejos para la aplicación de esta terapia"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRecomendaciones" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Consejos para la aplicación de esta terapia (una por línea)"
+              :disabled="cargando"
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('recomendaciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors disabled:bg-green-300"
+              :disabled="cargando || !inputRecomendaciones.trim()"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de recomendaciones agregadas -->
+          <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="recomendacionesAgregadas.length > 0" class="mt-2 space-y-1">
+              <div v-for="(recomendacion, index) in recomendacionesAgregadas" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ recomendacion }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('recomendaciones', index)"
+                  class="text-red-500 hover:text-red-700"
+                  :disabled="cargando"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="col-span-full">
@@ -162,13 +309,25 @@
             rows="3" 
             class="w-full border rounded p-2" 
             placeholder="Otra información relevante sobre esta terapia"
+            :disabled="cargando"
           ></textarea>
         </div>
       </div>
 
       <div class="pt-4 flex items-center justify-center gap-4">
-        <button type="button" @click="cancelar" class="bg-gray-500 text-white font-bold text-xl px-6 py-2 rounded-full hover:bg-gray-700 transition-colors">Cancelar</button>
-        <button type="submit" class="bg-blue-500 text-white font-bold text-2xl px-6 py-2 rounded-full hover:bg-blue-700 transition-colors">
+        <button 
+          type="button" 
+          @click="cancelar" 
+          class="bg-gray-500 text-white font-bold text-xl px-6 py-2 rounded-full hover:bg-gray-700 transition-colors disabled:bg-gray-300"
+          :disabled="cargando"
+        >
+          Cancelar
+        </button>
+        <button 
+          type="submit" 
+          class="bg-blue-500 text-white font-bold text-2xl px-6 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
+          :disabled="cargando || !formularioValido"
+        >
           {{ esEdicion ? 'Guardar' : '+ Tipo' }}
         </button>
       </div>
@@ -177,7 +336,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
@@ -191,6 +350,20 @@ const { accessToken, isAuthenticated, checkAuth } = useAuth()
 const esEdicion = ref(false)
 const terapiaId = ref(null)
 const cargando = ref(false)
+
+// Inputs temporales para agregar elementos
+const inputRequisitos = ref('')
+const inputIndicaciones = ref('')
+const inputContraindicaciones = ref('')
+const inputRiesgos = ref('')
+const inputRecomendaciones = ref('')
+
+// Arrays para almacenar elementos agregados
+const requisitosAgregados = ref([])
+const indicacionesAgregadas = ref([])
+const contraindicacionesAgregadas = ref([])
+const riesgosAgregados = ref([])
+const recomendacionesAgregadas = ref([])
 
 const terapia = reactive({
   nombre: '',
@@ -206,6 +379,114 @@ const terapia = reactive({
   recomendaciones: '',
   observaciones: ''
 })
+
+// Computed para validar el formulario
+const formularioValido = computed(() => {
+  return terapia.nombre.trim() !== '' &&
+         terapia.descripcion.trim() !== '' &&
+         especiesSeleccionadas.value.length > 0 &&
+         terapia.duracionValor !== '' &&
+         terapia.frecuencia !== '' &&
+         requisitosAgregados.value.length > 0 && // Validar que haya al menos un requisito
+         indicacionesAgregadas.value.length > 0   // Validar que haya al menos una indicación
+})
+
+// Función para agregar elementos
+const agregarItem = (tipo) => {
+  let inputValue, arrayDestino
+  
+  switch(tipo) {
+    case 'requisitos':
+      inputValue = inputRequisitos.value.trim()
+      arrayDestino = requisitosAgregados
+      break
+    case 'indicaciones':
+      inputValue = inputIndicaciones.value.trim()
+      arrayDestino = indicacionesAgregadas
+      break
+    case 'contraindicaciones':
+      inputValue = inputContraindicaciones.value.trim()
+      arrayDestino = contraindicacionesAgregadas
+      break
+    case 'riesgos':
+      inputValue = inputRiesgos.value.trim()
+      arrayDestino = riesgosAgregados
+      break
+    case 'recomendaciones':
+      inputValue = inputRecomendaciones.value.trim()
+      arrayDestino = recomendacionesAgregadas
+      break
+    default:
+      return
+  }
+  
+  if (inputValue) {
+    // Verificar si ya existe (case insensitive)
+    const existe = arrayDestino.value.some(item => 
+      item.toLowerCase() === inputValue.toLowerCase()
+    )
+    
+    if (!existe) {
+      arrayDestino.value.push(inputValue)
+      
+      // Limpiar el input
+      switch(tipo) {
+        case 'requisitos': inputRequisitos.value = ''; break
+        case 'indicaciones': inputIndicaciones.value = ''; break
+        case 'contraindicaciones': inputContraindicaciones.value = ''; break
+        case 'riesgos': inputRiesgos.value = ''; break
+        case 'recomendaciones': inputRecomendaciones.value = ''; break
+      }
+    } else {
+      alert('Este elemento ya ha sido agregado')
+    }
+  }
+}
+
+// Función para eliminar elementos
+const eliminarItem = (tipo, index) => {
+  switch(tipo) {
+    case 'requisitos':
+      requisitosAgregados.value.splice(index, 1)
+      break
+    case 'indicaciones':
+      indicacionesAgregadas.value.splice(index, 1)
+      break
+    case 'contraindicaciones':
+      contraindicacionesAgregadas.value.splice(index, 1)
+      break
+    case 'riesgos':
+      riesgosAgregados.value.splice(index, 1)
+      break
+    case 'recomendaciones':
+      recomendacionesAgregadas.value.splice(index, 1)
+      break
+  }
+}
+
+// Watch para sincronizar arrays con los campos del formulario
+watch([requisitosAgregados, indicacionesAgregadas, contraindicacionesAgregadas, riesgosAgregados, recomendacionesAgregadas], () => {
+  // Convertir arrays a strings separados por comas para el backend
+  terapia.requisitos = requisitosAgregados.value.length > 0 
+    ? requisitosAgregados.value.join(', ') 
+    : ''
+  
+  terapia.indicaciones = indicacionesAgregadas.value.length > 0 
+    ? indicacionesAgregadas.value.join(', ') 
+    : ''
+  
+  terapia.contraindicaciones = contraindicacionesAgregadas.value.length > 0 
+    ? contraindicacionesAgregadas.value.join(', ') 
+    : ''
+  
+  terapia.riesgos = riesgosAgregados.value.length > 0 
+    ? riesgosAgregados.value.join(', ') 
+    : ''
+  
+  terapia.recomendaciones = recomendacionesAgregadas.value.length > 0 
+    ? recomendacionesAgregadas.value.join(', ') 
+    : ''
+}, { deep: true })
 
 // Verificar autenticación y cargar datos si es edición
 onMounted(async () => {
@@ -262,6 +543,35 @@ const cargarTerapia = async () => {
         // Cargar especies seleccionadas
         especiesSeleccionadas.value = terapiaData.especies || []
 
+        // Cargar arrays desde strings del backend
+        requisitosAgregados.value = terapia.requisitos 
+          ? terapia.requisitos.split(',').map(s => s.trim()).filter(s => s !== '')
+          : []
+        
+        indicacionesAgregadas.value = terapia.indicaciones 
+          ? terapia.indicaciones.split(',').map(s => s.trim()).filter(s => s !== '')
+          : []
+        
+        contraindicacionesAgregadas.value = terapia.contraindicaciones 
+          ? terapia.contraindicaciones.split(',').map(s => s.trim()).filter(s => s !== '')
+          : []
+        
+        riesgosAgregados.value = terapia.riesgos 
+          ? terapia.riesgos.split(',').map(s => s.trim()).filter(s => s !== '')
+          : []
+        
+        recomendacionesAgregadas.value = terapia.recomendaciones 
+          ? terapia.recomendaciones.split(',').map(s => s.trim()).filter(s => s !== '')
+          : []
+        
+        console.log('Arrays cargados:', {
+          requisitos: requisitosAgregados.value,
+          indicaciones: indicacionesAgregadas.value,
+          contraindicaciones: contraindicacionesAgregadas.value,
+          riesgos: riesgosAgregados.value,
+          recomendaciones: recomendacionesAgregadas.value
+        })
+
       }
     } else {
       throw new Error('Error al cargar los datos de la terapia')
@@ -282,8 +592,8 @@ const cancelar = () => {
 
 const guardarTerapia = async () => {
   try {
-    // Validar datos obligatorios
-    if (!terapia.nombre || !terapia.descripcion || especiesSeleccionadas.value.length === 0 || !terapia.duracionValor || !terapia.frecuencia || !terapia.requisitos || !terapia.indicaciones) {
+    // Validar datos obligatorios usando el computed property
+    if (!formularioValido.value) {
       alert('Por favor complete todos los campos obligatorios')
       return
     }
@@ -292,8 +602,8 @@ const guardarTerapia = async () => {
 
     // Preparar datos para enviar
     const datosEnvio = {
-      nombre: terapia.nombre,
-      descripcion: terapia.descripcion,
+      nombre: terapia.nombre.trim(),
+      descripcion: terapia.descripcion.trim(),
       especies: especiesSeleccionadas.value,
       duracion_valor: parseInt(terapia.duracionValor),
       duracion_unidad: terapia.duracionUnidad,
@@ -305,6 +615,8 @@ const guardarTerapia = async () => {
       recomendaciones_clinicas: terapia.recomendaciones || '',
       observaciones: terapia.observaciones || ''
     }
+
+    console.log('Datos a enviar:', datosEnvio)
 
     // Determinar método y URL según si es creación o edición
     const method = esEdicion.value ? 'PUT' : 'POST'
@@ -325,6 +637,34 @@ const guardarTerapia = async () => {
 
     if (response.ok && data.success) {
       alert(`Tipo de terapia ${esEdicion.value ? 'actualizado' : 'registrado'} correctamente`)
+      
+      // Limpiar formulario después de registro exitoso (solo si no es edición)
+      if (!esEdicion.value) {
+        // Limpiar formulario
+        Object.keys(terapia).forEach(key => {
+          if (key === 'duracionUnidad') {
+            terapia[key] = 'sesiones'
+          } else {
+            terapia[key] = ''
+          }
+        })
+        
+        // Limpiar arrays
+        requisitosAgregados.value = []
+        indicacionesAgregadas.value = []
+        contraindicacionesAgregadas.value = []
+        riesgosAgregados.value = []
+        recomendacionesAgregadas.value = []
+        especiesSeleccionadas.value = []
+        
+        // Limpiar inputs temporales
+        inputRequisitos.value = ''
+        inputIndicaciones.value = ''
+        inputContraindicaciones.value = ''
+        inputRiesgos.value = ''
+        inputRecomendaciones.value = ''
+      }
+      
       router.push('/veterinarios/tipos/terapias')
     } else {
       if (data.errors) {

@@ -132,38 +132,220 @@
     </transition>
     
      <!-- Overlay para mostrar el perfil de la mascota -->
-    <transition name="slide">
-      <div 
-        v-if="$route.params.id" 
-        class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-        @click.self="cerrarOverlay"
-      >
-        <div class="w-full max-w-2xl max-h-[90vh]">
-          <contenidoMascota 
-            :ofertaActual="ofertaSeleccionada"
-            @close="cerrarOverlay"
-          />
-        </div>
-      </div>
-    </transition>
+    <!-- Eliminamos este overlay porque se maneja con router -->
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import FiltrosComponente from './filtrosAdopciones.vue'
 
+const route = useRoute()
+const router = useRouter()
 const mostrarOverlay = ref(false)
 const cargando = ref(false)
 const error = ref(null)
 const ofertas = ref([])
 const filtrosActuales = ref({})
+const ubicacionUsuario = ref(null)
+const ubicacionCargada = ref(false)
 
 // Computed para verificar si hay filtros activos
 const filtrosActivos = computed(() => {
   return Object.keys(filtrosActuales.value).length > 0
 })
+
+// Función para obtener la ubicación del usuario
+const obtenerUbicacionUsuario = async () => {
+  try {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    
+    if (!token) {
+      throw new Error('No hay token de autenticación')
+    }
+    
+    console.log('📍 Intentando obtener ubicación del usuario...')
+    
+    // PRIMERO: Intentar con la ruta correcta
+    try {
+      const response = await axios.get('/api/user/location', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      })
+      
+      console.log('📍 Respuesta de /api/user/location:', response.data)
+      
+      if (response.data.success && response.data.data) {
+        ubicacionUsuario.value = {
+          latitude: response.data.data.latitude,
+          longitude: response.data.data.longitude,
+          city: response.data.data.city,
+          state: response.data.data.state,
+          country: response.data.data.country
+        }
+        
+        ubicacionCargada.value = true
+        console.log('📍 Ubicación obtenida:', ubicacionUsuario.value)
+        return true
+      }
+    } catch (err) {
+      console.log('📍 /api/user/location falló, intentando alternativa...', err.message)
+    }
+    
+    // SEGUNDO: Intentar directamente desde el perfil del usuario
+    try {
+      const userResponse = await axios.get('/api/user', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      })
+      
+      console.log('📍 Respuesta de /api/user:', userResponse.data)
+      
+      if (userResponse.data && userResponse.data.ubicacionActual) {
+        ubicacionUsuario.value = {
+          latitude: userResponse.data.ubicacionActual.latitude,
+          longitude: userResponse.data.ubicacionActual.longitude,
+          city: userResponse.data.ubicacionActual.city,
+          state: userResponse.data.ubicacionActual.state,
+          country: userResponse.data.ubicacionActual.country
+        }
+        
+        ubicacionCargada.value = true
+        console.log('📍 Ubicación obtenida del perfil:', ubicacionUsuario.value)
+        return true
+      }
+    } catch (err) {
+      console.log('📍 No se pudo obtener ubicación del perfil:', err.message)
+    }
+    
+    return false
+    
+  } catch (err) {
+    console.warn('⚠️ Error general obteniendo ubicación:', err.message)
+    return false
+  }
+}
+
+// Función para solicitar permisos de ubicación
+const solicitarPermisosUbicacion = () => {
+  if (!navigator.geolocation) {
+    console.error('Geolocalización no soportada por el navegador')
+    error.value = 'Tu navegador no soporta geolocalización'
+    return false
+  }
+  
+  console.log('📍 Solicitando permisos de ubicación...')
+  
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      try {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+        const { latitude, longitude, accuracy } = position.coords
+        
+        console.log('📍 Ubicación obtenida del navegador:', { latitude, longitude, accuracy })
+        
+        // Obtener nombre de la ubicación usando reverse geocoding
+        let locationName = {}
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`
+          )
+          const data = await response.json()
+          
+          console.log('📍 Datos de geocoding:', data)
+          
+          locationName = {
+            city: data.address?.city || data.address?.town || data.address?.village,
+            state: data.address?.state,
+            country: data.address?.country,
+            country_code: data.address?.country_code
+          }
+        } catch (e) {
+          console.warn('📍 No se pudo obtener nombre de ubicación:', e.message)
+          // Datos por defecto para Córdoba
+          locationName = {
+            city: 'Tanti',
+            state: 'Córdoba',
+            country: 'Argentina',
+            country_code: 'AR'
+          }
+        }
+        
+        // Guardar ubicación en el backend usando la ruta existente
+        const ubicacionData = {
+          latitude,
+          longitude,
+          accuracy,
+          ...locationName
+        }
+        
+        console.log('📍 Enviando datos de ubicación:', ubicacionData)
+        
+        await axios.post('/api/guardar-ubicacion', ubicacionData, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        
+        console.log('✅ Ubicación guardada en backend')
+        
+        // Actualizar cache local
+        ubicacionUsuario.value = {
+          latitude,
+          longitude,
+          city: locationName.city,
+          state: locationName.state,
+          country: locationName.country
+        }
+        
+        localStorage.setItem('user_location', JSON.stringify(ubicacionUsuario.value))
+        localStorage.setItem('user_location_timestamp', new Date().getTime().toString())
+        ubicacionCargada.value = true
+        
+        // Recargar ofertas con la nueva ubicación
+        await cargarOfertas()
+        
+      } catch (err) {
+        console.error('❌ Error al guardar ubicación:', err)
+        error.value = 'Error al guardar la ubicación: ' + err.message
+      }
+    },
+    (error) => {
+      console.error('❌ Error al obtener ubicación:', error.message)
+      
+      let mensajeError = 'No se pudo obtener tu ubicación. '
+      switch(error.code) {
+        case error.PERMISSION_DENIED:
+          mensajeError += 'Permiso denegado por el usuario.'
+          break;
+        case error.POSITION_UNAVAILABLE:
+          mensajeError += 'La información de ubicación no está disponible.'
+          break;
+        case error.TIMEOUT:
+          mensajeError += 'La solicitud de ubicación expiró.'
+          break;
+        default:
+          mensajeError += 'Error desconocido: ' + error.message
+      }
+      
+      error.value = mensajeError
+      
+      // Intentar cargar ofertas sin ubicación
+      cargarOfertas()
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  )
+  
+  return true
+}
 
 const cargarOfertas = async () => {
   cargando.value = true
@@ -176,70 +358,100 @@ const cargarOfertas = async () => {
       throw new Error('No hay token de autenticación')
     }
     
-    // 🔥 ARREGLO CRÍTICO: Extraer valores REALES de los Proxy
-    const construirParams = (obj) => {
-      const params = new URLSearchParams()
-      
-      for (const key in obj) {
-        const value = obj[key]
-        
-        // Si es un Proxy de array, extraer sus valores
-        if (Array.isArray(value) || (value && typeof value === 'object' && '0' in value)) {
-          // Extraer valores del Proxy
-          const arrayValores = [...value]
-          if (arrayValores.length > 0) {
-            // Para arrays simples como ['macho'], axios los maneja bien
-            params.append(key, arrayValores.join(','))
-          }
-        } 
-        // Si hay rangos de edad, convertirlos a JSON
-        else if (key === 'rangos_edad' && value) {
-          const edadesArray = [...value]
-          params.append(key, JSON.stringify(edadesArray))
-        }
-        // Para valores simples
-        else if (value && value !== '') {
-          params.append(key, value)
-        }
-      }
-      
-      return params
+    console.log('📍 Cargando TODAS las ofertas por proximidad...')
+    console.log('📍 Filtros actuales:', filtrosActuales.value)
+    
+    // ✅ CORRECCIÓN: NO enviar distancia_maxima por defecto
+    // Solo enviar si el usuario explícitamente seleccionó un filtro
+    const params = { ...filtrosActuales.value };
+    
+    // Si no hay filtro de distancia, NO enviar el parámetro
+    if (!params.distancia_maxima) {
+      delete params.distancia_maxima;
     }
     
-    // Construir parámetros CORRECTAMENTE
-    const params = construirParams(filtrosActuales.value)
-    console.log('PARAMS REALES CONSTRUIDOS:', Object.fromEntries(params))
+    console.log('📍 Parámetros enviados:', params)
     
-    const response = await axios.get(`/api/adopciones/ofertas-disponibles?${params.toString()}`, {
-       headers: {
-         'Authorization': `Bearer ${token}`,
-         'Accept': 'application/json'
-       }
-     })
+    // Usar la ruta de proximidad
+    const response = await axios.get(`/api/adopciones/proximidad`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      },
+      params: params // ✅ Enviar solo los parámetros necesarios
+    })
     
-    console.log('RESPUESTA API:', response.data)
+    console.log('📍 RESPUESTA API PROXIMIDAD:', response.data)
     
     if (response.data.success) {
       ofertas.value = response.data.data || []
-      console.log(`✅ CARGADAS ${ofertas.value.length} OFERTAS`)
+      console.log(`✅ CARGADAS ${ofertas.value.length} OFERTAS (TODAS)`)
       
-      // Debug adicional
-      if (ofertas.value.length > 0) {
-        console.log('Primera oferta cargada:', ofertas.value[0].mascota?.nombre)
+      // Mostrar estadísticas
+      if (response.data.estadisticas) {
+        console.log('📊 Estadísticas:', response.data.estadisticas)
+      }
+      
+      // Mostrar información de distancia en consola
+      ofertas.value.forEach((oferta, index) => {
+        console.log(`📍 Oferta ${index}:`, {
+          nombre: oferta.mascota?.nombre,
+          distancia: oferta.distancia,
+          distancia_km: oferta.distancia_km,
+          ubicacion: oferta.mascota?.ubicacion_texto,
+          nivel_proximidad: oferta.nivel_proximidad,
+          tiene_distancia: oferta.tiene_distancia
+        })
+      })
+      
+      // Si no hay ofertas
+      if (ofertas.value.length === 0) {
+        error.value = 'No hay mascotas disponibles para adopción en este momento.'
       }
     } else {
       throw new Error(response.data.message || 'Error al cargar ofertas')
     }
   } catch (err) {
-    console.error('❌ Error al cargar ofertas:', err)
+    console.error('❌ Error al cargar ofertas por proximidad:', err)
     console.error('Detalles:', err.response?.data)
-    error.value = err.response?.data?.message || err.message || 'Error al cargar las ofertas'
     
-    if (err.response?.status === 401) {
-      error.value = 'Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.'
+    if (err.response?.status === 404) {
+      // Si la ruta no existe, intentar con la ruta normal
+      console.log('📍 Ruta de proximidad no encontrada, usando ruta normal...')
+      await cargarOfertasNormales()
+    } else {
+      error.value = err.response?.data?.message || err.message || 'Error al cargar las ofertas'
+      
+      if (err.response?.status === 401) {
+        error.value = 'Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.'
+      }
     }
   } finally {
     cargando.value = false
+  }
+}
+
+// Función de respaldo para cargar ofertas normales
+const cargarOfertasNormales = async () => {
+  try {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    
+    const response = await axios.get(`/api/adopciones/ofertas-disponibles`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      },
+      params: filtrosActuales.value
+    })
+    
+    console.log('📍 RESPUESTA API NORMAL:', response.data)
+    
+    if (response.data.success) {
+      ofertas.value = response.data.data || []
+      console.log(`✅ CARGADAS ${ofertas.value.length} OFERTAS NORMALES`)
+    }
+  } catch (err) {
+    console.error('❌ Error cargando ofertas normales:', err)
   }
 }
 
@@ -287,27 +499,38 @@ const limpiarTodosFiltros = () => {
   cargarOfertas()
 }
 
-onMounted(() => {
-  cargarOfertas()
+onMounted(async () => {
+  console.log('📍 Componente montado, iniciando carga...')
+  
+  // Primero intentar obtener ubicación existente
+  const tieneUbicacion = await obtenerUbicacionUsuario()
+  
+  if (!tieneUbicacion) {
+    console.log('📍 No se obtuvo ubicación, preguntando al usuario...')
+    
+    // Esperar un momento antes de preguntar
+    setTimeout(async () => {
+      if (confirm('Para mostrar mascotas cerca de ti, necesitamos tu ubicación. ¿Quieres permitir el acceso a tu ubicación?')) {
+        console.log('📍 Usuario aceptó, solicitando permisos...')
+        solicitarPermisosUbicacion()
+      } else {
+        console.log('📍 Usuario rechazó, cargando ofertas sin ubicación...')
+        // Si no quiere, cargar ofertas sin filtro de proximidad
+        await cargarOfertas()
+      }
+    }, 1000)
+  } else {
+    console.log('📍 Ubicación obtenida, cargando ofertas...')
+    // Si ya tiene ubicación, cargar ofertas normalmente
+    await cargarOfertas()
+  }
 })
+
+// Función para cerrar el overlay
+const cerrarOverlay = () => {
+  // Si estamos en una ruta con ID, volver a la lista
+  if (route.params.id) {
+    router.push('/explorar/cerca')
+  }
+}
 </script>
-
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.group:hover .group-hover\:scale-105 {
-  transform: scale(1.05);
-}
-
-.group:hover .group-hover\:shadow-lg {
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-</style>

@@ -1,4 +1,4 @@
-<!-- registarFarmaco -->
+<!-- registrarFarmaco.vue - Versión con modal y modo edición -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -7,9 +7,9 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Administración de Fármaco</h1>
+    <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Administración de Fármaco' : 'Registrar Administración de Fármaco' }}</h1>
 
-    <form @submit.prevent="registrarFarmaco" class="space-y-4">
+    <form @submit.prevent="procesarFormulario" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -151,13 +151,14 @@
               v-for="(archivo, index) in archivos"
               :key="index"
               class="relative border-2 border-dashed border-gray-600 rounded-md text-center cursor-pointer h-20 w-20"
-              @click="!archivo.preview && activarInput(index)"
+              @click="!archivo.preview && !esEdicion && activarInput(index)"
+              :class="{ 'opacity-50 cursor-not-allowed': esEdicion }"
             >
               <!-- Botón eliminar -->
               <button
                 type="button"
                 @click.stop="quitarArchivo(index)"
-                v-if="archivo.preview"
+                v-if="archivo.preview && !esEdicion"
                 class="absolute top-0.5 right-0.5 bg-white rounded-full shadow z-10 text-red-500 hover:text-red-700"
               >
                 <font-awesome-icon :icon="['fas', 'circle-xmark']" class="text-lg" />
@@ -169,6 +170,7 @@
                 type="file"
                 @change="handleArchivo($event, index)"
                 class="hidden"
+                :disabled="esEdicion"
               />
 
               <!-- Vista previa -->
@@ -186,33 +188,57 @@
               </div>
 
               <!-- Indicador visual si no hay archivo -->
-              <div v-else class="text-green-400 flex flex-col justify-center items-center h-full">
+              <div v-else-if="!esEdicion" class="text-green-400 flex flex-col justify-center items-center h-full">
                 <font-awesome-icon :icon="['fas', 'circle-plus']" class="text-2xl mb-0.5" />
                 <div class="text-[10px] text-gray-400">Agregar</div>
+              </div>
+
+              <!-- Indicador para archivos cargados en edición -->
+              <div v-else-if="esEdicion && archivo.archivo" class="h-full flex flex-col items-center justify-center p-1">
+                <font-awesome-icon :icon="['fas', 'file']" class="text-3xl text-gray-500 mb-1" />
+                <div class="text-[10px] text-gray-600 text-center px-1">Archivo existente</div>
+                <div class="text-[8px] text-gray-400 truncate w-full px-1">{{ archivo.archivo.name || 'Archivo' }}</div>
+              </div>
+
+              <!-- Espacio vacío en edición -->
+              <div v-else class="h-full flex items-center justify-center text-gray-300">
+                <font-awesome-icon :icon="['fas', 'square']" class="text-2xl" />
               </div>
             </div>
           </div>
           <p class="text-xs text-gray-500 mt-1">Puede adjuntar recetas, imágenes del medicamento, informes, etc.</p>
+          <p v-if="esEdicion" class="text-sm text-gray-500 mt-1 italic">
+            Nota: En modo edición no se pueden modificar los archivos adjuntos existentes.
+          </p>
         </div>
       </div>
 
       <!-- Selección del medio de envío -->
       <div class="mt-8">
-        <CarruselMedioEnvio 
-          v-if="usuarioId" 
-          :usuario-id="usuarioId" 
-          @update:medio="farmaco.medio_envio = $event" 
-        />
+        <!-- Para ambos casos (registro y edición) mostramos el carrusel -->
+        <div v-if="usuarioId">
+          <CarruselMedioEnvio 
+            :usuario-id="usuarioId" 
+            :modo-edicion="esEdicion"
+            :medio-seleccionado-inicial="farmaco.medio_envio"
+            @update:medio="farmaco.medio_envio = $event"
+          />
+          
+          <div v-if="farmaco.medio_envio" class="mt-4 text-center text-gray-700">
+            <span class="font-semibold">
+              {{ esEdicion ? 'Medio de envío utilizado:' : 'Medio seleccionado:' }}
+            </span>
+            <span class="ml-1 text-blue-600 font-medium">
+              {{ obtenerNombreMedio(farmaco.medio_envio) }}
+            </span>
+            <p v-if="esEdicion" class="text-sm text-gray-500 mt-1">
+              (En modo edición el medio de envío no se puede cambiar)
+            </p>
+          </div>
+        </div>
         
         <div v-else class="text-center py-4">
           <p class="text-gray-500">Cargando información del dueño...</p>
-        </div>
-
-        <div v-if="farmaco.medio_envio" class="mt-4 text-center text-gray-700">
-          <span class="font-semibold">Medio seleccionado:</span>
-          <span class="ml-1 text-blue-600 font-medium">
-            {{ obtenerNombreMedio(farmaco.medio_envio) }}
-          </span>
         </div>
       </div>
 
@@ -225,11 +251,12 @@
           Cancelar
         </button>
         <button
-          type="submit"
-          :disabled="procesando"
+          type="button"
+          @click="mostrarModalConfirmacion"
+          :disabled="procesando || !formularioValido"
           class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
         >
-          {{ procesando ? 'Registrando...' : 'Registrar Fármaco' }}
+          {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar Fármaco' : 'Registrar Fármaco') }}
         </button>
       </div>
     </form>
@@ -243,23 +270,86 @@
       @cerrar="mostrarOverlayCentros = false"
       @seleccionar="seleccionarCentro"
     />
+
+    <!-- Modal de confirmación -->
+    <div v-if="mostrarModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <h3 class="text-xl font-bold mb-4">
+          {{ esEdicion ? 'Confirmar Actualización' : 'Confirmar Registro' }}
+        </h3>
+        
+        <div class="mb-6 space-y-3">
+          <p class="text-gray-700">
+            <span class="font-semibold">Tipo de fármaco:</span> {{ obtenerNombreTipoFarmaco() }}
+          </p>
+          <p class="text-gray-700">
+            <span class="font-semibold">Fecha administración:</span> {{ formatFechaHora(farmaco.fecha_administracion) }}
+          </p>
+          <p class="text-gray-700">
+            <span class="font-semibold">Frecuencia:</span> {{ farmaco.frecuencia }}
+          </p>
+          <p class="text-gray-700">
+            <span class="font-semibold">Duración:</span> {{ farmaco.duracion }}
+          </p>
+          <p class="text-gray-700">
+            <span class="font-semibold">Dosis:</span> {{ farmaco.dosis }} {{ farmaco.unidad }}
+          </p>
+          <p v-if="farmaco.centro_veterinario_id" class="text-gray-700">
+            <span class="font-semibold">Centro veterinario:</span> {{ obtenerNombreCentroSeleccionado() }}
+          </p>
+          <p v-if="farmaco.proxima_dosis" class="text-gray-700">
+            <span class="font-semibold">Próxima dosis:</span> {{ formatFechaHora(farmaco.proxima_dosis) }}
+          </p>
+          <p v-if="farmaco.reacciones" class="text-gray-700">
+            <span class="font-semibold">Reacciones adversas:</span> {{ farmaco.reacciones }}
+          </p>
+          <p v-if="farmaco.recomendaciones" class="text-gray-700">
+            <span class="font-semibold">Recomendaciones:</span> {{ farmaco.recomendaciones }}
+          </p>
+          <p v-if="farmaco.medio_envio" class="text-gray-700">
+            <span class="font-semibold">Medio de envío:</span> {{ obtenerNombreMedio(farmaco.medio_envio) }}
+          </p>
+          <p v-if="archivosCargados > 0" class="text-gray-700">
+            <span class="font-semibold">Archivos adjuntos:</span> {{ archivosCargados }} archivo(s)
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button
+            @click="cerrarModal"
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="confirmarAccion"
+            :disabled="procesando"
+            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:bg-blue-300"
+          >
+            {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar' : 'Registrar') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import SeleccionCentroVeterinario from '@/components/ElementosGraficos/SeleccionCentroVeterinario.vue'
 import CarruselMedioEnvio from '@/components/ElementosGraficos/CarruselMedioEnvio.vue'
 import { useAuth } from '@/composables/useAuth'
 
+const props = defineProps({
+  farmacoId: {
+    type: [String, Number],
+    default: null
+  }
+})
+
 const router = useRouter()
 const route = useRoute()
-const mascotaId = route.query.mascotaId
-
-console.log('🔍 Route query:', route.query)
-console.log('🔍 Mascota ID from query:', mascotaId)
-
 const { accessToken, isAuthenticated, checkAuth } = useAuth()
 
 // Estados reactivos
@@ -269,6 +359,24 @@ const mostrarOverlayCentros = ref(false)
 const procesando = ref(false)
 const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
+const mostrarModal = ref(false)
+
+// Determinar si es edición o registro
+const esEdicion = computed(() => {
+  return route.name === 'editarFarmaco' || !!route.params.farmacoId || !!props.farmacoId
+})
+
+const farmacoId = computed(() => {
+  return props.farmacoId || route.params.farmacoId || null
+})
+
+const mascotaId = computed(() => {
+  return route.query.mascotaId || route.params.mascotaId || null
+})
+
+console.log('🔍 Es edición fármaco:', esEdicion.value)
+console.log('🔍 Fármaco ID:', farmacoId.value)
+console.log('🔍 Mascota ID:', mascotaId.value)
 
 // Datos del formulario
 const farmaco = reactive({
@@ -287,10 +395,34 @@ const farmaco = reactive({
 
 const archivos = ref(Array.from({ length: 6 }, () => ({
   archivo: null,
-  preview: null
+  preview: null,
+  esExistente: false // Para diferenciar archivos nuevos de existentes
 })))
 
 const inputsArchivo = ref([])
+
+// Computed para validación del formulario
+const formularioValido = computed(() => {
+  const camposObligatorios = farmaco.tipo_farmaco_id && 
+    farmaco.fecha_administracion && 
+    farmaco.frecuencia && 
+    farmaco.duracion && 
+    farmaco.dosis && 
+    farmaco.unidad
+    
+  // Para registro, el medio de envío es obligatorio
+  if (!esEdicion.value) {
+    return camposObligatorios && farmaco.medio_envio
+  }
+  
+  // Para edición, solo los campos básicos son obligatorios
+  return camposObligatorios
+})
+
+// Contador de archivos cargados
+const archivosCargados = computed(() => {
+  return archivos.value.filter(archivo => archivo.archivo || archivo.esExistente).length
+})
 
 // Obtener ID del usuario dueño de la mascota
 const usuarioId = computed(() => {
@@ -319,12 +451,36 @@ const obtenerDireccionCentroSeleccionado = () => {
   return centro ? centro.direccion : ''
 }
 
+// Obtener nombre del tipo de fármaco
+const obtenerNombreTipoFarmaco = () => {
+  const tipo = tiposFarmaco.value.find(t => t.id == farmaco.tipo_farmaco_id)
+  return tipo ? `${tipo.nombre_comercial} (${tipo.nombre_generico})` : 'No seleccionado'
+}
+
+// Formatear fecha y hora
+const formatFechaHora = (fechaHora) => {
+  if (!fechaHora) return 'No especificada'
+  const fecha = new Date(fechaHora)
+  return fecha.toLocaleDateString('es-ES', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
 // Cargar datos de la mascota para obtener el usuario_id
 const cargarDatosMascota = async () => {
   try {
-    console.log('🔄 Cargando datos de mascota con ID:', mascotaId)
+    console.log('🔄 Cargando datos de mascota con ID:', mascotaId.value)
     
-    const response = await fetch(`/api/mascotas/${mascotaId}`, {
+    if (!mascotaId.value) {
+      console.warn('⚠️ No hay mascotaId para cargar datos')
+      return
+    }
+    
+    const response = await fetch(`/api/mascotas/${mascotaId.value}`, {
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
         'Accept': 'application/json'
@@ -383,18 +539,13 @@ const cargarTiposFarmaco = async () => {
     if (result.success && result.data) {
       tiposFarmaco.value = result.data;
       console.log('✅ Tipos de fármaco cargados:', tiposFarmaco.value.length, 'registros');
-      console.log('📋 Ejemplo del primer tipo:', tiposFarmaco.value[0]);
     } else {
       console.warn('⚠️ No se encontraron datos en la respuesta:', result);
       tiposFarmaco.value = [];
     }
   } catch (error) {
     console.error('❌ Error cargando tipos de fármaco:', error);
-    console.error('🔍 Stack trace:', error.stack);
-    
-    // Mostrar alerta más específica
-    alert('Error al cargar los tipos de fármaco: ' + error.message + 
-          '\n\nVerifica:\n1. Que estés autenticado\n2. Que el servidor esté funcionando\n3. Que la ruta /api/tipos-farmaco sea correcta');
+    alert('Error al cargar los tipos de fármaco: ' + error.message);
   }
 }
 
@@ -421,6 +572,88 @@ const cargarCentrosVeterinarios = async () => {
   }
 }
 
+// Cargar datos de fármaco existente (para edición)
+const cargarFarmacoExistente = async () => {
+  if (!farmacoId.value || !mascotaId.value) return
+  
+  try {
+    console.log('🔄 Cargando datos de fármaco con ID:', farmacoId.value, 'para mascota:', mascotaId.value)
+    
+    // CORRECCIÓN: Usar la ruta correcta con mascotaId
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/farmacos/${farmacoId.value}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    console.log('📦 Respuesta de fármaco:', result)
+    
+    if (result.success && result.data) {
+      const datosFarmaco = result.data
+      
+      // Actualizar el objeto farmaco con los datos existentes
+      Object.assign(farmaco, {
+          tipo_farmaco_id: datosFarmaco.tipo_farmaco_id,
+          fecha_administracion: datosFarmaco.fecha_administracion ? 
+              new Date(datosFarmaco.fecha_administracion).toISOString().slice(0, 16) : '',
+          dosis: datosFarmaco.dosis,
+          unidad: datosFarmaco.unidad, // Asegúrate que viene como 'unidad'
+          frecuencia: datosFarmaco.frecuencia,
+          duracion: datosFarmaco.duracion, // Asegúrate que viene como 'duracion'
+          centro_veterinario_id: datosFarmaco.centro_veterinario_id,
+          proxima_dosis: datosFarmaco.proxima_dosis ? 
+              new Date(datosFarmaco.proxima_dosis).toISOString().slice(0, 16) : '',
+          reacciones: datosFarmaco.reacciones || '',
+          recomendaciones: datosFarmaco.recomendaciones || '',
+          medio_envio: datosFarmaco.medio_envio || '',
+      })
+      
+      // Cargar archivos existentes si los hay
+      if (datosFarmaco.archivos && Array.isArray(datosFarmaco.archivos)) {
+        datosFarmaco.archivos.forEach((archivoData, index) => {
+          if (index < archivos.value.length) {
+            archivos.value[index] = {
+              archivo: { name: archivoData.nombre || `Archivo ${index + 1}` },
+              preview: archivoData.url || null,
+              esExistente: true
+            }
+          }
+        })
+      }
+      
+      console.log('✅ Datos de fármaco cargados:', farmaco)
+    } else {
+      console.warn('❌ No se encontraron datos de fármaco:', result)
+      alert('No se pudo cargar el fármaco a editar: ' + (result.message || 'Error desconocido'))
+      
+      // Redirigir a la página anterior
+      if (mascotaId.value) {
+        router.push({
+          name: 'veterinario-farmacos',
+          params: { id: mascotaId.value }
+        })
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error cargando datos de fármaco:', error)
+    alert('Error al cargar el fármaco: ' + error.message)
+    
+    // Redirigir a la página anterior
+    if (mascotaId.value) {
+      router.push({
+        name: 'veterinario-farmacos',
+        params: { id: mascotaId.value }
+      })
+    }
+  }
+}
+
 const onTipoFarmacoChange = () => {
   const tipoSeleccionado = tiposFarmaco.value.find(t => t.id == farmaco.tipo_farmaco_id)
   if (tipoSeleccionado) {
@@ -441,38 +674,77 @@ const seleccionarCentro = (centro) => {
 
 // Navegar al registro de nuevo tipo
 const abrirRegistroTipoFarmaco = () => {
+  const query = {
+    from: esEdicion.value ? `/editar/farmaco/${farmacoId.value}` : `/registro/farmaco/${mascotaId.value}`,
+    mascotaId: mascotaId.value
+  }
+  
   router.push({
     path: '/registro/registroTipoFarmaco',
-    query: {
-      from: `/mascotas/${mascotaId}/farmacos/crear`,
-      mascotaId
-    }
+    query
   })
 }
 
 const esImagen = (archivo) => {
   if (!archivo) return false
-  return archivo.type.startsWith('image/')
+  return archivo.type ? archivo.type.startsWith('image/') : false
 }
 
 const handleArchivo = (event, index) => {
+  if (esEdicion.value) return // No permitir cambios en modo edición
+  
   const file = event.target.files[0]
   if (file) {
     archivos.value[index].archivo = file
     archivos.value[index].preview = esImagen(file) ? URL.createObjectURL(file) : null
+    archivos.value[index].esExistente = false
   }
 }
 
 const activarInput = (index) => {
-  inputsArchivo.value[index]?.click()
+  if (!esEdicion.value) {
+    inputsArchivo.value[index]?.click()
+  }
 }
 
 const quitarArchivo = (index) => {
+  if (esEdicion.value) return // No permitir cambios en modo edición
+  
   if (archivos.value[index].preview) {
     URL.revokeObjectURL(archivos.value[index].preview)
   }
   archivos.value[index].archivo = null
   archivos.value[index].preview = null
+  archivos.value[index].esExistente = false
+}
+
+// Mostrar modal de confirmación
+const mostrarModalConfirmacion = () => {
+  if (!formularioValido.value) {
+    alert('Por favor complete todos los campos obligatorios')
+    return
+  }
+  
+  mostrarModal.value = true
+}
+
+// Cerrar modal
+const cerrarModal = () => {
+  mostrarModal.value = false
+}
+
+// Confirmar acción (registrar o actualizar)
+const confirmarAccion = () => {
+  if (esEdicion.value) {
+    actualizarFarmaco()
+  } else {
+    registrarFarmaco()
+  }
+}
+
+// Procesar formulario (ahora solo muestra el modal)
+const procesarFormulario = () => {
+  mostrarModalConfirmacion()
 }
 
 // Registrar fármaco
@@ -481,19 +753,7 @@ const registrarFarmaco = async () => {
 
   try {
     procesando.value = true
-
-    // Validar que se seleccionó un medio de envío
-    if (!farmaco.medio_envio) {
-      alert('Por favor seleccione un medio de envío para el registro')
-      return
-    }
-
-    // Validaciones básicas
-    if (!farmaco.tipo_farmaco_id || !farmaco.fecha_administracion || !farmaco.frecuencia || 
-        !farmaco.duracion || !farmaco.dosis || !farmaco.unidad) {
-      alert('Por favor complete todos los campos obligatorios')
-      return
-    }
+    cerrarModal()
 
     // Preparar FormData para enviar archivos
     const formData = new FormData()
@@ -505,16 +765,16 @@ const registrarFarmaco = async () => {
       }
     })
 
-    // Agregar archivos
+    // Agregar archivos nuevos
     archivos.value.forEach((archivo, index) => {
-      if (archivo.archivo) {
+      if (archivo.archivo && !archivo.esExistente) {
         formData.append(`archivos[${index}]`, archivo.archivo)
       }
     })
 
-    console.log('📤 Enviando datos a servidor:', Object.fromEntries(formData))
+    console.log('📤 Enviando datos a servidor para registro:', Object.fromEntries(formData))
 
-    const response = await fetch(`/api/mascotas/${mascotaId}/farmacos`, {
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/farmacos`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
@@ -545,9 +805,10 @@ const registrarFarmaco = async () => {
     }
 
     if (result.success) {
+      alert('✅ Fármaco registrado exitosamente')
       router.push({
         name: 'veterinario-farmacos',
-        params: { id: mascotaId },  // ¡Aquí está el cambio!
+        params: { id: mascotaId.value },
         query: {
           from: 'registroFarmaco',
           currentTab: 'Clinico',
@@ -565,16 +826,94 @@ const registrarFarmaco = async () => {
   }
 }
 
+// Actualizar fármaco existente
+const actualizarFarmaco = async () => {
+  if (procesando.value) return
+
+  try {
+    procesando.value = true
+    cerrarModal()
+
+    console.log('📤 Actualizando fármaco con ID:', farmacoId.value, 'para mascota:', mascotaId.value)
+    console.log('📤 Datos a enviar:', farmaco)
+
+    // CORRECCIÓN: Usar la ruta correcta con mascotaId
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/farmacos/${farmacoId.value}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: JSON.stringify(farmaco)
+    })
+
+    console.log('📨 Status:', response.status)
+    
+    const responseText = await response.text()
+    console.log('📄 Respuesta cruda:', responseText)
+
+    if (!responseText.trim()) {
+      throw new Error('El servidor devolvió una respuesta vacía')
+    }
+
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('No se pudo parsear como JSON:', responseText)
+      throw new Error('El servidor no devolvió JSON válido.')
+    }
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Error en la operación')
+    }
+
+    if (result.success) {
+      alert('✅ Fármaco actualizado exitosamente')
+      
+      const mascotaIdParaRedireccion = mascotaId.value || result.data?.mascota_id || result.data?.procesoMedico?.mascota_id
+      
+      if (mascotaIdParaRedireccion) {
+        router.push({
+          name: 'veterinario-farmacos',
+          params: { id: mascotaIdParaRedireccion },
+          query: {
+            from: 'editarFarmaco',
+            currentTab: 'Clinico',
+            ts: Date.now()
+          }
+        })
+      } else {
+        router.push({ name: 'veterinario-farmacos', params: { id: '0' } })
+      }
+    } else {
+      alert('Error al actualizar el fármaco: ' + result.message)
+    }
+  } catch (error) {
+    console.error('❌ Error completo:', error)
+    alert('Error al actualizar el fármaco: ' + error.message)
+  } finally {
+    procesando.value = false
+  }
+}
+
 const cancelar = () => {
-  router.push({
-        name: 'veterinario-farmacos',
-        params: { id: mascotaId },  // ¡Aquí está el cambio!
-        query: {
-          from: 'registroFarmaco',
-          currentTab: 'Clinico',
-          ts: Date.now()
-        }
-      })
+  const mascotaIdParaRedireccion = mascotaId.value
+  
+  if (mascotaIdParaRedireccion) {
+    router.push({
+      name: 'veterinario-farmacos',
+      params: { id: mascotaIdParaRedireccion },
+      query: {
+        from: esEdicion.value ? 'cancelarEditarFarmaco' : 'cancelarRegistroFarmaco',
+        currentTab: 'Clinico',
+        ts: Date.now()
+      }
+    })
+  } else {
+    router.push({ name: 'veterinario-farmacos', params: { id: '0' } })
+  }
 }
 
 // Verificar autenticación y cargar datos
@@ -590,23 +929,34 @@ onMounted(async () => {
     }
   }
 
-  // Cargar datos en orden
-  await cargarDatosMascota() // Primero cargar datos de mascota para obtener usuario_id
-  
-  if (errorCargandoMascota.value) {
-    console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
-    alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
-    return
+  // Si es edición, cargar datos del fármaco primero
+  if (esEdicion.value) {
+    await cargarFarmacoExistente()
   }
 
-  await cargarTiposFarmaco()
-  await cargarCentrosVeterinarios()
+  // Cargar datos en orden
+  if (mascotaId.value) {
+    await cargarDatosMascota()
+    
+    if (errorCargandoMascota.value) {
+      console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
+      alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
+      return
+    }
+  }
 
-  // Establecer fecha y hora actual como predeterminada
-  const ahora = new Date()
-  const offset = ahora.getTimezoneOffset() * 60000
-  const localISOTime = new Date(ahora.getTime() - offset).toISOString().slice(0, 16)
-  farmaco.fecha_administracion = localISOTime
+  await Promise.all([
+    cargarTiposFarmaco(),
+    cargarCentrosVeterinarios()
+  ])
+
+  // Establecer fecha y hora actual como predeterminada solo si es registro nuevo y no hay fecha
+  if (!esEdicion.value && !farmaco.fecha_administracion) {
+    const ahora = new Date()
+    const offset = ahora.getTimezoneOffset() * 60000
+    const localISOTime = new Date(ahora.getTime() - offset).toISOString().slice(0, 16)
+    farmaco.fecha_administracion = localISOTime
+  }
   
   console.log('✅ Componente completamente cargado')
   console.log('👤 Usuario ID final:', usuarioId.value)

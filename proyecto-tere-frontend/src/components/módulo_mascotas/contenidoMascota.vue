@@ -168,15 +168,22 @@
                         @error="onImgError"
                       />
                     </div>
-                  </div>
-
+                  </div> 
+                <!-- Reemplazar esta sección -->
                 <div
                   class="px-4 pt-4 pb-6 bg-white space-y-4"
                 >
                   <div class="space-y-2">
                     <h2 class="text-4xl font-bold text-gray-800">Ubicación Actual</h2>
-                    <p class="text-lg font-semibold text-gray-800">
-                      Argentina, Misiones, Apóstoles 
+                    
+                    <!-- Mostrar cargando -->
+                    <div v-if="cargandoUbicacion" class="text-gray-500">
+                      <span class="animate-pulse">Cargando ubicación...</span>
+                    </div>
+                    
+                    <!-- Mostrar ubicación -->
+                    <p v-else class="text-lg font-semibold text-gray-800">
+                      {{ ubicacionDisplay }}
                     </p>
                   </div>
                 </div>
@@ -262,7 +269,11 @@ const botonesSwipeRef = ref(null)
 
 const router = useRouter()
 const route = useRoute()
-const { accessToken, isAuthenticated, checkAuth } = useAuth()
+
+const ubicacionUsuario = ref(null)
+const cargandoUbicacion = ref(false)
+
+const { accessToken, isAuthenticated, checkAuth, obtenerUbicacionUsuario } = useAuth()
 
 const mascota = ref(null)
 const cargando = ref(true)
@@ -291,12 +302,21 @@ const { registrarInteraccion } = useInteracciones()
 const id = computed(() => route.params.id)
 const from = computed(() => route.query.from)
 
+defineOptions({
+  inheritAttrs: false
+});
+
 const props = defineProps({
   ofertaActual: {
     type: Object,
     default: null
+  },
+  // Agrega este prop para manejar el id
+  id: {
+    type: [String, Number],
+    default: null
   }
-})
+});
 
 // Define emits para comunicar acciones al padre
 const emit = defineEmits(['like', 'dislike', 'close', 'next', 'prev', 'swipe-completed'])
@@ -368,6 +388,100 @@ async function onMostrarAdvertencia(data) {
   }
 }
 
+// Función para cargar la ubicación del usuario
+async function cargarUbicacionUsuario() {
+  try {
+    cargandoUbicacion.value = true
+    
+    console.log('=== CARGANDO UBICACIÓN ===')
+    console.log('Mascota computada:', mascotaComputed.value)
+    console.log('Oferta actual:', props.ofertaActual)
+    
+    // ✅ Prioridad 1: Usar ubicación que ya viene en los datos de la mascota
+    if (mascotaComputed.value?.ubicacion) {
+      console.log('✅ Usando ubicación desde datos de la mascota:', mascotaComputed.value.ubicacion)
+      ubicacionUsuario.value = mascotaComputed.value.ubicacion
+      return
+    }
+    
+    // ✅ Prioridad 2: Usar ubicación textual si existe
+    if (mascotaComputed.value?.ubicacion_texto) {
+      console.log('✅ Usando ubicación textual:', mascotaComputed.value.ubicacion_texto)
+      ubicacionUsuario.value = {
+        city: mascotaComputed.value.ubicacion_texto.split(',')[0]?.trim(),
+        state: mascotaComputed.value.ubicacion_texto.split(',')[1]?.trim(),
+        country: mascotaComputed.value.ubicacion_texto.split(',')[2]?.trim()
+      }
+      return
+    }
+    
+    // ✅ Prioridad 3: Intentar obtener ubicación del tutor si tenemos su ID
+    const tutorId = mascotaComputed.value?.usuario_id || props.ofertaActual?.id_usuario_responsable
+    
+    if (tutorId) {
+      console.log('🔄 Obteniendo ubicación del tutor:', tutorId)
+      try {
+        const response = await axios.get(`/api/usuarios/${tutorId}/ubicacion`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken.value}`
+          }
+        })
+        
+        if (response.data.success) {
+          console.log('✅ Ubicación obtenida de API:', response.data.data)
+          ubicacionUsuario.value = response.data.data
+          return
+        }
+      } catch (apiError) {
+        console.error('Error obteniendo ubicación de API:', apiError)
+      }
+    }
+    
+    // ✅ Fallback a ubicación por defecto
+    console.log('⚠️ Usando ubicación por defecto')
+    ubicacionUsuario.value = {
+      city: 'Buenos Aires',
+      state: 'Buenos Aires',
+      country: 'Argentina'
+    }
+    
+  } catch (error) {
+    console.error('Error cargando ubicación:', error)
+    ubicacionUsuario.value = {
+      city: 'Buenos Aires',
+      state: 'Buenos Aires',
+      country: 'Argentina'
+    }
+  } finally {
+    cargandoUbicacion.value = false
+  }
+}
+
+// Computed para mostrar la ubicación formateada
+
+const ubicacionDisplay = computed(() => {
+    console.log('📌 Calculando ubicacionDisplay')
+    console.log('Ubicación usuario:', ubicacionUsuario.value)
+    console.log('Mascota computada ubicacion:', mascota.value?.ubicacion)
+    console.log('Mascota computada ubicacion_texto:', mascota.value?.ubicacion_texto)
+    
+    // Verificar si la mascota tiene ubicación
+    if (mascota.value?.ubicacion) {
+        console.log('✅ Mascota tiene ubicación propia:', mascota.value.ubicacion)
+        return mascota.value.ubicacion_texto || 
+               `${mascota.value.ubicacion.city}, ${mascota.value.ubicacion.country}`
+    }
+    
+    // Si no, usar ubicación del usuario (solo para demo)
+    if (ubicacionUsuario.value) {
+        const { city, state, country } = ubicacionUsuario.value
+        console.log('⚠️ Usando ubicación del usuario como fallback')
+        return [city, state, country].filter(Boolean).join(', ')
+    }
+    
+    console.log('❌ Sin ubicación disponible')
+    return 'Ubicación no disponible'
+})
 // Función para manejar el dislike
 async function onLike(data) {
   console.log('Like recibido desde BotonesSwipe:', data)
@@ -681,11 +795,13 @@ const mostrarBotonVolver = computed(() => from.value === 'cerca')
 
 // --- Cargar mascota desde oferta o directamente ---
 async function cargarMascota() {
-
   if (props.ofertaActual) {
-    mascota.value = props.ofertaActual.mascota
-    cargando.value = false
-    return
+    console.log('Usando oferta actual:', props.ofertaActual);
+    mascota.value = props.ofertaActual.mascota;
+    console.log('Mascota cargada desde props:', mascota.value);
+    console.log('Fotos de la mascota:', mascota.value?.fotos);
+    cargando.value = false;
+    return;
   }
 
   const idMascota = route.params.id || route.query.mascota_id;
@@ -693,6 +809,7 @@ async function cargarMascota() {
   
   // Si no hay ID, usar demo
   if (!idMascota && !idOferta) {
+    console.log('No hay ID, usando demo');
     mascota.value = null;
     return;
   }
@@ -708,14 +825,14 @@ async function cargarMascota() {
     if (idOferta && route.path.startsWith('/explorar/cerca/')) {
       // Cargar desde oferta de adopción
       endpoint = `/api/adopciones/ofertas/${idOferta}`;
+      console.log('Cargando desde oferta:', endpoint);
     } else if (idMascota) {
       // Cargar mascota directamente
       endpoint = `/api/mascotas/${idMascota}`;
+      console.log('Cargando mascota directa:', endpoint);
     } else {
       throw new Error('No se pudo determinar la ruta para cargar la mascota');
     }
-    
-    console.log('Cargando mascota desde:', endpoint);
     
     const response = await axios.get(endpoint, {
       headers: {
@@ -725,28 +842,35 @@ async function cargarMascota() {
       }
     });
 
+    console.log('Respuesta completa:', response.data);
+
     // Manejar diferentes estructuras de respuesta
     if (response.data.success) {
       if (response.data.data && response.data.data.mascota) {
         // Respuesta desde ofertas: { success: true, data: { mascota: {...} } }
         mascota.value = response.data.data.mascota;
+        console.log('Mascota cargada desde data.mascota:', mascota.value);
+        console.log('Fotos cargadas:', mascota.value?.fotos);
       } else if (response.data.data) {
         // Respuesta desde mascotas: { success: true, data: {...} }
         mascota.value = response.data.data;
+        console.log('Mascota cargada desde data:', mascota.value);
+        console.log('Fotos cargadas:', mascota.value?.fotos);
       } else if (response.data.mascota) {
         // Respuesta alternativa
         mascota.value = response.data.mascota;
+        console.log('Mascota cargada desde mascota:', mascota.value);
       } else {
         mascota.value = response.data;
+        console.log('Mascota cargada desde root:', mascota.value);
       }
     } else {
       throw new Error(response.data.message || 'Error en la respuesta del servidor');
     }
     
-    console.log('Mascota cargada:', mascota.value);
-    
   } catch (err) {
     console.error('Error cargando mascota:', err);
+    console.error('Detalles del error:', err.response?.data);
     error.value = err.response?.data?.message || err.message || 'No se pudo cargar la información de la mascota.';
     mascota.value = null;
   } finally {
@@ -797,10 +921,42 @@ const fotoPrincipal = computed(() => {
 })
 
 const galleryImages = computed(() => {
-  const fotos = mascotaComputed.value?.fotos || []
-  if (!fotos.length) return [burro]
-  return fotos.map(f => f.url || f.getUrl || burro)
-})
+  const fotos = mascotaComputed.value?.fotos || [];
+  console.log('Fotos disponibles para galería:', fotos);
+  
+  if (!fotos.length) {
+    console.log('No hay fotos, usando fallback');
+    return [burro];
+  }
+  
+  // Mapear correctamente las URLs
+  const urls = fotos.map(f => {
+    // Si la foto tiene un método getUrl (del accessor en el modelo)
+    if (f.url) {
+      console.log(`Foto ${f.id}: Usando f.url:`, f.url);
+      return f.url;
+    }
+    // Si es una ruta local
+    else if (f.ruta_foto) {
+      // Verificar si ya es una URL completa
+      if (f.ruta_foto.startsWith('http')) {
+        return f.ruta_foto;
+      }
+      // Construir URL desde storage
+      const url = `/storage/${f.ruta_foto.replace('storage/', '')}`;
+      console.log(`Foto ${f.id}: Construyendo URL:`, url);
+      return url;
+    }
+    // Fallback
+    else {
+      console.log(`Foto ${f.id}: Sin URL válida, usando fallback`);
+      return burro;
+    }
+  });
+  
+  console.log('URLs finales para galería:', urls);
+  return urls;
+});
 
 function onImgError(event) {
   event.target.src = burro
@@ -819,7 +975,11 @@ onMounted(async () => {
     initObserver()
   }
   
-  cargarMascota()
+  // Cargar datos
+  await Promise.all([
+    cargarMascota(),
+    cargarUbicacionUsuario() // Agregar esta llamada
+  ])
 })
 
 

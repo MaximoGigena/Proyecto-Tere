@@ -67,16 +67,39 @@
               placeholder="Especifique la categoría"
             />
           </div>
-
+          
+          <!-- REACCIONES COMUNES ASOCIADAS - MODIFICADO -->
           <div>
-            <label class="block font-medium">Reacción común asociada</label>
-            <input 
-              v-model="alergia.reaccion" 
-              type="text" 
-              required 
-              class="w-full border rounded p-2" 
-              placeholder="Ej: Diarrea, dermatitis, anafilaxia"
-            />
+            <label class="block font-medium">Reacciones comunes asociadas</label>
+            <div class="flex gap-2">
+              <textarea 
+                v-model="inputReacciones" 
+                rows="2" 
+                class="w-full border rounded p-2" 
+                placeholder="Ej: Urticaria, Prurito, Edema facial, Dificultad respiratoria, etc."
+              ></textarea>
+              <button 
+                type="button"
+                @click="agregarItem('reacciones')"
+                class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-blue-600 transition-colors"
+              >
+                <font-awesome-icon :icon="['fas', 'plus']" />
+              </button>
+            </div>
+            <!-- Lista de reacciones agregadas -->
+            <div v-if="reaccionesAgregadas.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+              <div v-for="(reaccion, index) in reaccionesAgregadas" :key="index" 
+                  class="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                <span>{{ reaccion }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('reacciones', index)"
+                  class="text-red-500 hover:text-red-700"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -156,25 +179,73 @@
             placeholder="Protocolo de tratamiento recomendado"
           ></textarea>
         </div>
-
+        
+        <!-- RECOMENDACIONES CLÍNICAS - MODIFICADO -->
         <div>
           <label class="block font-medium">Recomendaciones clínicas</label>
-          <textarea 
-            v-model="alergia.recomendaciones" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Consejos para manejo clínico"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRecomendaciones" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Ej: Evitar exposición, Mantener epinefrina a mano, Monitorear signos vitales, etc."
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('recomendaciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de recomendaciones agregadas -->
+          <div v-if="recomendacionesAgregadas.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-for="(recomendacion, index) in recomendacionesAgregadas" :key="index" 
+                class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+              <span>{{ recomendacion }}</span>
+              <button 
+                type="button"
+                @click="eliminarItem('recomendaciones', index)"
+                class="text-red-500 hover:text-red-700"
+              >
+                <font-awesome-icon :icon="['fas', 'times']" />
+              </button>
+            </div>
+          </div>
         </div>
-
+        
+        <!-- SUSTANCIAS/FACTORES DESENCADENANTES - MODIFICADO -->
         <div>
-          <label class="block font-medium">Sustancia/factor desencadenante</label>
-          <input 
-            v-model="alergia.desencadenante" 
-            type="text" 
-            class="w-full border rounded p-2" 
-            placeholder="Si se conoce"
-          />
+          <label class="block font-medium">Sustancias/factores desencadenantes</label>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputDesencadenantes" 
+              rows="2" 
+              class="w-full border rounded p-2" 
+              placeholder="Ej: Polen, Ácaros, Penicilina, Proteína de leche, etc."
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('desencadenantes')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de desencadenantes agregados -->
+          <div v-if="desencadenantesAgregados.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-for="(desencadenante, index) in desencadenantesAgregados" :key="index" 
+                class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+              <span>{{ desencadenante }}</span>
+              <button 
+                type="button"
+                @click="eliminarItem('desencadenantes', index)"
+                class="text-red-500 hover:text-red-700"
+              >
+                <font-awesome-icon :icon="['fas', 'times']" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="col-span-full">
@@ -220,8 +291,18 @@ import { useAuth } from '@/composables/useAuth'
 import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
 import ClinicalExaminationTree from '@/components/ElementosGraficos/arbolAnatomico.vue'
 
+// Inputs temporales para agregar elementos
+const inputReacciones = ref('')
+const inputRecomendaciones = ref('')
+const inputDesencadenantes = ref('')
+
+// Arrays para almacenar elementos agregados
+const reaccionesAgregadas = ref([])
+const recomendacionesAgregadas = ref([])
+const desencadenantesAgregados = ref([])
+
 const especiesSeleccionadas = ref([])
-const areasSeleccionadas = ref([]) // Para almacenar las áreas seleccionadas
+const areasSeleccionadas = ref([])
 const arbolAnatomicoRef = ref(null)
 
 const router = useRouter()
@@ -237,20 +318,97 @@ const alergia = reactive({
   descripcion: '',
   categoria: '',
   categoriaOtro: '',
-  reaccion: '',
+  reaccion: '', // Ahora será un string separado por comas
   riesgo: '',
   areas: [], // Array de nombres de áreas anatómicas
   otraArea: '',
   tratamiento: '',
-  recomendaciones: '',
+  recomendaciones: '', // Ahora será un string separado por comas
   especie: 'todos',
-  desencadenante: '',
+  desencadenante: '', // Ahora será un string separado por comas
   conducta: '',
   observaciones: ''
 })
 
+// Función para agregar elementos
+const agregarItem = (tipo) => {
+  let inputValue, arrayDestino
+  
+  switch(tipo) {
+    case 'reacciones':
+      inputValue = inputReacciones.value.trim()
+      arrayDestino = reaccionesAgregadas
+      break
+    case 'recomendaciones':
+      inputValue = inputRecomendaciones.value.trim()
+      arrayDestino = recomendacionesAgregadas
+      break
+    case 'desencadenantes':
+      inputValue = inputDesencadenantes.value.trim()
+      arrayDestino = desencadenantesAgregados
+      break
+    default:
+      return
+  }
+  
+  if (inputValue) {
+    // Verificar si ya existe (case insensitive)
+    const existe = arrayDestino.value.some(item => 
+      item.toLowerCase() === inputValue.toLowerCase()
+    )
+    
+    if (!existe) {
+      arrayDestino.value.push(inputValue)
+      
+      // Limpiar el input
+      switch(tipo) {
+        case 'reacciones': inputReacciones.value = ''; break
+        case 'recomendaciones': inputRecomendaciones.value = ''; break
+        case 'desencadenantes': inputDesencadenantes.value = ''; break
+      }
+    } else {
+      alert('Este elemento ya ha sido agregado')
+    }
+  }
+}
+
+// Función para eliminar elementos
+const eliminarItem = (tipo, index) => {
+  switch(tipo) {
+    case 'reacciones':
+      reaccionesAgregadas.value.splice(index, 1)
+      break
+    case 'recomendaciones':
+      recomendacionesAgregadas.value.splice(index, 1)
+      break
+    case 'desencadenantes':
+      desencadenantesAgregados.value.splice(index, 1)
+      break
+  }
+}
+
+// Watch para sincronizar arrays con los campos de la alergia
+watch([reaccionesAgregadas, recomendacionesAgregadas, desencadenantesAgregados], () => {
+  // Convertir arrays a strings separados por comas para el backend
+  alergia.reaccion = reaccionesAgregadas.value.length > 0 
+    ? reaccionesAgregadas.value.join(', ') 
+    : ''
+  
+  alergia.recomendaciones = recomendacionesAgregadas.value.length > 0 
+    ? recomendacionesAgregadas.value.join(', ') 
+    : ''
+  
+  alergia.desencadenante = desencadenantesAgregados.value.length > 0 
+    ? desencadenantesAgregados.value.join(', ') 
+    : ''
+  
+  console.log('Valores convertidos para backend:')
+  console.log('reaccion:', alergia.reaccion)
+  console.log('recomendaciones:', alergia.recomendaciones)
+  console.log('desencadenante:', alergia.desencadenante)
+}, { deep: true })
+
 // Función para manejar cambios en la selección del árbol
-// En handleArbolSelectionChange, evitar actualizar si no hay cambios
 const handleArbolSelectionChange = (data) => {
   const newAreaNames = data.areaNames
   
@@ -306,14 +464,29 @@ const cargarAlergia = async () => {
       alergia.descripcion = datos.descripcion || ''
       alergia.categoria = datos.categoria || ''
       alergia.categoriaOtro = datos.categoria_otro || ''
-      alergia.reaccion = datos.reaccion_comun || ''
       alergia.riesgo = datos.nivel_riesgo || ''
       alergia.otraArea = datos.otra_area || ''
       alergia.tratamiento = datos.tratamiento_recomendado || ''
-      alergia.recomendaciones = datos.recomendaciones_clinicas || ''
-      alergia.desencadenante = datos.desencadenante || ''
       alergia.conducta = datos.conducta_recomendada || ''
       alergia.observaciones = datos.observaciones_adicionales || ''
+      
+      // Convertir strings del backend a arrays
+      alergia.reaccion = datos.reaccion_comun || ''
+      alergia.recomendaciones = datos.recomendaciones_clinicas || ''
+      alergia.desencadenante = datos.desencadenante || ''
+      
+      // Convertir strings a arrays
+      reaccionesAgregadas.value = alergia.reaccion 
+        ? alergia.reaccion.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      recomendacionesAgregadas.value = alergia.recomendaciones 
+        ? alergia.recomendaciones.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      desencadenantesAgregados.value = alergia.desencadenante 
+        ? alergia.desencadenante.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
       
       // Cargar las especies objetivo
       if (datos.especies && Array.isArray(datos.especies)) {
@@ -347,6 +520,11 @@ const cargarAlergia = async () => {
         areasSeleccionadas.value = []
       }
       
+      console.log('✅ Datos cargados:')
+      console.log('✅ Reacciones cargadas:', reaccionesAgregadas.value)
+      console.log('✅ Recomendaciones cargadas:', recomendacionesAgregadas.value)
+      console.log('✅ Desencadenantes cargados:', desencadenantesAgregados.value)
+      
     } else {
       throw new Error(response.data.message || 'Error al cargar los datos')
     }
@@ -371,6 +549,11 @@ const registrarAlergia = async () => {
     }
 
     // Validaciones
+    if (reaccionesAgregadas.value.length === 0) {
+      alert('Debe agregar al menos una reacción común asociada')
+      return
+    }
+
     if (alergia.areas.length === 0 && !alergia.otraArea.trim()) {
       alert('Debe seleccionar al menos un área afectada')
       return
@@ -440,6 +623,11 @@ const actualizarAlergia = async () => {
     }
 
     // Validaciones
+    if (reaccionesAgregadas.value.length === 0) {
+      alert('Debe agregar al menos una reacción común asociada')
+      return
+    }
+
     if (alergia.areas.length === 0 && !alergia.otraArea.trim()) {
       alert('Debe seleccionar al menos un área afectada')
       return

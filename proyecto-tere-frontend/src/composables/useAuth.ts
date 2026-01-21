@@ -340,6 +340,26 @@ export const useAuth = () => {
     return false
   }
 
+  const obtenerUbicacionUsuario = async () => {
+    try {
+      if (!isAuthenticated.value) {
+        throw new Error('Usuario no autenticado')
+      }
+
+      const response = await axios.get('/api/user/location', {
+        headers: {
+          'Authorization': `Bearer ${accessToken.value}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      return response.data.data || response.data
+    } catch (error) {
+      console.error('Error obteniendo ubicación del usuario:', error)
+      return null
+    }
+  }
+
   return {
     user,
     loading,
@@ -361,5 +381,7 @@ export const useAuth = () => {
     redirectByRole,
     checkAndRedirectIfSuspended, // Nuevo método exportado
     handleSuspensionError, // Exportar para uso en otros lugares
+
+    obtenerUbicacionUsuario
   }
 }

@@ -1,4 +1,4 @@
-<!-- registrarTerapia.vue -->
+<!-- registrarTerapia.vue CON MODAL Y DETECCIÓN DE EDICIÓN -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -7,9 +7,10 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Terapia</h1>
+    <!-- TÍTULO DINÁMICO PARA EDICIÓN/REGISTRO -->
+    <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Terapia' : 'Registrar Terapia' }}</h1>
 
-    <form @submit.prevent="registrarTerapia" class="space-y-4">
+    <form @submit.prevent="procesarFormulario" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -117,15 +118,27 @@
               v-for="(archivo, index) in archivos"
               :key="index"
               class="relative border-2 border-dashed border-gray-600 rounded-md text-center cursor-pointer h-full aspect-square"
-              @click="!archivo.preview && activarInput(index)"
+              @click="!archivo.preview && !esEdicion && activarInput(index)"
             >
-              <button type="button" @click.stop="quitarArchivo(index)" v-if="archivo.preview" class="absolute top-1 right-1 bg-white rounded-full shadow z-10 text-red-500 hover:text-red-700 mt-35 -mr-2">
+              <!-- Solo mostrar botón de eliminar si no estamos en modo edición o si hay preview -->
+              <button 
+                type="button" 
+                @click.stop="quitarArchivo(index)" 
+                v-if="archivo.preview && !esEdicion" 
+                class="absolute top-1 right-1 bg-white rounded-full shadow z-10 text-red-500 hover:text-red-700 mt-35 -mr-2"
+              >
                 <font-awesome-icon :icon="['fas', 'circle-xmark']" class="text-3xl" />
               </button>
 
-              <input :ref="el => inputsArchivo[index] = el" type="file" @change="handleArchivo($event, index)" class="hidden" accept="image/*,.pdf,.doc,.docx" />
+              <!-- Mostrar archivo existente en modo edición -->
+              <div v-if="esEdicion && archivo.existente" class="h-full flex flex-col items-center justify-center p-2">
+                <font-awesome-icon :icon="['fas', 'file']" class="text-5xl text-gray-500 mb-2" />
+                <div class="text-xs truncate px-1">{{ archivo.nombre }}</div>
+                <div class="text-xs text-gray-500 mt-1">Archivo existente</div>
+              </div>
 
-              <div v-if="archivo.preview" class="h-full flex flex-col">
+              <!-- Mostrar preview de archivo nuevo -->
+              <div v-else-if="archivo.preview" class="h-full flex flex-col">
                 <img v-if="esImagen(archivo.archivo)" :src="archivo.preview" alt="Preview" class="w-full h-full object-cover rounded-md border-gray-300 mx-auto flex-grow" />
                 <div v-else class="h-full flex items-center justify-center p-2">
                   <font-awesome-icon :icon="['fas', 'file']" class="text-5xl text-gray-500" />
@@ -133,12 +146,26 @@
                 <div class="text-xs truncate px-1">{{ archivo.archivo.name }}</div>
               </div>
 
+              <!-- Input para agregar archivo (solo en registro o para agregar nuevos en edición) -->
               <div v-else class="text-green-400 mt-14">
                 <font-awesome-icon :icon="['fas', 'circle-plus']" class="text-4xl mb-2" />
                 <div class="text-gray-400">Agregar archivo</div>
               </div>
+
+              <!-- Input file solo si no es modo edición o para agregar nuevos -->
+              <input 
+                v-if="!esEdicion || !archivo.existente"
+                :ref="el => inputsArchivo[index] = el" 
+                type="file" 
+                @change="handleArchivo($event, index)" 
+                class="hidden" 
+                accept="image/*,.pdf,.doc,.docx" 
+              />
             </div>
           </div>
+          <p v-if="esEdicion" class="text-sm text-gray-500 mt-2">
+            Nota: En modo edición no se pueden modificar los archivos existentes. Para cambiar archivos, elimine y registre una nueva terapia.
+          </p>
         </div>
       </div>
 
@@ -183,6 +210,8 @@
         <CarruselMedioEnvio 
           v-if="usuarioId" 
           :usuario-id="usuarioId" 
+          :modo-edicion="esEdicion"
+          :medio-seleccionado-inicial="terapia.medio_envio"
           @update:medio="terapia.medio_envio = $event" 
         />
         
@@ -191,10 +220,15 @@
         </div>
 
         <div v-if="terapia.medio_envio" class="mt-4 text-center text-gray-700">
-          <span class="font-semibold">Medio seleccionado:</span>
+          <span class="font-semibold">
+            {{ esEdicion ? 'Medio de envío utilizado:' : 'Medio seleccionado:' }}
+          </span>
           <span class="ml-1 text-blue-600 font-medium">
             {{ obtenerNombreMedio(terapia.medio_envio) }}
           </span>
+          <p v-if="esEdicion" class="text-sm text-gray-500 mt-1">
+            (En modo edición el medio de envío no se puede cambiar)
+          </p>
         </div>
       </div>
 
@@ -207,11 +241,12 @@
           Cancelar
         </button>
         <button
-          type="submit"
-          :disabled="procesando"
+          type="button"
+          @click="mostrarModalConfirmacion"
+          :disabled="procesando || !formularioValido"
           class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
         >
-          {{ procesando ? 'Registrando...' : 'Registrar Terapia' }}
+          {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar Terapia' : 'Registrar Terapia') }}
         </button>
       </div>
     </form>
@@ -225,6 +260,94 @@
       @cerrar="mostrarOverlayCentros = false"
       @seleccionar="seleccionarCentro"
     />
+
+    <!-- MODAL DE CONFIRMACION -->
+    <div v-if="mostrarModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <!-- Título dinámico del modal -->
+        <h3 class="text-xl font-bold mb-4">
+          {{ esEdicion ? 'Confirmar Actualización' : 'Confirmar Registro' }} de Terapia
+        </h3>
+        
+        <div class="mb-6 space-y-3">
+          <p class="text-gray-700">
+            <span class="font-semibold">Tipo de terapia:</span> {{ obtenerNombreTipoTerapia() }}
+          </p>
+          <p class="text-gray-700">
+            <span class="font-semibold">Fecha inicio:</span> {{ formatFecha(terapia.fecha_inicio) }}
+          </p>
+          <p class="text-gray-700">
+            <span class="font-semibold">Frecuencia:</span> {{ obtenerNombreFrecuencia(terapia.frecuencia) }}
+          </p>
+          <p class="text-gray-700">
+            <span class="font-semibold">Duración:</span> {{ terapia.duracion_tratamiento }}
+          </p>
+          
+          <p v-if="terapia.centro_veterinario_id" class="text-gray-700">
+            <span class="font-semibold">Centro veterinario:</span> {{ obtenerNombreCentroSeleccionado() }}
+          </p>
+          
+          <p v-if="terapia.fecha_fin" class="text-gray-700">
+            <span class="font-semibold">Fecha finalización:</span> {{ formatFecha(terapia.fecha_fin) }}
+          </p>
+          
+          <p v-if="terapia.evolucion" class="text-gray-700">
+            <span class="font-semibold">Evolución:</span> {{ obtenerNombreEvolucion(terapia.evolucion) }}
+          </p>
+          
+          <p v-if="terapia.observaciones" class="text-gray-700">
+            <span class="font-semibold">Observaciones:</span> 
+            <span class="block text-sm mt-1 bg-gray-50 p-2 rounded">{{ terapia.observaciones.substring(0, 100) }}{{ terapia.observaciones.length > 100 ? '...' : '' }}</span>
+          </p>
+          
+          <p v-if="terapia.recomendaciones_tutor" class="text-gray-700">
+            <span class="font-semibold">Recomendaciones:</span>
+            <span class="block text-sm mt-1 bg-gray-50 p-2 rounded">{{ terapia.recomendaciones_tutor.substring(0, 100) }}{{ terapia.recomendaciones_tutor.length > 100 ? '...' : '' }}</span>
+          </p>
+          
+          <p v-if="terapia.medio_envio" class="text-gray-700">
+            <span class="font-semibold">Medio de envío:</span> {{ obtenerNombreMedio(terapia.medio_envio) }}
+          </p>
+          
+          <!-- Archivos en modo edición -->
+          <div v-if="esEdicion && archivosExistente.length > 0" class="text-gray-700">
+            <span class="font-semibold">Archivos existentes:</span>
+            <ul class="text-sm mt-1 list-disc list-inside">
+              <li v-for="(archivo, index) in archivosExistente" :key="index">
+                {{ archivo.nombre }}
+              </li>
+            </ul>
+            <p class="text-xs text-gray-500 mt-1">(Los archivos existentes se mantendrán)</p>
+          </div>
+          
+          <!-- Archivos nuevos -->
+          <div v-if="archivosAdjuntos.length > 0" class="text-gray-700">
+            <span class="font-semibold">{{ esEdicion ? 'Nuevos archivos a agregar:' : 'Archivos adjuntos:' }}</span>
+            <ul class="text-sm mt-1 list-disc list-inside">
+              <li v-for="(archivo, index) in archivosAdjuntos" :key="index">
+                {{ archivo.archivo.name }} ({{ formatFileSize(archivo.archivo.size) }})
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button
+            @click="cerrarModal"
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="confirmarAccion"
+            :disabled="procesando"
+            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:bg-blue-300"
+          >
+            {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar' : 'Registrar') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -239,8 +362,31 @@ const router = useRouter()
 const route = useRoute()
 const { accessToken, isAuthenticated, checkAuth } = useAuth()
 
-// Obtener el ID de la mascota desde la ruta
-const mascotaId = route.query.mascotaId || route.params.mascotaId
+const props = defineProps({
+  terapiaId: {
+    type: String,
+    default: null
+  }
+})
+
+// Determinar si es edición o registro
+const esEdicion = computed(() => {
+  return route.name === 'editarTerapia' || !!route.params.terapiaId
+})
+
+const terapiaId = computed(() => {
+  return props.terapiaId || route.params.terapiaId || null
+})
+
+const mascotaId = computed(() => {
+  return route.query.mascotaId || route.params.mascotaId || null
+})
+
+console.log('🔍 Route params:', route.params)
+console.log('🔍 Route query:', route.query)
+console.log('🔍 Es edición:', esEdicion.value)
+console.log('🔍 Terapia ID:', terapiaId.value)
+console.log('🔍 Mascota ID:', mascotaId.value)
 
 // Estados reactivos
 const tiposTerapia = ref([])
@@ -249,6 +395,7 @@ const mostrarOverlayCentros = ref(false)
 const procesando = ref(false)
 const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
+const mostrarModal = ref(false)
 
 // Datos del formulario
 const terapia = reactive({
@@ -265,12 +412,41 @@ const terapia = reactive({
   medio_envio: ''
 })
 
-// Archivos adjuntos
+// Archivos adjuntos (estructura modificada para soportar edición)
 const archivos = ref(Array.from({ length: 6 }, () => ({
   archivo: null,
-  preview: null
+  preview: null,
+  existente: false,
+  nombre: '',
+  id: null
 })))
 const inputsArchivo = ref([])
+
+// Computed para validación del formulario
+const formularioValido = computed(() => {
+  const camposObligatorios = terapia.tipo_terapia_id && 
+    terapia.fecha_inicio && 
+    terapia.frecuencia && 
+    terapia.duracion_tratamiento
+  
+  // Para registro, el medio de envío es obligatorio
+  if (!esEdicion.value) {
+    return camposObligatorios && terapia.medio_envio
+  }
+  
+  // Para edición, solo los campos básicos son obligatorios
+  return camposObligatorios
+})
+
+// Obtener archivos adjuntos (nuevos)
+const archivosAdjuntos = computed(() => {
+  return archivos.value.filter(a => a.archivo !== null && !a.existente)
+})
+
+// Obtener archivos existentes (en modo edición)
+const archivosExistente = computed(() => {
+  return archivos.value.filter(a => a.existente)
+})
 
 // Obtener ID del usuario dueño de la mascota
 const usuarioId = computed(() => {
@@ -287,24 +463,77 @@ const obtenerNombreMedio = (medioId) => {
   return medios[medioId] || medioId
 }
 
+// Función para obtener nombre del tipo de terapia
+const obtenerNombreTipoTerapia = () => {
+  const tipo = tiposTerapia.value.find(t => t.id == terapia.tipo_terapia_id)
+  return tipo ? tipo.nombre : 'No seleccionado'
+}
+
+// Función para obtener nombre de la frecuencia
+const obtenerNombreFrecuencia = (frecuencia) => {
+  const frecuencias = {
+    diaria: 'Diaria',
+    semanal: 'Semanal',
+    quincenal: 'Quincenal',
+    mensual: 'Mensual',
+    personalizada: 'Personalizada'
+  }
+  return frecuencias[frecuencia] || frecuencia
+}
+
+// Función para obtener nombre de la evolución
+const obtenerNombreEvolucion = (evolucion) => {
+  const evoluciones = {
+    mejoria: 'Mejoría',
+    estable: 'Estable',
+    empeoramiento: 'Empeoramiento'
+  }
+  return evoluciones[evolucion] || evolucion
+}
+
+// Formatear fecha
+const formatFecha = (fecha) => {
+  if (!fecha) return 'No especificada'
+  return new Date(fecha).toLocaleDateString('es-ES')
+}
+
+// Formatear tamaño de archivo
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
 // Obtener nombre del centro seleccionado
 const obtenerNombreCentroSeleccionado = () => {
+  if (!terapia.centro_veterinario_id) return 'No seleccionado'
+  
   const centro = centrosVeterinarios.value.find(c => c.id === terapia.centro_veterinario_id)
   return centro ? centro.nombre : 'Centro no encontrado'
 }
 
 // Obtener dirección del centro seleccionado
 const obtenerDireccionCentroSeleccionado = () => {
+  if (!terapia.centro_veterinario_id) return ''
+  
   const centro = centrosVeterinarios.value.find(c => c.id === terapia.centro_veterinario_id)
   return centro ? centro.direccion : ''
 }
 
+
 // Cargar datos de la mascota
 const cargarDatosMascota = async () => {
   try {
-    console.log('🔄 Cargando datos de mascota con ID:', mascotaId)
+    console.log('🔄 Cargando datos de mascota con ID:', mascotaId.value)
     
-    const response = await fetch(`/api/mascotas/${mascotaId}`, {
+    if (!mascotaId.value) {
+      console.warn('⚠️ No hay mascotaId para cargar datos')
+      return
+    }
+    
+    const response = await fetch(`/api/mascotas/${mascotaId.value}`, {
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
         'Accept': 'application/json'
@@ -384,6 +613,57 @@ const cargarCentrosVeterinarios = async () => {
   }
 }
 
+
+const cargarTerapiaExistente = async () => {
+  if (!terapiaId.value) return
+  
+  try {
+    console.log('🔄 Cargando datos de terapia con ID:', terapiaId.value)
+    
+    const response = await fetch(`/api/terapias/${terapiaId.value}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    console.log('📦 Respuesta de terapia:', result)
+    
+    if (result.success && result.data) {
+      const datos = result.data
+      
+      // Actualizar el objeto terapia de manera más simple
+      Object.assign(terapia, {
+        tipo_terapia_id: datos.tipo_terapia_id,
+        fecha_inicio: datos.fecha_inicio?.split('T')[0] || '',
+        frecuencia: datos.frecuencia,
+        duracion_tratamiento: datos.duracion_tratamiento,
+        centro_veterinario_id: datos.centro_veterinario_id, // Ya viene en el nivel raíz
+        costo: datos.costo,
+        fecha_fin: datos.fecha_fin?.split('T')[0] || '',
+        evolucion: datos.evolucion,
+        observaciones: datos.observaciones || datos.proceso_medico?.observaciones || '',
+        recomendaciones_tutor: datos.recomendaciones_tutor,
+        medio_envio: datos.medio_envio || '',
+      })
+      
+      console.log('✅ Datos cargados en formulario:', { ...terapia })
+      
+    } else {
+      console.warn('❌ No se encontraron datos de terapia:', result)
+      alert('No se pudo cargar la terapia a editar')
+    }
+  } catch (error) {
+    console.error('❌ Error cargando datos de terapia:', error)
+    alert('Error al cargar la terapia: ' + error.message)
+  }
+}
+
 const onTipoTerapiaChange = () => {
   const tipoSeleccionado = tiposTerapia.value.find(t => t.id == terapia.tipo_terapia_id)
   if (tipoSeleccionado) {
@@ -404,12 +684,14 @@ const seleccionarCentro = (centro) => {
 
 // Navegar al registro de nuevo tipo
 const abrirRegistroTipoTerapia = () => {
+  const query = {
+    from: esEdicion.value ? `/editar/terapia/${terapiaId.value}` : `/registro/terapia/${mascotaId.value}`,
+    mascotaId: mascotaId.value
+  }
+  
   router.push({
     path: '/registro/registroTipoTerapia',
-    query: {
-      from: `/mascotas/${mascotaId}/terapias/crear`,
-      mascotaId
-    }
+    query
   })
 }
 
@@ -428,41 +710,75 @@ const handleArchivo = (event, index) => {
       return
     }
     
-    archivos.value[index].archivo = file
-    archivos.value[index].preview = esImagen(file) ? URL.createObjectURL(file) : null
+    // Solo permitir reemplazar si no es un archivo existente
+    if (!archivos.value[index].existente) {
+      archivos.value[index].archivo = file
+      archivos.value[index].preview = esImagen(file) ? URL.createObjectURL(file) : null
+      archivos.value[index].existente = false
+    } else {
+      alert('No se puede reemplazar un archivo existente en modo edición')
+    }
   }
 }
 
 const activarInput = (index) => {
-  inputsArchivo.value[index]?.click()
+  if (!esEdicion.value || !archivos.value[index].existente) {
+    inputsArchivo.value[index]?.click()
+  }
 }
 
 const quitarArchivo = (index) => {
+  // En modo edición, no permitir eliminar archivos existentes
+  if (esEdicion.value && archivos.value[index].existente) {
+    alert('No se pueden eliminar archivos existentes en modo edición')
+    return
+  }
+  
   if (archivos.value[index].preview) {
     URL.revokeObjectURL(archivos.value[index].preview)
   }
   archivos.value[index].archivo = null
   archivos.value[index].preview = null
+  archivos.value[index].existente = false
+  archivos.value[index].nombre = ''
 }
 
-// Registrar terapia
+// Mostrar modal de confirmación
+const mostrarModalConfirmacion = () => {
+  if (!formularioValido.value) {
+    alert('Por favor complete todos los campos obligatorios')
+    return
+  }
+  
+  mostrarModal.value = true
+}
+
+// Cerrar modal
+const cerrarModal = () => {
+  mostrarModal.value = false
+}
+
+// Confirmar acción (registrar o actualizar)
+const confirmarAccion = () => {
+  if (esEdicion.value) {
+    actualizarTerapia()
+  } else {
+    registrarTerapia()
+  }
+}
+
+// Procesar formulario (ahora solo muestra el modal)
+const procesarFormulario = () => {
+  mostrarModalConfirmacion()
+}
+
+// Registrar terapia (modificada para usar desde el modal)
 const registrarTerapia = async () => {
   if (procesando.value) return
 
   try {
     procesando.value = true
-
-    // Validar campos obligatorios
-    if (!terapia.tipo_terapia_id || !terapia.fecha_inicio || !terapia.frecuencia || !terapia.duracion_tratamiento) {
-      alert('Por favor complete todos los campos obligatorios')
-      return
-    }
-
-    // Validar que se seleccionó un medio de envío
-    if (!terapia.medio_envio) {
-      alert('Por favor seleccione un medio de envío para el reporte de terapia')
-      return
-    }
+    cerrarModal()
 
     const formData = new FormData()
     
@@ -480,13 +796,13 @@ const registrarTerapia = async () => {
       }
     })
 
-    console.log('📤 Enviando datos de terapia a servidor:', {
-      mascotaId,
+    console.log('📤 Enviando datos de terapia a servidor para REGISTRO:', {
+      mascotaId: mascotaId.value,
       terapia: { ...terapia },
       archivosCount: archivos.value.filter(a => a.archivo).length
     })
 
-    const response = await fetch(`/api/mascotas/${mascotaId}/terapias`, {
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/terapias`, {
       method: 'POST',
       headers: {
         'X-Requested-With': 'XMLHttpRequest',
@@ -519,12 +835,12 @@ const registrarTerapia = async () => {
         }
       })
       
-      alert('Terapia registrada exitosamente')
+      alert('✅ Terapia registrada exitosamente')
       
       // Redirigir al historial de terapias
       router.push({
         name: 'veterinario-terapias',
-        params: { id: mascotaId },
+        params: { id: mascotaId.value },
         query: {
           from: 'registroTerapia',
           currentTab: 'Terapias',
@@ -542,6 +858,96 @@ const registrarTerapia = async () => {
   }
 }
 
+// Actualizar terapia existente
+const actualizarTerapia = async () => {
+  if (procesando.value) return
+
+  try {
+    procesando.value = true
+    cerrarModal()
+
+    // Preparar payload como JSON (no FormData)
+    const payload = {
+      tipo_terapia_id: terapia.tipo_terapia_id,
+      fecha_inicio: terapia.fecha_inicio,
+      frecuencia: terapia.frecuencia,
+      duracion_tratamiento: terapia.duracion_tratamiento,
+      centro_veterinario_id: terapia.centro_veterinario_id,
+      costo: terapia.costo,
+      fecha_fin: terapia.fecha_fin,
+      evolucion: terapia.evolucion,
+      observaciones: terapia.observaciones,
+      recomendaciones_tutor: terapia.recomendaciones_tutor,
+      medio_envio: terapia.medio_envio,
+    }
+
+    console.log('📤 Actualizando terapia con ID:', terapiaId.value)
+    console.log('📤 Datos a enviar:', payload)
+
+    const response = await fetch(`/api/terapias/${terapiaId.value}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: JSON.stringify(payload)
+    })
+
+    const responseText = await response.text()
+    console.log('📨 Status:', response.status, 'Respuesta:', responseText)
+
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('No se pudo parsear como JSON:', responseText)
+      throw new Error('El servidor no devolvió JSON válido')
+    }
+
+    if (!response.ok) {
+      const errorMessage = result.message || 
+                          (result.errors ? Object.values(result.errors).flat().join(', ') : 'Error en la operación')
+      throw new Error(errorMessage)
+    }
+
+    if (result.success) {
+      // Limpiar URLs de previsualización de archivos nuevos
+      archivos.value.forEach(archivo => {
+        if (archivo.preview) {
+          URL.revokeObjectURL(archivo.preview)
+        }
+      })
+      
+      alert('✅ Terapia actualizada exitosamente')
+      
+      const mascotaIdParaRedireccion = mascotaId.value || result.data?.proceso_medico?.mascota_id
+      
+      if (mascotaIdParaRedireccion) {
+        router.push({
+          name: 'veterinario-terapias',
+          params: { id: mascotaIdParaRedireccion },
+          query: {
+            from: 'editarTerapia',
+            currentTab: 'Terapias',
+            ts: Date.now()
+          }
+        })
+      } else {
+        router.push({ name: 'veterinario-terapias', params: { id: '0' } })
+      }
+    } else {
+      alert('Error al actualizar la terapia: ' + result.message)
+    }
+  } catch (error) {
+    console.error('❌ Error completo:', error)
+    alert('Error al actualizar la terapia: ' + error.message)
+  } finally {
+    procesando.value = false
+  }
+}
+
 const cancelar = () => {
   // Limpiar URLs de previsualización
   archivos.value.forEach(archivo => {
@@ -550,15 +956,21 @@ const cancelar = () => {
     }
   })
   
-  router.push({
-    name: 'veterinario-terapias',
-    params: { id: mascotaId },
-    query: {
-      from: 'cancelarRegistroTerapia',
-      currentTab: 'Terapias',
-      ts: Date.now()
-    }
-  })
+  const mascotaIdParaRedireccion = mascotaId.value
+  
+  if (mascotaIdParaRedireccion) {
+    router.push({
+      name: 'veterinario-terapias',
+      params: { id: mascotaIdParaRedireccion },
+      query: {
+        from: esEdicion.value ? 'cancelarEditarTerapia' : 'cancelarRegistroTerapia',
+        currentTab: 'Terapias',
+        ts: Date.now()
+      }
+    })
+  } else {
+    router.push({ name: 'veterinario-terapias', params: { id: '0' } })
+  }
 }
 
 // Verificar autenticación y cargar datos
@@ -574,27 +986,32 @@ onMounted(async () => {
     }
   }
 
-  if (!mascotaId) {
-    alert('No se especificó la mascota')
-    router.back()
-    return
+  // Si es edición, cargar datos de la terapia primero
+  if (esEdicion.value) {
+    await cargarTerapiaExistente()
   }
 
   // Cargar datos en orden
-  await cargarDatosMascota()
-  
-  if (errorCargandoMascota.value) {
-    console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
-    alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
-    return
+  if (mascotaId.value) {
+    await cargarDatosMascota()
+    
+    if (errorCargandoMascota.value) {
+      console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
+      alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
+      return
+    }
   }
 
-  await cargarTiposTerapia()
-  await cargarCentrosVeterinarios()
+  await Promise.all([
+    cargarTiposTerapia(),
+    cargarCentrosVeterinarios()
+  ])
 
-  // Establecer fecha actual como predeterminada
-  const hoy = new Date().toISOString().split('T')[0]
-  terapia.fecha_inicio = hoy
+  // Establecer fecha actual como predeterminada solo si es registro nuevo y no hay fecha
+  if (!esEdicion.value && !terapia.fecha_inicio) {
+    const hoy = new Date().toISOString().split('T')[0]
+    terapia.fecha_inicio = hoy
+  }
   
   console.log('✅ Componente completamente cargado')
 })

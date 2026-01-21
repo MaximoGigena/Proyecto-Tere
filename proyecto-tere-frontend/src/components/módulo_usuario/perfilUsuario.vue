@@ -216,6 +216,7 @@ const cargarUsuario = async () => {
     error.value = ''
 
     console.log('🔐 PERFIL - Verificando autenticación...')
+    console.log('🔐 User completo:', JSON.stringify(user.value, null, 2))
     
     const autenticado = await checkAuth()
     
@@ -226,6 +227,15 @@ const cargarUsuario = async () => {
       cargando.value = false
       return
     }
+
+    // DEPURACIÓN DETALLADA
+    console.log('🔍 DEPURACIÓN DE USER OBJECT:', {
+      user: user.value,
+      userable_id: user.value?.userable_id,
+      id: user.value?.id,
+      userable_type: user.value?.userable_type,
+      isUsuario: isUsuario()
+    })
 
     const userId = user.value?.userable_id || user.value?.id
     console.log('🔍 ID del usuario a buscar:', userId)

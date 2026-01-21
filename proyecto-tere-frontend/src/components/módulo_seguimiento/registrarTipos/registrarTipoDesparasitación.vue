@@ -38,37 +38,14 @@
             </div>
           </div>
 
+          <!-- COMPONENTE DE SELECCIÓN DE PARÁSITOS (ÁRBOL JERÁRQUICO) -->
           <div>
-            <label class="block font-medium">Parásitos tratados</label>
-            <div class="flex flex-wrap gap-2">
-              <label class="flex items-center space-x-2">
-                <input type="checkbox" v-model="desparasitacion.parasitos" value="internos" class="rounded">
-                <span>Internos</span>
-              </label>
-              <label class="flex items-center space-x-2">
-                <input type="checkbox" v-model="desparasitacion.parasitos" value="externos" class="rounded">
-                <span>Externos</span>
-              </label>
-              <label class="flex items-center space-x-2">
-                <input type="checkbox" v-model="desparasitacion.parasitos" value="pulgas" class="rounded">
-                <span>Pulgas</span>
-              </label>
-              <label class="flex items-center space-x-2">
-                <input type="checkbox" v-model="desparasitacion.parasitos" value="garrapatas" class="rounded">
-                <span>Garrapatas</span>
-              </label>
-              <label class="flex items-center space-x-2">
-                <input type="checkbox" v-model="desparasitacion.parasitos" value="otros" class="rounded">
-                <span>Otros</span>
-              </label>
-            </div>
-            <input 
-              v-if="desparasitacion.parasitos.includes('otros')"
-              v-model="desparasitacion.otrosParasitos"
-              type="text"
-              class="w-full border rounded p-2 mt-2"
-              placeholder="Especifique otros parásitos"
-            >
+            <SeleccionarParasito 
+              ref="parasitosSelector"
+              :initial-selection="parasitosInitialSelection"
+              @selection-change="handleParasitosChange"
+              @input="handleParasitosInput"
+            />
           </div>
 
           <div>
@@ -82,20 +59,17 @@
             </select>
           </div>
 
-           <div>
+          <div>
             <label class="block font-medium mb-2">Especie objetivo</label>
             <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
             <p v-if="!especiesSeleccionadas.length" class="text-sm text-gray-500 mt-1">
               Seleccione una o más especies objetivo
             </p>
           </div>
-
         </div>
 
         <!-- Columna derecha -->
         <div class="space-y-4">
-
-
           <div>
             <label class="block font-medium">Edad mínima de aplicación</label>
             <div class="flex">
@@ -152,24 +126,70 @@
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
+        <!-- RECOMENDACIONES PROFESIONALES -->
         <div>
           <label class="block font-medium">Recomendaciones profesionales</label>
-          <textarea 
-            v-model="desparasitacion.recomendaciones" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Consejos para su aplicación"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRecomendaciones" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Ej: Administrar con alimento, Evitar baño por 48h, etc."
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('recomendaciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <div v-if="recomendacionesAgregadas.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-for="(recomendacion, index) in recomendacionesAgregadas" :key="index" 
+                class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+              <span>{{ recomendacion }}</span>
+              <button 
+                type="button"
+                @click="eliminarItem('recomendaciones', index)"
+                class="text-red-500 hover:text-red-700"
+              >
+                <font-awesome-icon :icon="['fas', 'times']" />
+              </button>
+            </div>
+          </div>
         </div>
 
+        <!-- RIESGOS CONOCIDOS -->
         <div>
           <label class="block font-medium">Riesgos conocidos</label>
-          <textarea 
-            v-model="desparasitacion.riesgos" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Efectos adversos reportados"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRiesgos" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Ej: Vómitos ocasionales, Letargo temporal, Reacción alérgica, etc."
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('riesgos')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <div v-if="riesgosAgregados.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-for="(riesgo, index) in riesgosAgregados" :key="index" 
+                class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+              <span>{{ riesgo }}</span>
+              <button 
+                type="button"
+                @click="eliminarItem('riesgos', index)"
+                class="text-red-500 hover:text-red-700"
+              >
+                <font-awesome-icon :icon="['fas', 'times']" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="col-span-full">
@@ -230,11 +250,46 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
+import SeleccionarParasito from '@/components/ElementosGraficos/SeleccionarParasito.vue' // Asegúrate de que la ruta sea correcta
+
+// Inputs temporales para agregar elementos
+const inputRecomendaciones = ref('')
+const inputRiesgos = ref('')
+
+// Arrays para almacenar elementos agregados
+const recomendacionesAgregadas = ref([])
+const riesgosAgregados = ref([])
+
 const especiesSeleccionadas = ref([])
 
+// Referencia al componente de selección de parásitos
+const parasitosSelector = ref(null)
+
+// Datos iniciales para el componente SeleccionarParasito
+const parasitosInitialSelection = ref({
+  internal: {
+    predefined: [],
+    other: ''
+  },
+  external: {
+    predefined: [],
+    other: ''
+  }
+})
+
+// Watch para sincronizar arrays con los campos de la desparasitación
+watch([recomendacionesAgregadas, riesgosAgregados], () => {
+  desparasitacion.recomendaciones = recomendacionesAgregadas.value.length > 0 
+    ? recomendacionesAgregadas.value.join(', ') 
+    : ''
+  
+  desparasitacion.riesgos = riesgosAgregados.value.length > 0 
+    ? riesgosAgregados.value.join(', ') 
+    : ''
+}, { deep: true })
+
 watch(especiesSeleccionadas, (val) => {
-  // Asignar el array directamente a desparasitacion.especies
-  desparasitacion.especies = [...val] // o simplemente val
+  desparasitacion.especies = [...val]
 }, { deep: true, flush: 'post' })
 
 const router = useRouter()
@@ -247,10 +302,20 @@ const showModal = ref(false)
 const esEdicion = ref(false)
 const tipoId = ref(null)
 
+// Ahora usamos el formato que espera el componente SeleccionarParasito
 const desparasitacion = reactive({
   nombre: '',
-  parasitos: [],
-  otrosParasitos: '',
+  // Cambiamos la estructura para compatibilidad con el árbol de parásitos
+  parasitosData: {
+    internal: {
+      predefined: [],
+      other: ''
+    },
+    external: {
+      predefined: [],
+      other: ''
+    }
+  },
   via: '',
   especies: [],
   edadMinima: '',
@@ -262,15 +327,94 @@ const desparasitacion = reactive({
   dosis: ''
 })
 
-// Computed para validar el formulario
+// Manejar cambios en la selección de parásitos
+const handleParasitosChange = (selectedData) => {
+  console.log('Parásitos seleccionados:', selectedData)
+  
+  // Actualizar los datos en el formulario principal
+  desparasitacion.parasitosData = {
+    internal: {
+      predefined: selectedData.internal.predefined || [],
+      other: selectedData.internal.other || ''
+    },
+    external: {
+      predefined: selectedData.external.predefined || [],
+      other: selectedData.external.other || ''
+    }
+  }
+}
+
+// Para compatibilidad con v-model
+const handleParasitosInput = (value) => {
+  desparasitacion.parasitosData = value
+}
+
+// Función para agregar elementos
+const agregarItem = (tipo) => {
+  let inputValue, arrayDestino
+  
+  switch(tipo) {
+    case 'recomendaciones':
+      inputValue = inputRecomendaciones.value.trim()
+      arrayDestino = recomendacionesAgregadas
+      break
+    case 'riesgos':
+      inputValue = inputRiesgos.value.trim()
+      arrayDestino = riesgosAgregados
+      break
+    default:
+      return
+  }
+  
+  if (inputValue) {
+    const existe = arrayDestino.value.some(item => 
+      item.toLowerCase() === inputValue.toLowerCase()
+    )
+    
+    if (!existe) {
+      arrayDestino.value.push(inputValue)
+      
+      switch(tipo) {
+        case 'recomendaciones': inputRecomendaciones.value = ''; break
+        case 'riesgos': inputRiesgos.value = ''; break
+      }
+    } else {
+      alert('Este elemento ya ha sido agregado')
+    }
+  }
+}
+
+// Función para eliminar elementos
+const eliminarItem = (tipo, index) => {
+  switch(tipo) {
+    case 'recomendaciones':
+      recomendacionesAgregadas.value.splice(index, 1)
+      break
+    case 'riesgos':
+      riesgosAgregados.value.splice(index, 1)
+      break
+  }
+}
+
+// Computed para validar el formulario (actualizada para el nuevo formato)
 const isFormValid = computed(() => {
+  // Verificar si hay al menos un parásito seleccionado
+  const hasInternalParasitos = 
+    (desparasitacion.parasitosData.internal.predefined?.length > 0) ||
+    (desparasitacion.parasitosData.internal.other?.trim() !== '')
+  
+  const hasExternalParasitos = 
+    (desparasitacion.parasitosData.external.predefined?.length > 0) ||
+    (desparasitacion.parasitosData.external.other?.trim() !== '')
+  
+  const hasParasitos = hasInternalParasitos || hasExternalParasitos
+  
   return desparasitacion.nombre.trim() !== '' &&
-         desparasitacion.parasitos.length > 0 &&
+         hasParasitos &&
          desparasitacion.via !== '' &&
          desparasitacion.especies.length > 0 &&
          desparasitacion.edadMinima !== '' &&
-         desparasitacion.frecuencia !== '' &&
-         (!desparasitacion.parasitos.includes('otros') || desparasitacion.otrosParasitos.trim() !== '')
+         desparasitacion.frecuencia !== ''
 })
 
 // Verificar si es edición
@@ -304,8 +448,6 @@ const cargarDatosDesparasitacion = async () => {
       
       // Mapear los datos del API al formulario
       desparasitacion.nombre = tipo.nombre || ''
-      desparasitacion.parasitos = Array.isArray(tipo.parasitos) ? tipo.parasitos : []
-      desparasitacion.otrosParasitos = tipo.otros_parasitos || ''
       desparasitacion.via = tipo.via_administracion || ''
       desparasitacion.edadMinima = tipo.edad_minima || ''
       desparasitacion.edadUnidad = tipo.edad_unidad || 'semanas'
@@ -315,10 +457,78 @@ const cargarDatosDesparasitacion = async () => {
       desparasitacion.riesgos = tipo.riesgos || ''
       desparasitacion.dosis = tipo.dosis_recomendada || ''
       
+      // Convertir strings del backend a arrays
+      recomendacionesAgregadas.value = desparasitacion.recomendaciones 
+        ? desparasitacion.recomendaciones.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      riesgosAgregados.value = desparasitacion.riesgos 
+        ? desparasitacion.riesgos.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
       // Cargar especies en el carrusel
       if (Array.isArray(tipo.especies)) {
         especiesSeleccionadas.value = [...tipo.especies]
       }
+
+      // Cargar datos de parásitos (convertir del formato antiguo al nuevo)
+      if (Array.isArray(tipo.parasitos)) {
+        // Convertir el array simple al formato del árbol
+        const internalPredefined = []
+        const externalPredefined = []
+        let internalOther = ''
+        let externalOther = ''
+        
+        // Mapear los parásitos antiguos a los nuevos IDs
+        tipo.parasitos.forEach(parasito => {
+          // Mapeo de valores antiguos a IDs del árbol
+          const mapping = {
+            'internos': { id: 'ascaris', category: 'internal' },
+            'externos': { id: 'pulgas', category: 'external' },
+            'pulgas': { id: 'pulgas', category: 'external' },
+            'garrapatas': { id: 'garrapatas', category: 'external' },
+            'otros': { custom: true }
+          }
+          
+          const map = mapping[parasito]
+          if (map) {
+            if (map.custom) {
+              // Para "otros", usar el campo otros_parasitos
+              const otrosText = tipo.otros_parasitos || ''
+              // Determinar si es interno o externo basado en el texto
+              if (otrosText.toLowerCase().includes('interno')) {
+                internalOther = otrosText
+              } else {
+                externalOther = otrosText
+              }
+            } else {
+              if (map.category === 'internal') {
+                internalPredefined.push({ id: map.id, name: '' })
+              } else {
+                externalPredefined.push({ id: map.id, name: '' })
+              }
+            }
+          }
+        })
+        
+        // Preparar datos iniciales para el componente
+        parasitosInitialSelection.value = {
+          internal: {
+            predefined: internalPredefined,
+            other: internalOther
+          },
+          external: {
+            predefined: externalPredefined,
+            other: externalOther
+          }
+        }
+        
+        // También actualizar el formulario principal
+        desparasitacion.parasitosData = { ...parasitosInitialSelection.value }
+      }
+
+      console.log('📝 Datos cargados para edición:')
+      console.log('🪱 Parásitos cargados:', desparasitacion.parasitosData)
     }
   } catch (error) {
     console.error('Error cargando datos:', error)
@@ -334,8 +544,69 @@ const cancelar = () => {
   }
 }
 
-const redirectToDashboard = () => {
-  redirectByRole()
+// Preparar datos para enviar al backend
+const prepareParasitosDataForBackend = () => {
+  const result = {
+    parasitos: [], // Array simple para compatibilidad
+    otros_parasitos: ''
+  }
+  
+  // Procesar parásitos internos
+  if (desparasitacion.parasitosData.internal.predefined?.length > 0) {
+    // Convertir IDs del árbol a los valores esperados por el backend
+    desparasitacion.parasitosData.internal.predefined.forEach(p => {
+      const mapToOld = {
+        'ascaris': 'internos',
+        'tenias': 'internos',
+        'tricuridos': 'internos',
+        'ancilostomas': 'internos',
+        'dirofilaria': 'internos',
+        'coccidios': 'internos',
+        'giardia': 'internos'
+      }
+      if (mapToOld[p.id]) {
+        if (!result.parasitos.includes(mapToOld[p.id])) {
+          result.parasitos.push(mapToOld[p.id])
+        }
+      }
+    })
+  }
+  
+  // Procesar parásitos externos
+  if (desparasitacion.parasitosData.external.predefined?.length > 0) {
+    desparasitacion.parasitosData.external.predefined.forEach(p => {
+      const mapToOld = {
+        'pulgas': 'pulgas',
+        'garrapatas': 'garrapatas',
+        'acaros_piel': 'externos',
+        'acaros_oido': 'externos',
+        'piojos': 'externos',
+        'mosquitos': 'externos',
+        'moscas': 'externos'
+      }
+      if (mapToOld[p.id]) {
+        if (!result.parasitos.includes(mapToOld[p.id])) {
+          result.parasitos.push(mapToOld[p.id])
+        }
+      }
+    })
+  }
+  
+  // Procesar "otros" parásitos
+  const otrosTexts = []
+  if (desparasitacion.parasitosData.internal.other?.trim()) {
+    otrosTexts.push(`Internos: ${desparasitacion.parasitosData.internal.other}`)
+  }
+  if (desparasitacion.parasitosData.external.other?.trim()) {
+    otrosTexts.push(`Externos: ${desparasitacion.parasitosData.external.other}`)
+  }
+  
+  if (otrosTexts.length > 0) {
+    result.parasitos.push('otros')
+    result.otros_parasitos = otrosTexts.join('; ')
+  }
+  
+  return result
 }
 
 const registrarDesparasitacion = async () => {
@@ -347,11 +618,14 @@ const registrarDesparasitacion = async () => {
   try {
     submitting.value = true
 
+    // Preparar datos de parásitos para el backend
+    const parasitosData = prepareParasitosDataForBackend()
+
     // Preparar los datos para enviar al servidor
     const payload = {
       nombre: desparasitacion.nombre,
-      parasitos: desparasitacion.parasitos,
-      otros_parasitos: desparasitacion.otrosParasitos,
+      parasitos: parasitosData.parasitos,
+      otros_parasitos: parasitosData.otros_parasitos,
       via_administracion: desparasitacion.via,
       especies: desparasitacion.especies,
       edad_minima: parseFloat(desparasitacion.edadMinima),
@@ -383,7 +657,6 @@ const registrarDesparasitacion = async () => {
       alert('Tipo de desparasitación registrado correctamente')
       router.push('/veterinarios/tipos/desparasitaciones')
     } else {
-      // Mostrar errores de validación
       if (data.errors) {
         const errorMessages = Object.values(data.errors).flat().join('\n')
         alert('Error al registrar: ' + errorMessages)
@@ -414,11 +687,14 @@ const actualizarDesparasitacion = async () => {
   try {
     submitting.value = true
 
+    // Preparar datos de parásitos para el backend
+    const parasitosData = prepareParasitosDataForBackend()
+
     // Preparar los datos para enviar al servidor
     const payload = {
       nombre: desparasitacion.nombre,
-      parasitos: desparasitacion.parasitos,
-      otros_parasitos: desparasitacion.otrosParasitos,
+      parasitos: parasitosData.parasitos,
+      otros_parasitos: parasitosData.otros_parasitos,
       via_administracion: desparasitacion.via,
       especies: desparasitacion.especies,
       edad_minima: parseFloat(desparasitacion.edadMinima),
@@ -447,10 +723,8 @@ const actualizarDesparasitacion = async () => {
     const data = await response.json()
 
     if (data.success) {
-      // Mostrar modal de éxito
       showModal.value = true
     } else {
-      // Mostrar errores de validación
       if (data.errors) {
         const errorMessages = Object.values(data.errors).flat().join('\n')
         alert('Error al actualizar: ' + errorMessages)
@@ -479,7 +753,6 @@ const irALista = () => {
 
 const continuarEditando = () => {
   showModal.value = false
-  // El usuario puede seguir editando si lo desea
 }
 
 // Verificar autenticación al cargar el componente

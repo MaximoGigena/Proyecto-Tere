@@ -35,18 +35,21 @@
           <button
             class="text-gray-500 hover:text-blue-600 transition"
             @click.stop="editarDesparasitacion(desparasitacion)"
+            title="Editar desparasitación"
           >
             <font-awesome-icon :icon="['fas', 'pen']" />
           </button>
           <button
             class="text-gray-500 hover:text-red-600 transition"
-            @click.stop="eliminarDesparasitacion(desparasitacion.id)"
+            @click.stop="eliminarDesparasitacion(desparasitacion)"
+            title="Eliminar desparasitación"
           >
             <font-awesome-icon :icon="['fas', 'trash']" />
           </button>
           <button
             @click.stop="abrirRegistroDesparasitacion"
             class="text-white bg-orange-600 rounded-full px-1 py-1 text-base font-bold shadow-md hover:bg-orange-700 hover:scale-105 transition transform duration-200"
+            title="Derivar a nueva desparasitación"
           >
             Derivar
           </button>
@@ -106,7 +109,7 @@ const { accessToken, isAuthenticated, checkAuth } = useAuth()
 const mascotaId = route.params.id
 const desparasitaciones = ref([])
 const cargando = ref(false)
-const mostrar = ref(false)
+const eliminando = ref(false)
 
 console.log('📍 Route params:', route.params)
 console.log('📍 Mascota ID:', mascotaId)
@@ -191,12 +194,80 @@ const abrirProcedimiento = (desparasitacion) => {
 
 const editarDesparasitacion = (desparasitacion) => {
   console.log('Editar desparasitación:', desparasitacion)
-  // Aquí puedes implementar la edición
+  
+  if (!desparasitacion.id) {
+    console.error('La desparasitación no tiene ID')
+    return
+  }
+
+  // Navegar a la vista de edición con el ID de la desparasitación
+  router.push({
+    name: 'editarDesparasitacion',
+    params: {
+      desparasitacionId: desparasitacion.id
+    },
+    query: {
+      mascotaId: mascotaId, // Enviar el ID de la mascota como query param si es necesario
+      from: '/historialPreventivo/desparasitación' // Opcional: para regresar después de editar
+    }
+  })
 }
 
-const eliminarDesparasitacion = (id) => {
-  console.log('Eliminar desparasitación ID:', id)
-  // Aquí puedes implementar la eliminación
+const eliminarDesparasitacion = async (desparasitacion) => {
+  if (!desparasitacion || !desparasitacion.id) {
+    console.error('No se puede eliminar: datos de desparasitación inválidos')
+    return
+  }
+
+  // Confirmación de eliminación
+  const confirmacion = confirm(
+    `¿Está seguro de que desea eliminar la desparasitación de "${desparasitacion.nombre_producto}" realizada el ${formatFecha(desparasitacion.fecha)}?\n\nEsta acción no se puede deshacer.`
+  )
+
+  if (!confirmacion) {
+    return
+  }
+
+  try {
+    eliminando.value = true
+    console.log('🗑️ Eliminando desparasitación ID:', desparasitacion.id)
+    
+    const response = await fetch(`/api/desparasitaciones/${desparasitacion.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    })
+
+    const result = await response.json()
+    
+    if (response.ok && result.success) {
+      console.log('✅ Desparasitación eliminada exitosamente:', result)
+      
+      // Recargar la lista de desparasitaciones
+      await cargarDesparasitaciones()
+      
+      // Mostrar mensaje de éxito
+      alert('✅ Desparasitación eliminada exitosamente')
+    } else {
+      console.error('❌ Error en eliminación:', result)
+      alert(`❌ Error al eliminar la desparasitación: ${result.message || 'Error desconocido'}`)
+    }
+  } catch (error) {
+    console.error('❌ Error al eliminar desparasitación:', error)
+    alert('❌ Error de conexión al eliminar la desparasitación. Por favor, intente nuevamente.')
+  } finally {
+    eliminando.value = false
+  }
+}
+
+// Opcional: Función para manejar mejor el estado de carga durante la eliminación
+const eliminarDesparasitacionConLoading = async (desparasitacion) => {
+  if (eliminando.value) return
+  
+  await eliminarDesparasitacion(desparasitacion)
 }
 </script>
 

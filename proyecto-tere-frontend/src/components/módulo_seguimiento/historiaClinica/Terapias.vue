@@ -261,15 +261,19 @@ const abrirDetallesTerapia = (terapia) => {
 
 const editarTerapia = (terapia) => {
   console.log('Editar terapia:', terapia)
-  // Aquí puedes implementar la edición
-  // router.push({
-  //   path: `/terapias/${terapia.id}/editar`,
-  //   query: { mascotaId: mascotaId }
-  // })
+
+  router.push({
+    name: 'editarTerapia',
+    params: { terapiaId: terapia.id },
+    query: {
+      mascotaId: mascotaId,
+      from: '/historialClinico/terapias'
+    }
+  })
 }
 
 const eliminarTerapia = async (id) => {
-  if (!confirm('¿Está seguro de que desea eliminar esta terapia?')) {
+  if (!confirm('¿Está seguro de que desea eliminar esta terapia?\n\nEsta acción marcará la terapia como eliminada, pero podrá restaurarla si es necesario.')) {
     return
   }
 

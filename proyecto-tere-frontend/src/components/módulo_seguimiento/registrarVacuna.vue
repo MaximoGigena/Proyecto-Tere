@@ -1,4 +1,4 @@
-<!-- registrarVacuna -->
+<!-- registrarVacuna.vue - Versión final con registro y edición -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -11,9 +11,9 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Vacunación</h1>
+    <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Vacunación' : 'Registrar Vacunación' }}</h1>
 
-    <form @submit.prevent="registrarVacunacion" class="space-y-4">
+    <form @submit.prevent="procesarFormulario" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -158,24 +158,32 @@
 
       <!-- Selección del medio de envío -->
       <div class="mt-8">
-        <CarruselMedioEnvio 
-          v-if="usuarioId" 
-          :usuario-id="usuarioId" 
-          @update:medio="vacuna.medio_envio = $event" 
-        />
+        <!-- Para ambos casos (registro y edición) mostramos el carrusel -->
+        <div v-if="usuarioId">
+          <CarruselMedioEnvio 
+            :usuario-id="usuarioId" 
+            :modo-edicion="esEdicion"
+            :medio-seleccionado-inicial="vacuna.medio_envio"
+            @update:medio="vacuna.medio_envio = $event"
+          />
+          
+          <div v-if="vacuna.medio_envio" class="mt-4 text-center text-gray-700">
+            <span class="font-semibold">
+              {{ esEdicion ? 'Medio de envío utilizado:' : 'Medio seleccionado:' }}
+            </span>
+            <span class="ml-1 text-blue-600 font-medium">
+              {{ obtenerNombreMedio(vacuna.medio_envio) }}
+            </span>
+            <p v-if="esEdicion" class="text-sm text-gray-500 mt-1">
+              (En modo edición el medio de envío no se puede cambiar)
+            </p>
+          </div>
+        </div>
         
         <div v-else class="text-center py-4">
           <p class="text-gray-500">Cargando información del dueño...</p>
         </div>
-
-        <div v-if="vacuna.medio_envio" class="mt-4 text-center text-gray-700">
-          <span class="font-semibold">Medio seleccionado:</span>
-          <span class="ml-1 text-blue-600 font-medium">
-            {{ obtenerNombreMedio(vacuna.medio_envio) }}
-          </span>
-        </div>
       </div>
-
       <div class="pt-4 flex items-center justify-center gap-4">
         <button
           type="button"
@@ -185,11 +193,12 @@
           Cancelar
         </button>
         <button
-          type="submit"
-          :disabled="procesando"
+          type="button"
+          @click="mostrarModalConfirmacion"
+          :disabled="procesando || !formularioValido"
           class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
         >
-          {{ procesando ? 'Registrando...' : 'Registrar Vacunación' }}
+          {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar Vacunación' : 'Registrar Vacunación') }}
         </button>
       </div>
     </form>
@@ -203,24 +212,74 @@
       @cerrar="mostrarOverlayCentros = false"
       @seleccionar="seleccionarCentro"
     />
+
+    <!-- Modal de confirmación -->
+    <div v-if="mostrarModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold mb-4">
+          {{ esEdicion ? 'Confirmar Actualización' : 'Confirmar Registro' }}
+        </h3>
+        
+        <div class="mb-6">
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Tipo de vacuna:</span> {{ obtenerNombreTipoVacuna() }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Fecha aplicación:</span> {{ formatFecha(vacuna.fecha_aplicacion) }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Número de dosis:</span> {{ vacuna.numero_dosis }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Lote/Serie:</span> {{ vacuna.lote_serie }}
+          </p>
+          <p v-if="vacuna.centro_veterinario_id" class="text-gray-700 mb-2">
+            <span class="font-semibold">Centro veterinario:</span> {{ obtenerNombreCentroSeleccionado() }}
+          </p>
+          <p v-if="vacuna.fecha_proxima_dosis" class="text-gray-700 mb-2">
+            <span class="font-semibold">Próxima dosis:</span> {{ formatFecha(vacuna.fecha_proxima_dosis) }}
+          </p>
+          <p v-if="vacuna.medio_envio" class="text-gray-700">
+            <span class="font-semibold">Medio de envío:</span> {{ obtenerNombreMedio(vacuna.medio_envio) }}
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button
+            @click="cerrarModal"
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="confirmarAccion"
+            :disabled="procesando"
+            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:bg-blue-300"
+          >
+            {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar' : 'Registrar') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import axios from 'axios'
 import SeleccionCentroVeterinario from '@/components/ElementosGraficos/SeleccionCentroVeterinario.vue'
 import CarruselMedioEnvio from '@/components/ElementosGraficos/CarruselMedioEnvio.vue'
 import { useAuth } from '@/composables/useAuth'
 
+const props = defineProps({
+  vacunaId: {
+    type: [String, Number],
+    default: null
+  }
+})
+
 const router = useRouter()
 const route = useRoute()
-const mascotaId = route.query.mascotaId
-
-console.log('🔍 Route query:', route.query)
-console.log('🔍 Mascota ID from query:', mascotaId)
-
 const { accessToken, isAuthenticated, checkAuth } = useAuth()
 
 // Estados reactivos
@@ -230,6 +289,26 @@ const mostrarOverlayCentros = ref(false)
 const procesando = ref(false)
 const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
+const mostrarModal = ref(false)
+
+// Determinar si es edición o registro
+const esEdicion = computed(() => {
+  return route.name === 'editarVacuna' || !!route.params.vacunaId
+})
+
+const vacunaId = computed(() => {
+  return props.vacunaId || route.params.vacunaId || null
+})
+
+const mascotaId = computed(() => {
+  return route.query.mascotaId || route.params.mascotaId || null
+})
+
+console.log('🔍 Route params:', route.params)
+console.log('🔍 Route query:', route.query)
+console.log('🔍 Es edición:', esEdicion.value)
+console.log('🔍 Vacuna ID:', vacunaId.value)
+console.log('🔍 Mascota ID:', mascotaId.value)
 
 // Datos del formulario
 const vacuna = reactive({
@@ -240,6 +319,22 @@ const vacuna = reactive({
   centro_veterinario_id: '',
   fecha_proxima_dosis: '',
   medio_envio: '',
+})
+
+// Computed para validación del formulario
+const formularioValido = computed(() => {
+  const camposObligatorios = vacuna.tipo_vacuna_id && 
+    vacuna.fecha_aplicacion && 
+    vacuna.numero_dosis && 
+    vacuna.lote_serie
+    
+  // Para registro, el medio de envío es obligatorio
+  if (!esEdicion.value) {
+    return camposObligatorios && vacuna.medio_envio
+  }
+  
+  // Para edición, solo los campos básicos son obligatorios
+  return camposObligatorios
 })
 
 // Obtener ID del usuario dueño de la mascota
@@ -269,12 +364,29 @@ const obtenerDireccionCentroSeleccionado = () => {
   return centro ? centro.direccion : ''
 }
 
+// Obtener nombre del tipo de vacuna
+const obtenerNombreTipoVacuna = () => {
+  const tipo = tiposVacuna.value.find(t => t.id == vacuna.tipo_vacuna_id)
+  return tipo ? tipo.nombre : 'No seleccionado'
+}
+
+// Formatear fecha
+const formatFecha = (fecha) => {
+  if (!fecha) return 'No especificada'
+  return new Date(fecha).toLocaleDateString('es-ES')
+}
+
 // Cargar datos de la mascota para obtener el usuario_id
 const cargarDatosMascota = async () => {
   try {
-    console.log('🔄 Cargando datos de mascota con ID:', mascotaId)
+    console.log('🔄 Cargando datos de mascota con ID:', mascotaId.value)
     
-    const response = await fetch(`/api/mascotas/${mascotaId}`, {
+    if (!mascotaId.value) {
+      console.warn('⚠️ No hay mascotaId para cargar datos')
+      return
+    }
+    
+    const response = await fetch(`/api/mascotas/${mascotaId.value}`, {
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
         'Accept': 'application/json'
@@ -357,6 +469,68 @@ const cargarCentrosVeterinarios = async () => {
   }
 }
 
+// Cargar datos de vacuna existente (para edición)
+const cargarVacunaExistente = async () => {
+  if (!vacunaId.value) return
+  
+  try {
+    console.log('🔄 Cargando datos de vacuna con ID:', vacunaId.value)
+    
+    const response = await fetch(`/api/vacunas/${vacunaId.value}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    console.log('📦 Respuesta de vacuna:', result)
+    
+    if (result.success && result.data) {
+      const datosVacuna = result.data
+      
+      // Actualizar el objeto vacuna con los datos existentes
+      Object.assign(vacuna, {
+        tipo_vacuna_id: datosVacuna.tipo_vacuna_id,
+        fecha_aplicacion: datosVacuna.fecha_aplicacion?.split('T')[0] || '',
+        numero_dosis: datosVacuna.numero_dosis,
+        lote_serie: datosVacuna.lote_serie,
+        centro_veterinario_id: datosVacuna.centro_veterinario_id,
+        fecha_proxima_dosis: datosVacuna.fecha_proxima_dosis?.split('T')[0] || '',
+        medio_envio: datosVacuna.medio_envio || '',
+      })
+      
+      console.log('✅ Datos de vacuna cargados:', vacuna)
+    } else {
+      console.warn('❌ No se encontraron datos de vacuna:', result)
+      alert('No se pudo cargar la vacuna a editar: ' + (result.message || 'Error desconocido'))
+      
+      // Redirigir a la página anterior
+      if (mascotaId.value) {
+        router.push({
+          name: 'veterinario-vacunas',
+          params: { id: mascotaId.value }
+        })
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error cargando datos de vacuna:', error)
+    alert('Error al cargar la vacuna: ' + error.message)
+    
+    // Redirigir a la página anterior
+    if (mascotaId.value) {
+      router.push({
+        name: 'veterinario-vacunas',
+        params: { id: mascotaId.value }
+      })
+    }
+  }
+}
+
 const onTipoVacunaChange = () => {
   const tipoSeleccionado = tiposVacuna.value.find(t => t.id == vacuna.tipo_vacuna_id)
   if (tipoSeleccionado) {
@@ -377,13 +551,44 @@ const seleccionarCentro = (centro) => {
 
 // Navegar al registro de nuevo tipo
 const abrirRegistroTipoVacuna = () => {
+  const query = {
+    from: esEdicion.value ? `/editar/vacuna/${vacunaId.value}` : `/registro/vacuna/${mascotaId.value}`,
+    mascotaId: mascotaId.value
+  }
+  
   router.push({
     path: '/registro/registroTipoVacuna',
-    query: {
-      from: `/mascotas/${mascotaId}/vacunas/crear`,
-      mascotaId
-    }
+    query
   })
+}
+
+// Mostrar modal de confirmación
+const mostrarModalConfirmacion = () => {
+  if (!formularioValido.value) {
+    alert('Por favor complete todos los campos obligatorios')
+    return
+  }
+  
+  mostrarModal.value = true
+}
+
+// Cerrar modal
+const cerrarModal = () => {
+  mostrarModal.value = false
+}
+
+// Confirmar acción (registrar o actualizar)
+const confirmarAccion = () => {
+  if (esEdicion.value) {
+    actualizarVacuna()
+  } else {
+    registrarVacunacion()
+  }
+}
+
+// Procesar formulario (ahora solo muestra el modal)
+const procesarFormulario = () => {
+  mostrarModalConfirmacion()
 }
 
 // Registrar vacunación
@@ -392,21 +597,16 @@ const registrarVacunacion = async () => {
 
   try {
     procesando.value = true
+    cerrarModal()
 
-    // Validar que se seleccionó un medio de envío
-    if (!vacuna.medio_envio) {
-      alert('Por favor seleccione un medio de envío para el certificado')
-      return
+    console.log('📤 Enviando datos a servidor para registro:', vacuna)
+    console.log('📤 Mascota ID:', mascotaId.value)
+
+    if (!mascotaId.value) {
+      throw new Error('No se encontró el ID de la mascota')
     }
 
-    if (!vacuna.tipo_vacuna_id || !vacuna.fecha_aplicacion || !vacuna.numero_dosis || !vacuna.lote_serie) {
-      alert('Por favor complete todos los campos obligatorios')
-      return
-    }
-
-    console.log('📤 Enviando datos a servidor:', vacuna)
-
-    const response = await fetch(`/api/mascotas/${mascotaId}/vacunas`, {
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/vacunas`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -422,7 +622,7 @@ const registrarVacunacion = async () => {
     console.log('📄 Respuesta cruda:', responseText)
 
     if (!responseText.trim()) {
-      throw new Error('El servidor devolvió una respuesta vacía (posible redirección)')
+      throw new Error('El servidor devolvió una respuesta vacía')
     }
 
     let result
@@ -430,7 +630,7 @@ const registrarVacunacion = async () => {
       result = JSON.parse(responseText)
     } catch (parseError) {
       console.error('No se pudo parsear como JSON:', responseText)
-      throw new Error('El servidor no devolvió JSON válido. Respuesta: ' + responseText.substring(0, 100))
+      throw new Error('El servidor no devolvió JSON válido.')
     }
 
     if (!response.ok) {
@@ -438,9 +638,10 @@ const registrarVacunacion = async () => {
     }
 
     if (result.success) {
+      alert('✅ Vacuna registrada exitosamente')
       router.push({
         name: 'veterinario-vacunas',
-        params: { id: mascotaId },
+        params: { id: mascotaId.value },
         query: {
           from: 'registroVacuna',
           currentTab: 'Preventivo',
@@ -458,16 +659,93 @@ const registrarVacunacion = async () => {
   }
 }
 
-const cancelar = () => {
-  router.push({
-    name: 'veterinario-vacunas', 
-    params: { id: mascotaId },
-    query: {
-      from: 'cancelarRegistroVacuna',
-      currentTab: 'Preventivo',
-      ts: Date.now()
+// Actualizar vacunación existente
+const actualizarVacuna = async () => {
+  if (procesando.value) return
+
+  try {
+    procesando.value = true
+    cerrarModal()
+
+    console.log('📤 Actualizando vacuna con ID:', vacunaId.value)
+    console.log('📤 Datos a enviar:', vacuna)
+
+    const response = await fetch(`/api/vacunas/${vacunaId.value}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: JSON.stringify(vacuna)
+    })
+
+    console.log('📨 Status:', response.status)
+    
+    const responseText = await response.text()
+    console.log('📄 Respuesta cruda:', responseText)
+
+    if (!responseText.trim()) {
+      throw new Error('El servidor devolvió una respuesta vacía')
     }
-  })
+
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('No se pudo parsear como JSON:', responseText)
+      throw new Error('El servidor no devolvió JSON válido.')
+    }
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Error en la operación')
+    }
+
+    if (result.success) {
+      alert('✅ Vacuna actualizada exitosamente')
+      
+      const mascotaIdParaRedireccion = mascotaId.value || result.data?.mascota_id || result.data?.procesoMedico?.mascota_id
+      
+      if (mascotaIdParaRedireccion) {
+        router.push({
+          name: 'veterinario-vacunas',
+          params: { id: mascotaIdParaRedireccion },
+          query: {
+            from: 'editarVacuna',
+            currentTab: 'Preventivo',
+            ts: Date.now()
+          }
+        })
+      } else {
+        router.push({ name: 'veterinario-vacunas', params: { id: '0' } })
+      }
+    } else {
+      alert('Error al actualizar la vacuna: ' + result.message)
+    }
+  } catch (error) {
+    console.error('❌ Error completo:', error)
+    alert('Error al actualizar la vacuna: ' + error.message)
+  } finally {
+    procesando.value = false
+  }
+}
+
+const cancelar = () => {
+  const mascotaIdParaRedireccion = mascotaId.value
+  
+  if (mascotaIdParaRedireccion) {
+    router.push({
+      name: 'veterinario-vacunas',
+      params: { id: mascotaIdParaRedireccion },
+      query: {
+        from: esEdicion.value ? 'cancelarEditarVacuna' : 'cancelarRegistroVacuna',
+        currentTab: 'Preventivo',
+        ts: Date.now()
+      }
+    })
+  } else {
+    router.push({ name: 'veterinario-vacunas', params: { id: '0' } })
+  }
 }
 
 // Verificar autenticación y cargar datos
@@ -483,21 +761,32 @@ onMounted(async () => {
     }
   }
 
-  // Cargar datos en orden
-  await cargarDatosMascota() // Primero cargar datos de mascota para obtener usuario_id
-  
-  if (errorCargandoMascota.value) {
-    console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
-    alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
-    return
+  // Si es edición, cargar datos de la vacuna primero
+  if (esEdicion.value) {
+    await cargarVacunaExistente()
   }
 
-  await cargarTiposVacuna()
-  await cargarCentrosVeterinarios()
+  // Cargar datos en orden
+  if (mascotaId.value) {
+    await cargarDatosMascota()
+    
+    if (errorCargandoMascota.value) {
+      console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
+      alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
+      return
+    }
+  }
 
-  // Establecer fecha actual como predeterminada
-  const hoy = new Date().toISOString().split('T')[0]
-  vacuna.fecha_aplicacion = hoy
+  await Promise.all([
+    cargarTiposVacuna(),
+    cargarCentrosVeterinarios()
+  ])
+
+  // Establecer fecha actual como predeterminada solo si es registro nuevo y no hay fecha
+  if (!esEdicion.value && !vacuna.fecha_aplicacion) {
+    const hoy = new Date().toISOString().split('T')[0]
+    vacuna.fecha_aplicacion = hoy
+  }
   
   console.log('✅ Componente completamente cargado')
   console.log('👤 Usuario ID final:', usuarioId.value)

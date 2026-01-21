@@ -41,7 +41,7 @@
 
         <!-- Íconos de acción para veterinarios -->
         <div 
-          v-if="$route.path.startsWith('/veterinarios')"
+          v-if="$route.path.startsWith('/veterinarios') && !diagnostico.deleted_at"
           class="absolute right-3 top-10 flex space-x-2"
         >
           <button
@@ -52,10 +52,18 @@
           </button>
           <button
             class="text-gray-500 hover:text-red-600 transition"
-            @click.stop="eliminarDiagnostico(diagnostico.id)"
+            @click.stop="eliminarDiagnostico(diagnostico)"
           >
             <font-awesome-icon :icon="['fas', 'trash']" />
           </button>
+        </div>
+
+        <!-- Indicador de archivado -->
+        <div v-if="diagnostico.deleted_at" class="absolute right-3 top-10">
+          <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
+            <font-awesome-icon :icon="['fas', 'archive']" class="mr-1" />
+            Archivado
+          </span>
         </div>
 
         <h3 class="text-lg font-bold text-gray-700 mb-2">{{ diagnostico.nombre }}</h3>
@@ -74,6 +82,14 @@
             <strong>Observaciones:</strong> {{ truncarTexto(diagnostico.observaciones, 80) }}
           </p>
         </div>
+
+        <!-- Indicador de baja lógica -->
+        <div v-if="diagnostico.deleted_at" class="mt-2">
+          <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
+            <font-awesome-icon :icon="['fas', 'archive']" class="mr-1" />
+            Archivado el {{ formatFecha(diagnostico.deleted_at) }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -89,11 +105,16 @@
       </button>
     </div>
 
-    <!-- Modal de confirmación para eliminar -->
+    <!-- Modal de confirmación para baja lógica -->
     <div v-if="mostrarConfirmacion" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div class="bg-white rounded-lg p-6 max-w-sm mx-4">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">Confirmar eliminación</h3>
-        <p class="text-gray-600 mb-6">¿Estás seguro de que deseas eliminar este diagnóstico? Esta acción no se puede deshacer.</p>
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+          Confirmar baja lógica
+        </h3>
+        <p class="text-gray-600 mb-6">
+          ¿Estás seguro de que deseas archivar este diagnóstico? 
+          El diagnóstico se marcará como archivado pero no se eliminará permanentemente.
+        </p>
         <div class="flex justify-end space-x-3">
           <button
             @click="cancelarEliminacion"
@@ -103,9 +124,9 @@
           </button>
           <button
             @click="confirmarEliminacion"
-            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white"
           >
-            Eliminar
+            Archivar
           </button>
         </div>
       </div>
@@ -122,33 +143,19 @@ const router = useRouter()
 const route = useRoute()
 const { accessToken, isAuthenticated, checkAuth } = useAuth()
 
-// Asegurar que mascotaId sea un string/número
 const mascotaId = computed(() => {
   const id = route.params.id
-  console.log('📍 Route params:', route.params)
-  console.log('📍 Route params.id tipo:', typeof id, 'valor:', id)
-  
-  // Convertir a string y luego a número si es posible
   if (id && typeof id === 'object') {
-    // Si es un objeto, intenta extraer el ID
     return id.id || id.toString()
   }
-  
   return String(id || '').trim()
 })
-
-// Agregar un watcher para debuggear
-import { watch } from 'vue'
-watch(mascotaId, (newId) => {
-  console.log('🔍 mascotaId actualizado:', newId, 'tipo:', typeof newId)
-}, { immediate: true })
 
 const diagnosticos = ref([])
 const cargando = ref(false)
 const diagnosticoAEliminar = ref(null)
 const mostrarConfirmacion = ref(false)
 
-// Cargar diagnósticos al montar el componente
 onMounted(async () => {
   console.log('🚀 onMounted - mascotaId:', mascotaId.value)
   
@@ -159,11 +166,8 @@ onMounted(async () => {
   }
 })
 
-// Función para cargar los diagnósticos desde la API
 const cargarDiagnosticos = async () => {
   console.log('📡 Iniciando carga de diagnósticos...')
-  console.log('📡 mascotaId para fetch:', mascotaId.value)
-  console.log('📡 Tipo de mascotaId:', typeof mascotaId.value)
   
   if (!mascotaId.value || mascotaId.value === '') {
     console.error('❌ No hay mascotaId válido para cargar diagnósticos')
@@ -174,8 +178,8 @@ const cargarDiagnosticos = async () => {
   try {
     cargando.value = true
     
-    // Construir la URL manualmente para debug
-    const url = `/api/mascotas/${encodeURIComponent(mascotaId.value)}/diagnosticos`
+    // Añadir parámetro para incluir diagnósticos archivados
+    const url = `/api/mascotas/${encodeURIComponent(mascotaId.value)}/diagnosticos?incluir_archivados=true`
     console.log('📡 URL de API:', url)
     
     const response = await fetch(url, {
@@ -214,7 +218,6 @@ const cargarDiagnosticos = async () => {
   }
 }
 
-// Función para abrir el formulario de registro
 const abrirRegistroDiagnostico = () => {
   if (!mascotaId.value) {
     console.error('❌ No se pudo obtener el ID de la mascota')
@@ -233,19 +236,21 @@ const abrirRegistroDiagnostico = () => {
   })
 }
 
-// Función para ver detalles del diagnóstico
 const abrirDetalles = (diagnostico) => {
   console.log('Abrir detalles de diagnóstico:', diagnostico)
-  // Aquí puedes implementar la lógica para ver detalles completos
-  // Por ejemplo, abrir un modal o navegar a una vista detallada
 }
 
-// Función para editar diagnóstico
 const editarDiagnostico = (diagnostico) => {
   console.log('Editar diagnóstico:', diagnostico)
-  // Implementar la navegación a formulario de edición
+  
+  // Solo permitir editar si no está archivado
+  if (diagnostico.deleted_at) {
+    alert('No se puede editar un diagnóstico archivado.')
+    return
+  }
+  
   router.push({
-    path: `/diagnosticos/${diagnostico.id}/editar`,
+    path: `/editar/diagnostico/${diagnostico.id}`,
     query: {
       mascotaId: mascotaId.value,
       from: '/historialClinico/diagnosticos'
@@ -253,19 +258,30 @@ const editarDiagnostico = (diagnostico) => {
   })
 }
 
-// Función para solicitar eliminación
-const eliminarDiagnostico = (id) => {
-  diagnosticoAEliminar.value = id
+// Función para solicitar baja lógica
+const eliminarDiagnostico = (diagnostico) => {
+  // Verificar que no esté ya archivado
+  if (diagnostico.deleted_at) {
+    alert('Este diagnóstico ya está archivado.')
+    return
+  }
+  
+  diagnosticoAEliminar.value = diagnostico
   mostrarConfirmacion.value = true
 }
 
-// Función para confirmar eliminación
+// Función para confirmar baja lógica
 const confirmarEliminacion = async () => {
   if (!diagnosticoAEliminar.value) return
 
   try {
-    const response = await fetch(`/api/mascotas/${mascotaId.value}/diagnosticos/${diagnosticoAEliminar.value}`, {
-      method: 'DELETE',
+    // Usar el método POST a la ruta del diagnóstico (según tus rutas Laravel)
+    const url = `/api/mascotas/${mascotaId.value}/diagnosticos/${diagnosticoAEliminar.value.id}`
+    
+    console.log('📡 URL de baja lógica:', url)
+    
+    const response = await fetch(url, {
+      method: 'POST', // Usar POST para baja lógica
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
         'Accept': 'application/json',
@@ -274,17 +290,18 @@ const confirmarEliminacion = async () => {
     })
 
     const result = await response.json()
+    console.log('✅ Resultado de baja lógica:', result)
 
     if (result.success) {
       // Recargar la lista de diagnósticos
       await cargarDiagnosticos()
-      alert('Diagnóstico eliminado exitosamente')
+      alert('Diagnóstico archivado exitosamente')
     } else {
-      throw new Error(result.message || 'Error al eliminar el diagnóstico')
+      throw new Error(result.message || 'Error al procesar la solicitud')
     }
   } catch (error) {
-    console.error('❌ Error eliminando diagnóstico:', error)
-    alert('Error al eliminar el diagnóstico: ' + error.message)
+    console.error('❌ Error archivando diagnóstico:', error)
+    alert('Error: ' + error.message)
   } finally {
     cancelarEliminacion()
   }
@@ -300,6 +317,17 @@ const cancelarEliminacion = () => {
 const truncarTexto = (texto, longitud) => {
   if (!texto) return ''
   return texto.length > longitud ? texto.substring(0, longitud) + '...' : texto
+}
+
+// Función para formatear fecha
+const formatFecha = (fechaString) => {
+  if (!fechaString) return ''
+  const fecha = new Date(fechaString)
+  return fecha.toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  })
 }
 
 // Función para obtener color según estado

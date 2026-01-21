@@ -4,5 +4,15 @@ export const registrarAlergia = [
    {
     path: '/registro/alergia',
     component: RegistrarAlergia,
-  }
+    name: 'RegistrarAlergia',
+    props: true
+   },
+   {
+    path: '/editar/alergia/:alergiaId',
+    name: 'editarAlergia',
+    component: RegistrarAlergia,
+    props: true
+   }
+
+
 ]

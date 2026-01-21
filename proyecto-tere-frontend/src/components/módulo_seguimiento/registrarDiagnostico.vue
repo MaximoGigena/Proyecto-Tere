@@ -1,4 +1,4 @@
-<!-- registrarDiagnostico -->
+<!-- registrarDiagnostico.vue con modal de confirmación y modo edición -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -7,7 +7,8 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Diagnóstico</h1>
+    <!-- Título dinámico según modo -->
+    <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Diagnóstico' : 'Registrar Diagnóstico' }}</h1>
 
     <!-- Mostrar error si no hay mascotaId -->
     <div v-if="!mascotaId" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -25,7 +26,7 @@
       <p class="text-sm mt-1">Puede continuar registrando el diagnóstico, pero algunas funciones pueden no estar disponibles.</p>
     </div>
 
-    <form v-if="mascotaId" @submit.prevent="registrarDiagnostico" class="space-y-4">
+    <form v-if="mascotaId" @submit.prevent="mostrarModalConfirmacion" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -283,6 +284,8 @@
         <CarruselMedioEnvio 
           v-if="usuarioId && !cargandoDatos" 
           :usuario-id="usuarioId" 
+          :modo-edicion="esEdicion"
+          :medio-seleccionado-inicial="diagnostico.medio_envio"
           @update:medio="diagnostico.medio_envio = $event" 
         />
         
@@ -295,10 +298,13 @@
         </div>
 
         <div v-if="diagnostico.medio_envio" class="mt-4 text-center text-gray-700">
-          <span class="font-semibold">Medio seleccionado:</span>
+          <span class="font-semibold">{{ esEdicion ? 'Medio de envío utilizado:' : 'Medio seleccionado:' }}</span>
           <span class="ml-1 text-blue-600 font-medium">
             {{ obtenerNombreMedio(diagnostico.medio_envio) }}
           </span>
+          <p v-if="esEdicion" class="text-sm text-gray-500 mt-1">
+            (En modo edición el medio de envío no se puede cambiar)
+          </p>
         </div>
       </div>
 
@@ -313,10 +319,10 @@
         </button>
         <button
           type="submit"
-          :disabled="procesando || cargandoDatos"
+          :disabled="procesando || cargandoDatos || !formularioValido"
           class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
         >
-          {{ procesando ? 'Registrando...' : 'Registrar Diagnóstico' }}
+          {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar Diagnóstico' : 'Registrar Diagnóstico') }}
         </button>
       </div>
     </form>
@@ -388,6 +394,73 @@
       @cerrar="mostrarOverlayCentros = false"
       @seleccionar="seleccionarCentro"
     />
+
+    <!-- Modal de confirmación -->
+    <div v-if="mostrarModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold mb-4">
+          {{ esEdicion ? 'Confirmar Actualización' : 'Confirmar Registro' }}
+        </h3>
+        
+        <div class="mb-6 max-h-60 overflow-y-auto">
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Tipo de diagnóstico:</span> {{ obtenerNombreTipoDiagnostico() }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Nombre:</span> {{ diagnostico.nombre }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Fecha diagnóstico:</span> {{ formatFecha(diagnostico.fecha_diagnostico) }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Estado:</span> {{ obtenerNombreEstado(diagnostico.estado) }}
+          </p>
+          <p v-if="diagnostico.centro_veterinario_id" class="text-gray-700 mb-2">
+            <span class="font-semibold">Centro veterinario:</span> {{ obtenerNombreCentroSeleccionado() }}
+          </p>
+          <p v-if="diagnosticosSeleccionados.length > 0" class="text-gray-700 mb-2">
+            <span class="font-semibold">Diagnósticos diferenciales:</span> 
+            <span class="block text-sm mt-1 text-gray-600">
+              {{ diagnosticosSeleccionados.map(d => d.nombre).join(', ') }}
+            </span>
+          </p>
+          <p v-if="diagnostico.examenes" class="text-gray-700 mb-2">
+            <span class="font-semibold">Exámenes complementarios:</span> 
+            <span class="block text-sm mt-1 text-gray-600">
+              {{ diagnostico.examenes }}
+            </span>
+          </p>
+          <p v-if="diagnostico.conducta" class="text-gray-700 mb-2">
+            <span class="font-semibold">Conducta terapéutica:</span> 
+            <span class="block text-sm mt-1 text-gray-600">
+              {{ diagnostico.conducta }}
+            </span>
+          </p>
+          <p v-if="diagnostico.medio_envio" class="text-gray-700">
+            <span class="font-semibold">Medio de envío:</span> {{ obtenerNombreMedio(diagnostico.medio_envio) }}
+          </p>
+          <p v-if="archivosAdjuntosCount > 0" class="text-gray-700 mt-2">
+            <span class="font-semibold">Archivos adjuntos:</span> {{ archivosAdjuntosCount }} archivo(s)
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button
+            @click="cerrarModal"
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="confirmarAccion"
+            :disabled="procesando"
+            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:bg-blue-300"
+          >
+            {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar' : 'Registrar') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -398,6 +471,13 @@ import { useAuth } from '@/composables/useAuth'
 import DiagnosticosDiferenciales from '@/components/ElementosGraficos/DiagnosticosDiferenciales.vue'
 import SeleccionCentroVeterinario from '@/components/ElementosGraficos/SeleccionCentroVeterinario.vue'
 import CarruselMedioEnvio from '@/components/ElementosGraficos/CarruselMedioEnvio.vue'
+
+const props = defineProps({
+  diagnosticoId: {
+    type: [String, Number],
+    default: null
+  }
+})
 
 const router = useRouter()
 const route = useRoute()
@@ -418,7 +498,7 @@ const tiposDiagnostico = ref([])
 const centrosVeterinarios = ref([])
 const mostrarOverlayCentros = ref(false)
 const procesando = ref(false)
-const cargandoDatos = ref(true) // Nuevo estado para manejar carga general
+const cargandoDatos = ref(true)
 const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
 
@@ -426,6 +506,42 @@ const errorCargandoMascota = ref(null)
 const mostrarSelectorDiferenciales = ref(false)
 const selectorDiferenciales = ref(null)
 const diagnosticosSeleccionados = ref([])
+
+// Estado para modal de confirmación
+const mostrarModal = ref(false)
+
+// Determinar si es edición o registro
+const esEdicion = computed(() => {
+  return route.name === 'editarDiagnostico' || !!route.params.diagnosticoId || !!props.diagnosticoId
+})
+
+const diagnosticoId = computed(() => {
+  return props.diagnosticoId || route.params.diagnosticoId || null
+})
+
+console.log('🔍 Es edición:', esEdicion.value)
+console.log('🔍 Diagnóstico ID:', diagnosticoId.value)
+
+// Computed para validación del formulario
+const formularioValido = computed(() => {
+  const camposObligatorios = diagnostico.tipo_diagnostico_id && 
+    diagnostico.nombre && 
+    diagnostico.fecha_diagnostico && 
+    diagnostico.estado
+  
+  // Para registro, el medio de envío es obligatorio
+  if (!esEdicion.value) {
+    return camposObligatorios && diagnostico.medio_envio
+  }
+  
+  // Para edición, solo los campos básicos son obligatorios
+  return camposObligatorios
+})
+
+// Contador de archivos adjuntos
+const archivosAdjuntosCount = computed(() => {
+  return archivos.value.filter(archivo => archivo.archivo !== null).length
+})
 
 // Datos del formulario
 const diagnostico = reactive({
@@ -456,6 +572,24 @@ const obtenerNombreMedio = (medioId) => {
   return medios[medioId] || medioId
 }
 
+// Obtener nombre del estado
+const obtenerNombreEstado = (estadoId) => {
+  const estados = {
+    activo: 'Activo',
+    resuelto: 'Resuelto',
+    cronico: 'Crónico',
+    seguimiento: 'En seguimiento',
+    sospecha: 'Sospecha'
+  }
+  return estados[estadoId] || estadoId
+}
+
+// Obtener nombre del tipo de diagnóstico
+const obtenerNombreTipoDiagnostico = () => {
+  const tipo = tiposDiagnostico.value.find(t => t.id == diagnostico.tipo_diagnostico_id)
+  return tipo ? tipo.nombre : 'No seleccionado'
+}
+
 // Obtener nombre del centro seleccionado
 const obtenerNombreCentroSeleccionado = () => {
   const centro = centrosVeterinarios.value.find(c => c.id === diagnostico.centro_veterinario_id)
@@ -466,6 +600,12 @@ const obtenerNombreCentroSeleccionado = () => {
 const obtenerDireccionCentroSeleccionado = () => {
   const centro = centrosVeterinarios.value.find(c => c.id === diagnostico.centro_veterinario_id)
   return centro ? centro.direccion : ''
+}
+
+// Formatear fecha
+const formatFecha = (fecha) => {
+  if (!fecha) return 'No especificada'
+  return new Date(fecha).toLocaleDateString('es-ES')
 }
 
 // Volver atrás si no hay mascotaId
@@ -541,7 +681,6 @@ const cargarTiposDiagnostico = async () => {
     }
   } catch (error) {
     console.error('Error cargando tipos de diagnóstico:', error)
-    // No mostrar alerta aquí para no interrumpir el flujo
     tiposDiagnostico.value = []
   }
 }
@@ -565,8 +704,126 @@ const cargarCentrosVeterinarios = async () => {
     console.log('🏥 Centros veterinarios cargados:', centrosVeterinarios.value.length)
   } catch (error) {
     console.error('Error cargando centros veterinarios:', error)
-    // No mostrar alerta aquí para no interrumpir el flujo
     centrosVeterinarios.value = []
+  }
+}
+
+// Cargar datos de diagnóstico existente (para edición)
+const cargarDiagnosticoExistente = async () => {
+  if (!diagnosticoId.value || !mascotaId.value) return
+  
+  try {
+    console.log('🔄 Cargando datos de diagnóstico con ID:', diagnosticoId.value)
+    console.log('📍 URL completa:', `/api/mascotas/${mascotaId.value}/diagnosticos/${diagnosticoId.value}`)
+    
+    // En cargarDiagnosticoExistente() en tu componente
+     const response = await fetch(`/api/mascotas/${mascotaId.value}/diagnosticos/${diagnosticoId.value}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken.value}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      console.log('📊 Response status:', response.status)
+      console.log('📊 Response status text:', response.statusText)
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    console.log('📦 Respuesta completa de diagnóstico:', result)
+    
+    if (result.success && result.data) {
+      const datosDiagnostico = result.data
+      
+      // DEBUG: Log detallado
+      console.log('🔍 DEBUG - Estructura de datos recibida:', {
+        centro_veterinario_id: datosDiagnostico.proceso_medico?.centro_veterinario_id,
+        centro_veterinario_datos: datosDiagnostico.centro_veterinario,
+        examenes_complementarios: datosDiagnostico.examenes_complementarios,
+        conducta_terapeutica: datosDiagnostico.conducta_terapeutica,
+        procedimiento_diagnosticos: datosDiagnostico.procedimiento_diagnosticos,
+        diagnosticos_diferenciales: datosDiagnostico.diagnosticos_diferenciales
+      })
+      
+      // Actualizar el objeto diagnostico con los datos existentes
+      Object.assign(diagnostico, {
+        tipo_diagnostico_id: datosDiagnostico.tipo_diagnostico_id,
+        nombre: datosDiagnostico.nombre,
+        fecha_diagnostico: datosDiagnostico.fecha_diagnostico?.split('T')[0] || '',
+        estado: datosDiagnostico.estado,
+        // CORRECCIÓN: Usar el ID del centro veterinario
+        centro_veterinario_id: datosDiagnostico.centro_veterinario_id || 
+                             datosDiagnostico.proceso_medico?.centro_veterinario_id || '',
+        // CORRECCIÓN: Usar campos correctos
+        examenes: datosDiagnostico.examenes_complementarios || '',
+        conducta: datosDiagnostico.conducta_terapeutica || '',
+        medio_envio: datosDiagnostico.medio_envio || '',
+        observaciones: datosDiagnostico.observaciones || ''
+      })
+      
+      // Cargar diagnósticos diferenciales
+      diagnosticosSeleccionados.value = []
+      
+      // Opción 1: Usar procedimiento_diagnosticos
+      if (datosDiagnostico.procedimiento_diagnosticos && 
+          Array.isArray(datosDiagnostico.procedimiento_diagnosticos)) {
+        datosDiagnostico.procedimiento_diagnosticos.forEach(pd => {
+          if (pd.diagnostico_id) {
+            diagnosticosSeleccionados.value.push({
+              id: pd.diagnostico_id,
+              nombre: pd.nombre_diagnostico || 'Sin nombre',
+              relevancia: pd.relevancia
+            })
+          }
+        })
+      }
+      
+      // Opción 2: Usar diagnosticos_diferenciales (si existe)
+      else if (datosDiagnostico.diagnosticos_diferenciales && 
+               Array.isArray(datosDiagnostico.diagnosticos_diferenciales)) {
+        datosDiagnostico.diagnosticos_diferenciales.forEach(d => {
+          diagnosticosSeleccionados.value.push({
+            id: d.id,
+            nombre: d.nombre || 'Sin nombre'
+          })
+        })
+      }
+      
+      actualizarTextareaDiferenciales()
+      
+      console.log('✅ Datos de diagnóstico cargados:', diagnostico)
+      console.log('✅ Centro veterinario ID:', diagnostico.centro_veterinario_id)
+      console.log('✅ Exámenes:', diagnostico.examenes)
+      console.log('✅ Conducta:', diagnostico.conducta)
+      console.log('✅ Diagnósticos diferenciales cargados:', diagnosticosSeleccionados.value)
+    } else {
+      console.warn('❌ No se encontraron datos de diagnóstico:', result)
+      alert('No se pudo cargar el diagnóstico a editar: ' + (result.message || 'Error desconocido'))
+      
+      if (mascotaId.value) {
+        router.push({
+          name: 'veterinario-diagnosticos',
+          params: { id: mascotaId.value }
+        })
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error cargando datos de diagnóstico:', error)
+    console.error('❌ Error cargando datos de diagnóstico:', error)
+    console.error('🔍 Error details:', {
+      message: error.message,
+      name: error.name
+    })
+    alert('Error al cargar el diagnóstico: ' + error.message)
+    
+    if (mascotaId.value) {
+      router.push({
+        name: 'veterinario-diagnosticos',
+        params: { id: mascotaId.value }
+      })
+    }
   }
 }
 
@@ -587,6 +844,8 @@ const seleccionarCentro = (centro) => {
   diagnostico.centro_veterinario_id = centro.id
   mostrarOverlayCentros.value = false
 }
+
+
 
 // Funciones para diagnóstico diferencial
 const abrirSelectorDiferenciales = () => {
@@ -664,12 +923,14 @@ const abrirRegistroTipoDiagnostico = () => {
     return
   }
   
+  const query = {
+    from: esEdicion.value ? `/editar/diagnostico/${diagnosticoId.value}` : `/registro/diagnostico/${mascotaId.value}`,
+    mascotaId: mascotaId.value
+  }
+  
   router.push({
     path: '/registro/registroTipoDiagnostico',
-    query: {
-      from: '/registro/diagnostico',
-      mascotaId: mascotaId.value
-    }
+    query
   })
 }
 
@@ -703,19 +964,35 @@ const quitarArchivo = (index) => {
   archivos.value[index].preview = null
 }
 
+// Modal functions
+const mostrarModalConfirmacion = () => {
+  if (!formularioValido.value) {
+    alert('Por favor complete todos los campos obligatorios')
+    return
+  }
+  
+  mostrarModal.value = true
+}
+
+const cerrarModal = () => {
+  mostrarModal.value = false
+}
+
+const confirmarAccion = () => {
+  if (esEdicion.value) {
+    actualizarDiagnostico()
+  } else {
+    registrarDiagnostico()
+  }
+}
+
 // Registrar diagnóstico
 const registrarDiagnostico = async () => {
   if (procesando.value || cargandoDatos.value) return
 
   try {
     procesando.value = true
-
-    // Validar campos obligatorios
-     if (!diagnostico.tipo_diagnostico_id || !diagnostico.nombre || !diagnostico.fecha_diagnostico || !diagnostico.estado) {
-      alert('Por favor complete todos los campos obligatorios')
-      procesando.value = false
-      return
-    }
+    cerrarModal()
 
     console.log('📤 Enviando datos a servidor:', diagnostico)
 
@@ -725,7 +1002,17 @@ const registrarDiagnostico = async () => {
     const datosEnvio = {
       ...diagnostico,
       mascota_id: mascotaId.value,
-      diagnosticosDiferenciales: diagnosticosSeleccionados.value.map(d => d.id)
+    }
+
+    // Agregar diagnósticos diferenciales como JSON string
+    if (diagnosticosSeleccionados.value.length > 0) {
+      formData.append('diagnosticos_diferenciales_seleccionados', JSON.stringify(
+        diagnosticosSeleccionados.value.map(d => ({
+          id: d.id,
+          nombre: d.nombre,
+          relevancia: d.relevancia || 'media'
+        }))
+      ))
     }
 
     for (const campo in datosEnvio) {
@@ -779,10 +1066,12 @@ const registrarDiagnostico = async () => {
       
       console.log('✅ Diagnóstico registrado, navegando con mascotaId:', currentMascotaId)
       
+      alert('✅ Diagnóstico registrado exitosamente')
+      
       // Usar .value para obtener el valor primitivo
       router.push({
         name: 'veterinario-diagnosticos',
-        params: { id: currentMascotaId },  // ¡Aquí está el cambio!
+        params: { id: currentMascotaId },
         query: {
           from: 'registroDiagnostico',
           currentTab: 'Clinico',
@@ -800,15 +1089,105 @@ const registrarDiagnostico = async () => {
   }
 }
 
-const cancelar = () => {
-  if (mascotaId.value) {
-    const currentMascotaId = mascotaId.value  // Obtener el valor
+// Actualizar diagnóstico existente
+// Actualizar diagnóstico existente
+const actualizarDiagnostico = async () => {
+  if (procesando.value) return
+
+  try {
+    procesando.value = true
+    cerrarModal()
+
+    console.log('📤 Actualizando diagnóstico con ID:', diagnosticoId.value, 'para mascota:', mascotaId.value)
+    console.log('📤 Datos a enviar:', diagnostico)
+
+    // Preparar datos para enviar - CORRECCIÓN: Usar JSON en lugar de FormData
+    const datosEnvio = {
+      ...diagnostico,
+      mascota_id: mascotaId.value,
+    }
+
+    // Agregar diagnósticos diferenciales si existen
+    if (diagnosticosSeleccionados.value.length > 0) {
+      datosEnvio.diagnosticos_diferenciales_seleccionados = diagnosticosSeleccionados.value.map(d => ({
+        id: d.id,
+        nombre: d.nombre,
+        relevancia: d.relevancia || 'media'
+      }))
+    }
+
+    console.log('✅ Datos a enviar:', datosEnvio)
+    console.log('✅ IDs de diagnósticos diferenciales:', diagnosticosSeleccionados.value.map(d => d.id))
+
+    // CORRECCIÓN: Usar la ruta correcta con mascotaId y enviar como JSON
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/diagnosticos/${diagnosticoId.value}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: JSON.stringify(datosEnvio)
+    })
+
+    console.log('📨 Status:', response.status)
     
+    const responseText = await response.text()
+    console.log('📄 Respuesta cruda:', responseText)
+
+    if (!responseText.trim()) {
+      throw new Error('El servidor devolvió una respuesta vacía')
+    }
+
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('No se pudo parsear como JSON:', responseText)
+      throw new Error('El servidor no devolvió JSON válido.')
+    }
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Error en la operación')
+    }
+
+    if (result.success) {
+      alert('✅ Diagnóstico actualizado exitosamente')
+      
+      const mascotaIdParaRedireccion = mascotaId.value || result.data?.mascota_id || result.data?.procesoMedico?.mascota_id
+      
+      if (mascotaIdParaRedireccion) {
+        router.push({
+          name: 'veterinario-diagnosticos',
+          params: { id: mascotaIdParaRedireccion },
+          query: {
+            from: 'editarDiagnostico',
+            currentTab: 'Clinico',
+            ts: Date.now()
+          }
+        })
+      } else {
+        router.push({ name: 'veterinario-diagnosticos', params: { id: '0' } })
+      }
+    } else {
+      alert('Error al actualizar el diagnóstico: ' + result.message)
+    }
+  } catch (error) {
+    console.error('❌ Error completo:', error)
+    alert('Error al actualizar el diagnóstico: ' + error.message)
+  } finally {
+    procesando.value = false
+  }
+}
+const cancelar = () => {
+  const mascotaIdParaRedireccion = mascotaId.value
+  
+  if (mascotaIdParaRedireccion) {
     router.push({
       name: 'veterinario-diagnosticos',
-      params: { id: currentMascotaId },  // ¡Aquí también!
+      params: { id: mascotaIdParaRedireccion },
       query: {
-        from: 'cancelarRegistroDiagnostico',
+        from: esEdicion.value ? 'cancelarEditarDiagnostico' : 'cancelarRegistroDiagnostico',
         currentTab: 'Clinico',
         ts: Date.now()
       }
@@ -838,6 +1217,11 @@ onMounted(async () => {
     }
   }
 
+  // Si es edición, cargar datos del diagnóstico primero
+  if (esEdicion.value) {
+    await cargarDiagnosticoExistente()
+  }
+
   try {
     // Cargar datos en paralelo para mayor eficiencia
     const promises = [
@@ -848,9 +1232,11 @@ onMounted(async () => {
 
     await Promise.allSettled(promises)
     
-    // Establecer fecha actual como predeterminada
-    const hoy = new Date().toISOString().split('T')[0]
-    diagnostico.fecha_diagnostico = hoy  // Cambiado aquí
+    // Establecer fecha actual como predeterminada solo si es registro nuevo y no hay fecha
+    if (!esEdicion.value && !diagnostico.fecha_diagnostico) {
+      const hoy = new Date().toISOString().split('T')[0]
+      diagnostico.fecha_diagnostico = hoy
+    }
     
     console.log('✅ Componente completamente cargado')
     console.log('👤 Usuario ID final:', usuarioId.value)

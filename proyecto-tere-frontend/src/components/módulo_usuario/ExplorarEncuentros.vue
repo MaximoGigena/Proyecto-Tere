@@ -81,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick} from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { RouterLink } from 'vue-router'
 import huellas from '@/assets/huellas.png'
@@ -95,6 +95,11 @@ const router = useRouter()
 const { accessToken, isAuthenticated, setToken } = useAuthToken()
 const activo = ref('encuentros')
 const scrollContainer = ref(null)
+
+// Estado para controlar si ya solicitamos ubicación
+const hasRequestedLocation = ref(false)
+const locationError = ref(null)
+const isSavingLocation = ref(false)
 
 // Verificar si hay token en la URL al montar el componente
 onMounted(async () => {
@@ -125,17 +130,26 @@ async function handleTokenFromUrl() {
         headers: { Authorization: `Bearer ${token}` }
       })
       
-      // Aquí podrías guardar el usuario en un store si lo necesitas
       console.log('Usuario autenticado:', response.data)
       
       // Limpiar la URL removiendo los parámetros del token
       const cleanUrl = window.location.pathname
       window.history.replaceState({}, document.title, cleanUrl)
       
+      // 🔥 SOLICITAR UBICACIÓN DESPUÉS DE AUTENTICAR
+      setTimeout(() => {
+        solicitarUbicacionInicial();
+      }, 1000);
+      
     } catch (error) {
       console.error('Error procesando token:', error)
       alert('Error en autenticación. Por favor intenta nuevamente.')
     }
+  } else if (isAuthenticated.value) {
+    // Si ya está autenticado por otro medio, también solicitar ubicación
+    setTimeout(() => {
+      solicitarUbicacionInicial();
+    }, 1000);
   }
 }
 
@@ -167,68 +181,116 @@ const isActive = (item) => {
   return route.path.startsWith(item.path.replace(/\/$/, ''))
 }
 
+// 🔥 FUNCIÓN PRINCIPAL: Solicitar ubicación inicial
+async function solicitarUbicacionInicial() {
+  // Evitar múltiples solicitudes
+  if (hasRequestedLocation.value || !isAuthenticated.value) {
+    return;
+  }
+  
+  console.log('📍 Iniciando solicitud de ubicación...');
+  
+  // Pequeño delay para mejor UX
+  setTimeout(async () => {
+    await pedirYGuardarUbicacion();
+  }, 1500);
+}
 
-
-onUnmounted(() => {
-  document.body.style.overflow = 'auto'
-})
-
-// ... el resto de tus funciones existentes (pedirYGuardarUbicacion, etc.) ...
+// 🔥 FUNCIÓN MODIFICADA: Usar solicitud nativa del navegador
 async function pedirYGuardarUbicacion() {
+  if (hasRequestedLocation.value) return;
+  
+  hasRequestedLocation.value = true;
+  locationError.value = null;
+  
   console.log('📍 Iniciando proceso de ubicación...');
   
-  // Verificar autenticación usando el composable
+  // Verificar autenticación
   if (!isAuthenticated.value) {
     console.log('Usuario no autenticado, no se solicita ubicación');
     return;
   }
 
   if (!navigator.geolocation) {
+    locationError.value = 'Tu navegador no soporta geolocalización.';
     alert('Tu navegador no soporta geolocalización.');
     return;
   }
 
   try {
-    // 1. Verificar permisos
+    // 1. Primero verificar el estado del permiso
     const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
     console.log('Estado del permiso:', permissionStatus.state);
 
     if (permissionStatus.state === 'denied') {
-      alert('Has bloqueado el permiso de ubicación. Para usar esta función:\n\n1. Haz clic en el icono de candado en la barra de direcciones\n2. Selecciona "Configuración de sitios"\n3. Busca "Ubicación" y cámbialo a "Permitir"\n4. Recarga la página');
+      // Si ya fue denegado, mostrar instrucciones
+      mostrarInstruccionesUbicacion();
       return;
     }
 
-    if (permissionStatus.state === 'prompt') {
-      const acepta = confirm('Para mostrarte mascotas cerca de ti, necesitamos acceder a tu ubicación. ¿Permites que TERE use tu ubicación?');
-      if (!acepta) {
-        console.log('Usuario rechazó la ubicación');
-        return;
-      }
+    if (permissionStatus.state === 'granted') {
+      // Si ya está permitido, obtener ubicación directamente
+      await obtenerYGuardarUbicacion();
+      return;
     }
 
-    // 2. Obtener token CSRF
-    console.log('Obteniendo token CSRF...');
-    await axios.get('/sanctum/csrf-cookie', {
-      withCredentials: true
-    });
-
-    // 3. Obtener ubicación
-    console.log('Obteniendo ubicación...');
+    // 2. Si está en "prompt", usar la solicitud nativa del navegador
+    // Esta será la solicitud que aparece en el margen superior derecho
+    console.log('Solicitando permiso de ubicación...');
+    
     const position = await new Promise((resolve, reject) => {
+      // 🔥 ESTA LLAMADA ACTIVA LA SOLICITUD NATIVA DEL NAVEGADOR
       navigator.geolocation.getCurrentPosition(
         resolve,
+        reject,
         {
           enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 300000
+          timeout: 15000,
+          maximumAge: 0 // Siempre obtener ubicación fresca
         }
       );
     });
 
-    const { latitude, longitude, accuracy } = position.coords;
+    // 3. Si el usuario acepta la solicitud nativa, proceder
+    await obtenerYGuardarUbicacion(position);
+
+  } catch (error) {
+    console.error('Error al obtener ubicación:', error);
+    manejarErrorUbicacion(error);
+  } finally {
+    hasRequestedLocation.value = false;
+  }
+}
+
+// 🔥 FUNCIÓN PARA OBTENER Y GUARDAR UBICACIÓN
+async function obtenerYGuardarUbicacion(position = null) {
+  isSavingLocation.value = true;
+  
+  try {
+    let latitude, longitude, accuracy;
+    
+    if (position) {
+      // Usar la posición ya obtenida
+      ({ latitude, longitude, accuracy } = position.coords);
+    } else {
+      // Obtener nueva posición
+      const newPosition = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000
+        });
+      });
+      ({ latitude, longitude, accuracy } = newPosition.coords);
+    }
+
     console.log('Ubicación obtenida:', { latitude, longitude, accuracy });
 
-    // 4. Enviar ubicación al servidor usando el token del composable
+    // Obtener token CSRF
+    await axios.get('/sanctum/csrf-cookie', {
+      withCredentials: true
+    });
+
+    // Enviar ubicación al servidor con reverse geocoding
     console.log('Enviando ubicación al servidor...');
     const response = await axios.post('/api/guardar-ubicacion', {
       latitude,
@@ -240,78 +302,90 @@ async function pedirYGuardarUbicacion() {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
-        'Authorization': `Bearer ${accessToken.value}` // Usar token del composable
+        'Authorization': `Bearer ${accessToken.value}`
       }
     });
 
-    console.log('Ubicación guardada:', response.data);
-    alert('¡Ubicación guardada correctamente! Ahora puedes ver mascotas cerca de ti.');
+    console.log('📍 Ubicación guardada con reverse geocoding:', response.data);
+    
+    // Mostrar mensaje con la ciudad detectada
+    const city = response.data.geo_data?.city || response.data.data?.city;
+    if (city) {
+      //alert(`¡Perfecto! Ubicación guardada en ${city}. Ahora puedes ver mascotas cerca de ti.`);
+    } else {
+      //alert('¡Ubicación guardada correctamente! Ahora puedes ver mascotas cerca de ti.');
+    }
 
   } catch (error) {
-    console.error('Error completo:', error);
-    
-    if (error.code === error.PERMISSION_DENIED || error.code === 1) {
-    } else if (error.code === error.TIMEOUT || error.code === 3) {
-      alert('Tiempo agotado al obtener la ubicación. Verifica tu conexión y GPS.');
-    } else if (error.code === error.POSITION_UNAVAILABLE || error.code === 2) {
-      alert('No se pudo obtener la ubicación. Verifica que el GPS esté activado.');
-    } else if (error.response?.status === 401) {
-      alert('Sesión expirada. Por favor inicia sesión nuevamente.');
-      router.push('/login');
-    }
+    console.error('Error al guardar ubicación en el servidor:', error);
+    manejarErrorUbicacion(error);
+  } finally {
+    isSavingLocation.value = false;
   }
 }
 
- // Verificar autenticación usando el composable
-function checkAuth() {
-  if (!isAuthenticated.value) {
-    console.log('Usuario no autenticado, redirigiendo a login');
+// 🔥 FUNCIÓN PARA MANEJAR ERRORES
+function manejarErrorUbicacion(error) {
+  console.error('Error completo:', error);
+  
+  if (error.code === 1 || error.code === error.PERMISSION_DENIED) {
+    // Permiso denegado por el usuario
+    mostrarInstruccionesUbicacion();
+  } else if (error.code === 2 || error.code === error.POSITION_UNAVAILABLE) {
+    alert('No se pudo obtener la ubicación. Verifica que el GPS esté activado.');
+  } else if (error.code === 3 || error.code === error.TIMEOUT) {
+    alert('Tiempo agotado al obtener la ubicación. Verifica tu conexión y GPS.');
+  } else if (error.response?.status === 401) {
+    alert('Sesión expirada. Por favor inicia sesión nuevamente.');
     router.push('/login');
-    return false;
+  } else {
+    alert('Error al obtener tu ubicación. Intenta nuevamente.');
   }
-  return true;
 }
-  
-  console.log('Usuario autenticado, solicitando ubicación...');
-  
-  // Pequeño delay para mejor UX
-  setTimeout(() => {
-    pedirYGuardarUbicacion();
-  }, 1000);
 
-// 🔥 LLAMAR LA FUNCIÓN CUANDO EL COMPONENTE ESTÉ MONTADO
-onMounted(async () => {
-  await nextTick();
+// 🔥 FUNCIÓN PARA MOSTRAR INSTRUCCIONES CUANDO EL PERMISO ES DENEGADO
+function mostrarInstruccionesUbicacion() {
+  const mensaje = 
+    'Has bloqueado el permiso de ubicación. Para usar la función "Cerca" y ver mascotas cerca de ti:\n\n' +
+    '1. Haz clic en el icono de candado (🔒) en la barra de direcciones\n' +
+    '2. Selecciona "Configuración de sitios" o "Permisos"\n' +
+    '3. Busca "Ubicación" y cámbialo a "Permitir"\n' +
+    '4. Recarga la página\n\n' +
+    'O también puedes:\n' +
+    '• En Chrome: Configuración → Privacidad y seguridad → Configuración de sitios → Ubicación\n' +
+    '• En Firefox: Opciones → Privacidad y seguridad → Permisos → Ubicación\n' +
+    '• En Safari: Preferencias → Sitios web → Ubicación';
   
-  // Verificar autenticación usando el composable
-  if (!isAuthenticated.value) {
-    console.log('Usuario no autenticado, no se solicita ubicación');
-    // Redirigir a login si no está autenticado
-    router.push('/login');
-    return;
+  const continuar = confirm(mensaje + '\n\n¿Quieres continuar sin activar la ubicación?');
+  
+  if (!continuar) {
+    // Si el usuario quiere activarla, mostrar instrucciones más detalladas
+    alert('Sigue las instrucciones anteriores para activar la ubicación, luego recarga la página.');
   }
-  
-  console.log('Usuario autenticado, solicitando ubicación...');
-  
-  // Pequeño delay para mejor UX
-  setTimeout(() => {
-    pedirYGuardarUbicacion();
-  }, 1000);
-});
+}
 
+// 🔥 FUNCIÓN PARA REINTENTAR (se puede llamar desde otro componente)
+function reintentarUbicacion() {
+  hasRequestedLocation.value = false;
+  pedirYGuardarUbicacion();
+}
 
-//control del banner de donaciones
+onUnmounted(() => {
+  document.body.style.overflow = 'auto'
+})
+
+// 🔥 CONTROL DEL BANNER DE DONACIONES
 const showDonationBanner = ref(false)
 let bannerInterval = null
 
 onMounted(() => {
-  // Mostrar el banner cada 60s
+  // Mostrar el banner cada 40s
   bannerInterval = setInterval(() => {
     showDonationBanner.value = true
-    // Ocultarlo después de 8s
+    // Ocultarlo después de 25s
     setTimeout(() => {
       showDonationBanner.value = false
-    },25000)
+    }, 25000)
   }, 40000)
 })
 
@@ -367,7 +441,34 @@ function irADonaciones() {
 
 .slide-down-leave-to {
   opacity: 0;
-  transform: translateY(100px); /* Desliza hacia abajo, fuera de la pantalla */
+  transform: translateY(100px);
 }
 
+/* 🔥 Estilos para mostrar estado de ubicación */
+.location-status {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.location-status.loading {
+  background: rgba(59, 130, 246, 0.9);
+}
+
+.location-status.error {
+  background: rgba(239, 68, 68, 0.9);
+}
+
+.location-status.success {
+  background: rgba(34, 197, 94, 0.9);
+}
 </style>

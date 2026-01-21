@@ -6,9 +6,9 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Desparasitación</h1>
+    <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Desparasitación' : 'Registrar Desparasitación' }}</h1>
 
-    <form @submit.prevent="registrarDesparasitacion" class="space-y-4">
+    <form @submit.prevent="procesarFormulario" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -149,7 +149,9 @@
       <div class="mt-8">
         <CarruselMedioEnvio 
           v-if="usuarioId" 
-          :usuario-id="usuarioId" 
+          :usuario-id="usuarioId"
+          :modo-edicion="esEdicion"
+          :medio-seleccionado-inicial="desparasitacion.medio_envio"
           @update:medio="desparasitacion.medio_envio = $event" 
         />
         
@@ -158,10 +160,15 @@
         </div>
 
         <div v-if="desparasitacion.medio_envio" class="mt-4 text-center text-gray-700">
-          <span class="font-semibold">Medio seleccionado:</span>
+          <span class="font-semibold">
+            {{ esEdicion ? 'Medio de envío utilizado:' : 'Medio seleccionado:' }}
+          </span>
           <span class="ml-1 text-blue-600 font-medium">
             {{ obtenerNombreMedio(desparasitacion.medio_envio) }}
           </span>
+          <p v-if="esEdicion" class="text-sm text-gray-500 mt-1">
+            (En modo edición el medio de envío no se puede cambiar)
+          </p>
         </div>
       </div>
 
@@ -174,11 +181,12 @@
           Cancelar
         </button>
         <button
-          type="submit"
-          :disabled="procesando"
+          type="button"
+          @click="mostrarModalConfirmacion"
+          :disabled="procesando || !formularioValido"
           class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
         >
-          {{ procesando ? 'Registrando...' : 'Registrar Desparasitación' }}
+          {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar Desparasitación' : 'Registrar Desparasitación') }}
         </button>
       </div>
     </form>
@@ -192,32 +200,76 @@
       @cerrar="mostrarOverlayCentros = false"
       @seleccionar="seleccionarCentro"
     />
+
+    <!-- Modal de confirmación -->
+    <div v-if="mostrarModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold mb-4">
+          {{ esEdicion ? 'Confirmar Actualización' : 'Confirmar Registro' }}
+        </h3>
+        
+        <div class="mb-6">
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Tipo de desparasitación:</span> {{ obtenerNombreTipoDesparasitacion() }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Fecha:</span> {{ formatFecha(desparasitacion.fecha) }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Producto:</span> {{ desparasitacion.nombre_producto }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Dosis:</span> {{ desparasitacion.dosis }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Frecuencia:</span> {{ desparasitacion.frecuencia_valor }} {{ obtenerUnidadTexto(desparasitacion.frecuencia_unidad) }}
+          </p>
+          <p v-if="desparasitacion.centro_veterinario_id" class="text-gray-700 mb-2">
+            <span class="font-semibold">Centro veterinario:</span> {{ obtenerNombreCentroSeleccionado() }}
+          </p>
+          <p v-if="desparasitacion.peso" class="text-gray-700 mb-2">
+            <span class="font-semibold">Peso:</span> {{ desparasitacion.peso }} kg
+          </p>
+          <p v-if="desparasitacion.proxima_fecha" class="text-gray-700 mb-2">
+            <span class="font-semibold">Próxima fecha:</span> {{ formatFecha(desparasitacion.proxima_fecha) }}
+          </p>
+          <p v-if="desparasitacion.observaciones" class="text-gray-700 mb-2">
+            <span class="font-semibold">Observaciones:</span> {{ desparasitacion.observaciones }}
+          </p>
+          <p v-if="desparasitacion.medio_envio" class="text-gray-700">
+            <span class="font-semibold">Medio de envío:</span> {{ obtenerNombreMedio(desparasitacion.medio_envio) }}
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button
+            @click="cerrarModal"
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="confirmarAccion"
+            :disabled="procesando"
+            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:bg-blue-300"
+          >
+            {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar' : 'Registrar') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import axios from 'axios'
 import SeleccionCentroVeterinario from '@/components/ElementosGraficos/SeleccionCentroVeterinario.vue'
 import CarruselMedioEnvio from '@/components/ElementosGraficos/CarruselMedioEnvio.vue'
 import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
 const route = useRoute()
-
-// OBTENER mascotaId DE FORMA ROBUSTA
-const mascotaId = computed(() => {
-  console.log('🔍 Route query:', route.query)
-  console.log('🔍 Route params:', route.params)
-  
-  // Intenta obtener de diferentes formas
-  const id = route.query.mascotaId || route.params.mascotaId || route.params.id
-  
-  console.log('📌 Mascota ID encontrado:', id)
-  return id
-})
-
 const { accessToken, isAuthenticated, checkAuth } = useAuth()
 
 // Estados reactivos
@@ -227,6 +279,37 @@ const mostrarOverlayCentros = ref(false)
 const procesando = ref(false)
 const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
+const mostrarModal = ref(false)
+
+const props = defineProps({
+  desparasitacionId: {
+    type: [String, Number],
+    default: null
+  },
+  mascotaId: {
+    type: [String, Number],
+    default: null
+  }
+})
+
+// Determinar si es edición o registro
+const esEdicion = computed(() => {
+  return !!props.desparasitacionId || !!route.params.desparasitacionId
+})
+
+const desparasitacionId = computed(() => {
+  return route.params.desparasitacionId || null
+})
+
+const mascotaId = computed(() => {
+  console.log('🔍 Route query:', route.query)
+  console.log('🔍 Route params:', route.params)
+  
+  const id = props.mascotaId || route.query.mascotaId || route.params.mascotaId || route.params.id
+  
+  console.log('📌 Mascota ID encontrado:', id)
+  return id
+})
 
 // Datos del formulario
 const desparasitacion = reactive({
@@ -241,6 +324,24 @@ const desparasitacion = reactive({
   observaciones: '',
   centro_veterinario_id: '',
   medio_envio: '',
+})
+
+// Computed para validación del formulario
+const formularioValido = computed(() => {
+  const camposObligatorios = desparasitacion.tipo_desparasitacion_id && 
+    desparasitacion.fecha && 
+    desparasitacion.nombre_producto && 
+    desparasitacion.dosis && 
+    desparasitacion.frecuencia_valor && 
+    desparasitacion.frecuencia_unidad
+  
+  // Para registro, el medio de envío es obligatorio
+  if (!esEdicion.value) {
+    return camposObligatorios && desparasitacion.medio_envio
+  }
+  
+  // Para edición, solo los campos básicos son obligatorios
+  return camposObligatorios
 })
 
 // Obtener ID del usuario dueño de la mascota
@@ -270,6 +371,28 @@ const obtenerDireccionCentroSeleccionado = () => {
   return centro ? centro.direccion : ''
 }
 
+// Obtener nombre del tipo de desparasitación
+const obtenerNombreTipoDesparasitacion = () => {
+  const tipo = tiposDesparasitacion.value.find(t => t.id == desparasitacion.tipo_desparasitacion_id)
+  return tipo ? tipo.nombre : 'No seleccionado'
+}
+
+// Obtener texto de la unidad de frecuencia
+const obtenerUnidadTexto = (unidad) => {
+  const unidades = {
+    dias: 'días',
+    semanas: 'semanas',
+    meses: 'meses'
+  }
+  return unidades[unidad] || unidad
+}
+
+// Formatear fecha
+const formatFecha = (fecha) => {
+  if (!fecha) return 'No especificada'
+  return new Date(fecha).toLocaleDateString('es-ES')
+}
+
 // Cargar datos de la mascota para obtener el usuario_id
 const cargarDatosMascota = async () => {
   try {
@@ -280,7 +403,7 @@ const cargarDatosMascota = async () => {
 
     console.log('🔄 Cargando datos de mascota con ID:', mascotaId.value)
     
-    const response = await fetch(`/api/mascotas/${mascotaId.value}`, { // 👈 USAR .value
+    const response = await fetch(`/api/mascotas/${mascotaId.value}`, {
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
         'Accept': 'application/json'
@@ -363,6 +486,72 @@ const cargarCentrosVeterinarios = async () => {
   }
 }
 
+// Cargar datos de desparasitación existente (para edición)
+const cargarDesparasitacionExistente = async () => {
+  if (!desparasitacionId.value) return
+  
+  try {
+    console.log('🔄 Cargando datos de desparasitación con ID:', desparasitacionId.value)
+    
+    const response = await fetch(`/api/desparasitaciones/${desparasitacionId.value}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    console.log('📦 Respuesta de desparasitación:', result)
+    
+    if (result.success && result.data) {
+      const datosDesparasitacion = result.data
+      
+      // Actualizar el objeto desparasitacion con los datos existentes
+      Object.assign(desparasitacion, {
+        tipo_desparasitacion_id: datosDesparasitacion.tipo_desparasitacion_id,
+        fecha: datosDesparasitacion.fecha?.split('T')[0] || '',
+        nombre_producto: datosDesparasitacion.nombre_producto,
+        dosis: datosDesparasitacion.dosis,
+        frecuencia_valor: datosDesparasitacion.frecuencia_valor,
+        frecuencia_unidad: datosDesparasitacion.frecuencia_unidad,
+        peso: datosDesparasitacion.peso,
+        proxima_fecha: datosDesparasitacion.proxima_fecha?.split('T')[0] || '',
+        observaciones: datosDesparasitacion.observaciones,
+        centro_veterinario_id: datosDesparasitacion.centro_veterinario_id,
+        medio_envio: datosDesparasitacion.medio_envio || '',
+      })
+      
+      console.log('✅ Datos de desparasitación cargados:', desparasitacion)
+    } else {
+      console.warn('❌ No se encontraron datos de desparasitación:', result)
+      alert('No se pudo cargar la desparasitación a editar: ' + (result.message || 'Error desconocido'))
+      
+      // Redirigir a la página anterior
+      if (mascotaId.value) {
+        router.push({
+          name: 'veterinario-desparasitaciones',
+          params: { id: mascotaId.value }
+        })
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error cargando datos de desparasitación:', error)
+    alert('Error al cargar la desparasitación: ' + error.message)
+    
+    // Redirigir a la página anterior
+    if (mascotaId.value) {
+      router.push({
+        name: 'veterinario-desparasitaciones',
+        params: { id: mascotaId.value }
+      })
+    }
+  }
+}
+
 const onTipoDesparasitacionChange = () => {
   const tipoSeleccionado = tiposDesparasitacion.value.find(t => t.id == desparasitacion.tipo_desparasitacion_id)
   if (tipoSeleccionado) {
@@ -383,13 +572,44 @@ const seleccionarCentro = (centro) => {
 
 // Navegar al registro de nuevo tipo
 const abrirRegistroTipoDesparasitacion = () => {
+  const query = {
+    from: esEdicion.value ? `/editar/desparasitacion/${desparasitacionId.value}` : `/registro/desparasitacion/${mascotaId.value}`,
+    mascotaId: mascotaId.value
+  }
+  
   router.push({
     path: '/registro/registroTipoDesparasitacion',
-    query: {
-      from: `/mascotas/${mascotaId.value}/desparasitaciones/crear`, // 👈 USAR .value
-      mascotaId: mascotaId.value // 👈 USAR .value
-    }
+    query
   })
+}
+
+// Mostrar modal de confirmación
+const mostrarModalConfirmacion = () => {
+  if (!formularioValido.value) {
+    alert('Por favor complete todos los campos obligatorios')
+    return
+  }
+  
+  mostrarModal.value = true
+}
+
+// Cerrar modal
+const cerrarModal = () => {
+  mostrarModal.value = false
+}
+
+// Confirmar acción (registrar o actualizar)
+const confirmarAccion = () => {
+  if (esEdicion.value) {
+    actualizarDesparasitacion()
+  } else {
+    registrarDesparasitacion()
+  }
+}
+
+// Procesar formulario (ahora solo muestra el modal)
+const procesarFormulario = () => {
+  mostrarModalConfirmacion()
 }
 
 // Registrar desparasitación
@@ -398,6 +618,7 @@ const registrarDesparasitacion = async () => {
 
   try {
     procesando.value = true
+    cerrarModal()
 
     // Validar que se seleccionó un medio de envío
     if (!desparasitacion.medio_envio) {
@@ -405,16 +626,14 @@ const registrarDesparasitacion = async () => {
       return
     }
 
-    if (!desparasitacion.tipo_desparasitacion_id || !desparasitacion.fecha || 
-        !desparasitacion.nombre_producto || !desparasitacion.dosis || 
-        !desparasitacion.frecuencia_valor || !desparasitacion.frecuencia_unidad) {
-      alert('Por favor complete todos los campos obligatorios')
-      return
+    console.log('📤 Enviando datos a servidor para registro:', desparasitacion)
+    console.log('📤 Mascota ID:', mascotaId.value)
+
+    if (!mascotaId.value) {
+      throw new Error('No se encontró el ID de la mascota')
     }
 
-    console.log('📤 Enviando datos a servidor:', desparasitacion)
-
-    const response = await fetch(`/api/mascotas/${mascotaId.value}/desparasitaciones`, { // 👈 USAR .value
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/desparasitaciones`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -430,7 +649,7 @@ const registrarDesparasitacion = async () => {
     console.log('📄 Respuesta cruda:', responseText)
 
     if (!responseText.trim()) {
-      throw new Error('El servidor devolvió una respuesta vacía (posible redirección)')
+      throw new Error('El servidor devolvió una respuesta vacía')
     }
 
     let result
@@ -438,7 +657,7 @@ const registrarDesparasitacion = async () => {
       result = JSON.parse(responseText)
     } catch (parseError) {
       console.error('No se pudo parsear como JSON:', responseText)
-      throw new Error('El servidor no devolvió JSON válido. Respuesta: ' + responseText.substring(0, 100))
+      throw new Error('El servidor no devolvió JSON válido.')
     }
 
     if (!response.ok) {
@@ -446,9 +665,10 @@ const registrarDesparasitacion = async () => {
     }
 
     if (result.success) {
+      alert('✅ Desparasitación registrada exitosamente')
       router.push({
         name: 'veterinario-desparasitaciones',
-        params: { id: mascotaId.value }, // 👈 USAR .value
+        params: { id: mascotaId.value },
         query: {
           from: 'registroDesparasitacion',
           currentTab: 'Preventivo',
@@ -466,17 +686,93 @@ const registrarDesparasitacion = async () => {
   }
 }
 
-const cancelar = () => {
-  // USAR EL MISMO PATRÓN QUE EN REGISTRO EXITOSO
-  router.push({
-    name: 'veterinario-desparasitaciones', // 👈 Mismo nombre de ruta
-    params: { id: mascotaId.value },
-    query: {
-      from: 'cancelarRegistroDesparasitacion',
-      currentTab: 'Preventivo', // 👈 Mismo que registro exitoso
-      ts: Date.now()
+// Actualizar desparasitación existente
+const actualizarDesparasitacion = async () => {
+  if (procesando.value) return
+
+  try {
+    procesando.value = true
+    cerrarModal()
+
+    console.log('📤 Actualizando desparasitación con ID:', desparasitacionId.value)
+    console.log('📤 Datos a enviar:', desparasitacion)
+
+    const response = await fetch(`/api/desparasitaciones/${desparasitacionId.value}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: JSON.stringify(desparasitacion)
+    })
+
+    console.log('📨 Status:', response.status)
+    
+    const responseText = await response.text()
+    console.log('📄 Respuesta cruda:', responseText)
+
+    if (!responseText.trim()) {
+      throw new Error('El servidor devolvió una respuesta vacía')
     }
-  })
+
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('No se pudo parsear como JSON:', responseText)
+      throw new Error('El servidor no devolvió JSON válido.')
+    }
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Error en la operación')
+    }
+
+    if (result.success) {
+      alert('✅ Desparasitación actualizada exitosamente')
+      
+      const mascotaIdParaRedireccion = mascotaId.value || result.data?.mascota_id || result.data?.procesoMedico?.mascota_id
+      
+      if (mascotaIdParaRedireccion) {
+        router.push({
+          name: 'veterinario-desparasitaciones',
+          params: { id: mascotaIdParaRedireccion },
+          query: {
+            from: 'editarDesparasitacion',
+            currentTab: 'Preventivo',
+            ts: Date.now()
+          }
+        })
+      } else {
+        router.push({ name: 'veterinario-desparasitaciones', params: { id: '0' } })
+      }
+    } else {
+      alert('Error al actualizar la desparasitación: ' + result.message)
+    }
+  } catch (error) {
+    console.error('❌ Error completo:', error)
+    alert('Error al actualizar la desparasitación: ' + error.message)
+  } finally {
+    procesando.value = false
+  }
+}
+
+const cancelar = () => {
+  const mascotaIdParaRedireccion = mascotaId.value
+  
+  if (mascotaIdParaRedireccion) {
+    router.push({
+      name: 'veterinario-desparasitaciones',
+      params: { id: mascotaIdParaRedireccion },
+      query: {
+        from: esEdicion.value ? 'cancelarEditarDesparasitacion' : 'cancelarRegistroDesparasitacion',
+        currentTab: 'Preventivo',
+        ts: Date.now()
+      }
+    })
+  } else {
+    router.push({ name: 'veterinario-desparasitaciones', params: { id: '0' } })
+  }
 }
 
 // Verificar autenticación y cargar datos
@@ -492,29 +788,32 @@ onMounted(async () => {
     }
   }
 
-  // VALIDAR QUE mascotaId EXISTA ANTES DE CARGAR
-  if (!mascotaId.value) {
-    console.error('❌ No se pudo obtener el ID de la mascota')
-    alert('Error: No se pudo identificar la mascota. Por favor, regrese al historial e intente nuevamente.')
-    router.back()
-    return
+  // Si es edición, cargar datos de la desparasitación primero
+  if (esEdicion.value) {
+    await cargarDesparasitacionExistente()
   }
 
   // Cargar datos en orden
-  await cargarDatosMascota() // Primero cargar datos de mascota para obtener usuario_id
-  
-  if (errorCargandoMascota.value) {
-    console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
-    alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
-    return
+  if (mascotaId.value) {
+    await cargarDatosMascota()
+    
+    if (errorCargandoMascota.value) {
+      console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
+      alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
+      return
+    }
   }
 
-  await cargarTiposDesparasitacion()
-  await cargarCentrosVeterinarios()
+  await Promise.all([
+    cargarTiposDesparasitacion(),
+    cargarCentrosVeterinarios()
+  ])
 
-  // Establecer fecha actual como predeterminada
-  const hoy = new Date().toISOString().split('T')[0]
-  desparasitacion.fecha = hoy
+  // Establecer fecha actual como predeterminada solo si es registro nuevo y no hay fecha
+  if (!esEdicion.value && !desparasitacion.fecha) {
+    const hoy = new Date().toISOString().split('T')[0]
+    desparasitacion.fecha = hoy
+  }
   
   console.log('✅ Componente completamente cargado')
   console.log('👤 Usuario ID final:', usuarioId.value)

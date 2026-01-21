@@ -228,13 +228,47 @@ const abrirProcedimiento = (revision) => {
 
 const editarRevision = (revision) => {
   console.log('Editar revisión:', revision)
-  // Aquí puedes implementar la edición
-  // router.push(`/mascotas/${mascotaId}/revisiones/${revision.id}/editar`)
+  
+  // Redireccionar a la vista de edición
+  router.push({
+    name: 'editarRevisión',
+    params: {
+      revisionId: revision.id
+    },
+    query: {
+      from: '/historialPreventivo/revisiones',
+      mascotaId: mascotaId  // Pasar el ID de la mascota como query param
+    }
+  })
 }
 
-const eliminarRevision = (id) => {
-  console.log('Eliminar revisión ID:', id)
-  // Aquí puedes implementar la eliminación
+const eliminarRevision = async (id) => {
+  if (!confirm('¿Estás seguro de que deseas dar de baja esta revisión? Esta acción se puede revertir.')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/mascotas/${mascotaId}/revisiones/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert('Revisión dada de baja exitosamente');
+      // Recargar la lista de revisiones
+      await cargarRevisiones();
+    } else {
+      alert('Error al dar de baja la revisión: ' + result.message);
+    }
+  } catch (error) {
+    console.error('Error eliminando revisión:', error);
+    alert('Error al conectar con el servidor');
+  }
 }
 </script>
 

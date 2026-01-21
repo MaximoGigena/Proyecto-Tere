@@ -229,8 +229,18 @@ const abrirProcedimiento = (cirugia) => {
 
 const editarCirugia = (cirugia) => {
   console.log('Editar cirugía:', cirugia)
-  // Aquí puedes implementar la lógica de edición
-  // Ejemplo: router.push({ path: `/cirugias/${cirugia.id}/editar`, query: { mascotaId } })
+  // Redireccionar a la vista de edición
+
+  router.push({
+    name: 'editarCirugia',
+    params: {
+      cirugiaId: cirugia.id
+    },
+    query: {
+      from: '/historialClinico/cirugias',
+      mascotaId: mascotaId  // Pasar el ID de la mascota como query param
+    }
+  })
 }
 
 const eliminarCirugia = async (id) => {

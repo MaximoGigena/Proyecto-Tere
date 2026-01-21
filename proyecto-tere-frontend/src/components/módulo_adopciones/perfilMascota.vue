@@ -4,7 +4,13 @@
     <!-- Header sticky compacto -->
     <div class="sticky top-0 z-30 bg-white px-4 py-1 flex items-center justify-between border-b border-gray-100">
       <div class="text-xl font-bold text-gray-800 leading-tight">
-        Explorando mascotas ({{ currentIndex + 1 }}/{{ ofertas.length }})
+        <!-- ✅ Muestra información de ubicación si está disponible -->
+        <template v-if="ubicacionCargada">
+          Mascotas cerca de ti ({{ currentIndex + 1 }}/{{ ofertas.length }})
+        </template>
+        <template v-else>
+          Explorando mascotas ({{ currentIndex + 1 }}/{{ ofertas.length }})
+        </template>
       </div>
 
       <button
@@ -18,7 +24,6 @@
       </button>
     </div>
 
-
     <!-- Contenedor principal -->
     <div 
       ref="swipeContainer"
@@ -28,7 +33,8 @@
       <div v-if="cargando" class="flex items-center justify-center h-full">
         <div class="text-center">
           <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p class="text-gray-600">Cargando mascotas...</p>
+          <p class="text-gray-600">Buscando mascotas cerca de ti...</p>
+          <p class="text-sm text-gray-500 mt-2">Ordenando por proximidad</p>
         </div>
       </div>
 
@@ -38,6 +44,12 @@
           <font-awesome-icon :icon="['fas', 'paw']" class="text-6xl text-gray-300 mb-4" />
           <h3 class="text-xl font-semibold text-gray-700 mb-2">No hay mascotas disponibles</h3>
           <p class="text-gray-500">Prueba con otros filtros o vuelve más tarde</p>
+          <button 
+            @click="cargarOfertas"
+            class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+          >
+            Volver a buscar
+          </button>
         </div>
       </div>
 
@@ -69,6 +81,24 @@
           </div>
         </div>
       </transition-group>
+
+      <!-- Indicador de proximidad en la oferta actual -->
+      <div 
+        v-if="!cargando && ofertas.length > 0 && ofertas[currentIndex]?.distancia"
+        class="absolute top-20 left-0 right-0 z-10 px-4"
+      >
+        <div class="flex justify-center">
+          <div class="inline-flex items-center gap-2 px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full shadow">
+            <font-awesome-icon :icon="['fas', 'location-dot']" class="text-blue-500" />
+            <span class="text-sm font-medium text-gray-700">
+              {{ ofertas[currentIndex].distancia }}
+              <span v-if="ofertas[currentIndex].mascota?.ubicacion_texto">
+                • {{ ofertas[currentIndex].mascota.ubicacion_texto }}
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
 
       <!-- Botones de navegación -->
       <div 
@@ -127,7 +157,11 @@
               </button>
             </div>
             
-            <FiltrosComponente @cerrar="mostrarFiltros = false" />
+            <!-- ✅ Pasar evento para aplicar filtros y recargar -->
+            <FiltrosComponente 
+              @cerrar="mostrarFiltros = false" 
+              @filtrar="aplicarFiltros"
+            />
           </div>
         </div>
       </div>
@@ -153,31 +187,132 @@ const ofertas = ref([])
 const currentIndex = ref(0)
 const cargando = ref(true)
 const procesando = ref(false)
+const ubicacionCargada = ref(false) // ✅ Nuevo estado para ubicación
 
-// Cargar las ofertas disponibles
+// ✅ Función para obtener ubicación del usuario
+const obtenerUbicacionUsuario = async () => {
+  try {
+    console.log('📍 Intentando obtener ubicación del usuario...')
+    
+    const response = await axios.get('/api/user/location', {
+      headers: { 'Authorization': `Bearer ${accessToken.value}` }
+    })
+    
+    if (response.data.success && response.data.data) {
+      console.log('📍 Ubicación obtenida:', response.data.data)
+      ubicacionCargada.value = true
+      return true
+    }
+  } catch (err) {
+    console.warn('⚠️ No se pudo obtener ubicación:', err.message)
+    
+    // Intentar alternativa: obtener del perfil
+    try {
+      const userResponse = await axios.get('/api/user', {
+        headers: { 'Authorization': `Bearer ${accessToken.value}` }
+      })
+      
+      if (userResponse.data && userResponse.data.ubicacionActual) {
+        console.log('📍 Ubicación obtenida del perfil:', userResponse.data.ubicacionActual)
+        ubicacionCargada.value = true
+        return true
+      }
+    } catch (userErr) {
+      console.warn('⚠️ No se pudo obtener ubicación del perfil:', userErr.message)
+    }
+  }
+  
+  return false
+}
+
+// ✅ Cargar las ofertas ordenadas por proximidad
 const cargarOfertas = async () => {
   try {
     cargando.value = true;
     ofertas.value = [];
     
-    // Usar el endpoint específico para swipe que excluye mascotas ya vistas
-     const response = await axios.get('/api/adopciones/ofertas-para-swipe', {
+    // Intentar obtener ubicación del usuario
+    const tieneUbicacion = await obtenerUbicacionUsuario();
+    
+    // Usar el endpoint de proximidad para obtener TODAS las ofertas ordenadas por cercanía
+    const endpoint = '/api/adopciones/proximidad';
+    console.log(`📍 Cargando ofertas desde: ${endpoint}`);
+    console.log(`📍 Usuario ${tieneUbicacion ? 'tiene' : 'NO tiene'} ubicación`);
+    
+    const response = await axios.get(endpoint, {
       headers: { 'Authorization': `Bearer ${accessToken.value}` }
     });
 
     if (response.data.success && response.data.data) {
-      ofertas.value = response.data.data;
+      // ✅ Obtener todas las ofertas (ya vienen ordenadas por proximidad del controlador)
+      const todasLasOfertas = response.data.data;
+      
+      // ✅ Excluir ofertas ya vistas/interactuadas
+      // Primero obtener las mascotas ya interactuadas
+      const mascotasInteractuadasResponse = await axios.get('/api/adopciones/mis-interacciones', {
+        headers: { 'Authorization': `Bearer ${accessToken.value}` }
+      });
+      
+      let mascotasInteractuadas = [];
+      if (mascotasInteractuadasResponse.data.success) {
+        mascotasInteractuadas = mascotasInteractuadasResponse.data.data.map(i => i.mascota_id);
+        console.log(`📍 Mascotas ya interactuadas: ${mascotasInteractuadas.length}`);
+      }
+      
+      // Filtrar ofertas excluyendo las ya interactuadas
+      const ofertasFiltradas = todasLasOfertas.filter(oferta => 
+        !mascotasInteractuadas.includes(oferta.mascota.id)
+      );
+      
+      // Limitar a 20 ofertas para no sobrecargar
+      ofertas.value = ofertasFiltradas.slice(0, 20);
       currentIndex.value = 0;
       
-      console.log('Ofertas para swipe cargadas:', ofertas.value.length);
+      console.log('📍 Ofertas para swipe cargadas por proximidad:');
+      console.log(`- Total encontradas: ${todasLasOfertas.length}`);
+      console.log(`- Interactuadas excluidas: ${mascotasInteractuadas.length}`);
+      console.log(`- Disponibles para swipe: ${ofertas.value.length}`);
+      
+      // Mostrar información de distancia en consola
+      ofertas.value.forEach((oferta, index) => {
+        console.log(`📍 Oferta ${index + 1}: ${oferta.mascota.nombre} - ${oferta.distancia || 'Sin ubicación'}`);
+      });
+      
+      // Si no hay ofertas, mostrar mensaje
+      if (ofertas.value.length === 0) {
+        console.log('📍 No hay ofertas nuevas disponibles');
+        // Podrías mostrar un mensaje al usuario aquí
+      }
     } else {
-      console.error('Error en respuesta de ofertas para swipe:', response.data.message);
+      console.error('Error en respuesta de ofertas por proximidad:', response.data.message);
     }
   } catch (error) {
-    console.error('Error cargando ofertas para swipe:', error);
+    console.error('Error cargando ofertas por proximidad:', error);
+    
+    // ✅ FALLBACK: Intentar con el endpoint original si falla
+    console.log('📍 Intentando con endpoint alternativo...');
+    try {
+      const fallbackResponse = await axios.get('/api/adopciones/ofertas-para-swipe', {
+        headers: { 'Authorization': `Bearer ${accessToken.value}` }
+      });
+      
+      if (fallbackResponse.data.success && fallbackResponse.data.data) {
+        ofertas.value = fallbackResponse.data.data;
+        currentIndex.value = 0;
+        console.log('📍 Ofertas cargadas por fallback:', ofertas.value.length);
+      }
+    } catch (fallbackError) {
+      console.error('Error en fallback también:', fallbackError);
+    }
   } finally {
     cargando.value = false;
   }
+};
+
+// ✅ Función para recargar ofertas (cuando se llega al final)
+const recargarOfertas = async () => {
+  console.log('📍 Recargando ofertas...');
+  await cargarOfertas();
 };
 
 // Handlers para los eventos del componente ContenidoMascota
@@ -203,58 +338,14 @@ const onSwipeCompleted = (action) => {
   console.log('Swipe completado desde ContenidoMascota:', action)
 }
 
-// Handlers para los botones del padre (alternativos)
-const handleLikeAccion = async () => {
-  if (procesando.value || currentIndex.value >= ofertas.value.length) return
-  
-  procesando.value = true
-  const ofertaActual = ofertas.value[currentIndex.value]
-  
-  try {
-    // Simular click en el botón like del componente hijo
-    console.log('Like desde botón del padre:', ofertaActual.id_oferta)
-    
-    // Aquí podrías emitir un evento al componente hijo si lo necesitas
-    // Pero es mejor dejar que el hijo maneje su propia lógica
-    
-    // Solo avanzar
-    moverSiguiente()
-    
-  } catch (error) {
-    console.error('Error en like del padre:', error)
-  } finally {
-    procesando.value = false
-  }
-}
-
-const handleDislikeAccion = async () => {
-  if (procesando.value || currentIndex.value >= ofertas.value.length) return
-  
-  procesando.value = true
-  const ofertaActual = ofertas.value[currentIndex.value]
-  
-  try {
-    // Simular click en el botón dislike del componente hijo
-    console.log('Dislike desde botón del padre:', ofertaActual.id_oferta)
-    
-    // Solo avanzar
-    moverSiguiente()
-    
-  } catch (error) {
-    console.error('Error en dislike del padre:', error)
-  } finally {
-    procesando.value = false
-  }
-}
-
 // Navegación
 const moverSiguiente = () => {
   if (currentIndex.value < ofertas.value.length - 1) {
     currentIndex.value++
   } else {
     // No hay más ofertas, recargar
-    currentIndex.value = 0
-    cargarOfertas()
+    console.log('📍 Última oferta alcanzada, recargando...');
+    recargarOfertas();
   }
 }
 

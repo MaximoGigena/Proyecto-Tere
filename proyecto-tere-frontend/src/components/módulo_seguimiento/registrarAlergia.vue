@@ -1,3 +1,4 @@
+<!-- registrarAlergia.vue - Versión final con registro y edición -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -10,9 +11,9 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Alergia/Sensibilidad</h1>
+    <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Alergia/Sensibilidad' : 'Registrar Alergia/Sensibilidad' }}</h1>
 
-    <form @submit.prevent="registrarAlergia" class="space-y-4">
+    <form @submit.prevent="procesarFormulario" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -215,21 +216,30 @@
 
       <!-- Selección del medio de envío -->
       <div class="mt-8">
-        <CarruselMedioEnvio 
-          v-if="usuarioId" 
-          :usuario-id="usuarioId" 
-          @update:medio="alergia.medio_envio = $event" 
-        />
+        <!-- Para ambos casos (registro y edición) mostramos el carrusel -->
+        <div v-if="usuarioId">
+          <CarruselMedioEnvio 
+            :usuario-id="usuarioId" 
+            :modo-edicion="esEdicion"
+            :medio-seleccionado-inicial="alergia.medio_envio"
+            @update:medio="alergia.medio_envio = $event"
+          />
+          
+          <div v-if="alergia.medio_envio" class="mt-4 text-center text-gray-700">
+            <span class="font-semibold">
+              {{ esEdicion ? 'Medio de envío utilizado:' : 'Medio seleccionado:' }}
+            </span>
+            <span class="ml-1 text-blue-600 font-medium">
+              {{ obtenerNombreMedio(alergia.medio_envio) }}
+            </span>
+            <p v-if="esEdicion" class="text-sm text-gray-500 mt-1">
+              (En modo edición el medio de envío no se puede cambiar)
+            </p>
+          </div>
+        </div>
         
         <div v-else class="text-center py-4">
           <p class="text-gray-500">Cargando información del dueño...</p>
-        </div>
-
-        <div v-if="alergia.medio_envio" class="mt-4 text-center text-gray-700">
-          <span class="font-semibold">Medio seleccionado:</span>
-          <span class="ml-1 text-blue-600 font-medium">
-            {{ obtenerNombreMedio(alergia.medio_envio) }}
-          </span>
         </div>
       </div>
 
@@ -242,11 +252,12 @@
           Cancelar
         </button>
         <button
-          type="submit"
-          :disabled="procesando"
+          type="button"
+          @click="mostrarModalConfirmacion"
+          :disabled="procesando || !formularioValido"
           class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
         >
-          {{ procesando ? 'Registrando...' : 'Registrar Alergia' }}
+          {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar Alergia' : 'Registrar Alergia') }}
         </button>
       </div>
     </form>
@@ -260,24 +271,77 @@
       @cerrar="mostrarOverlayCentros = false"
       @seleccionar="seleccionarCentro"
     />
+
+    <!-- Modal de confirmación -->
+    <div v-if="mostrarModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold mb-4">
+          {{ esEdicion ? 'Confirmar Actualización' : 'Confirmar Registro' }}
+        </h3>
+        
+        <div class="mb-6">
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Tipo de alergia:</span> {{ obtenerNombreTipoAlergia() }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Fecha detección:</span> {{ formatFecha(alergia.fecha_deteccion) }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Gravedad:</span> {{ formatGravedad(alergia.gravedad) }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Reacción común:</span> {{ alergia.reaccion_comun }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <span class="font-semibold">Estado:</span> {{ formatEstado(alergia.estado) }}
+          </p>
+          <p v-if="alergia.desencadenante" class="text-gray-700 mb-2">
+            <span class="font-semibold">Desencadenante:</span> {{ alergia.desencadenante }}
+          </p>
+          <p v-if="alergia.centro_veterinario_id" class="text-gray-700 mb-2">
+            <span class="font-semibold">Centro veterinario:</span> {{ obtenerNombreCentroSeleccionado() }}
+          </p>
+          <p v-if="alergia.medio_envio" class="text-gray-700">
+            <span class="font-semibold">Medio de envío:</span> {{ obtenerNombreMedio(alergia.medio_envio) }}
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button
+            @click="cerrarModal"
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="confirmarAccion"
+            :disabled="procesando"
+            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:bg-blue-300"
+          >
+            {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar' : 'Registrar') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import axios from 'axios'
 import SeleccionCentroVeterinario from '@/components/ElementosGraficos/SeleccionCentroVeterinario.vue'
 import CarruselMedioEnvio from '@/components/ElementosGraficos/CarruselMedioEnvio.vue'
 import { useAuth } from '@/composables/useAuth'
 
+const props = defineProps({
+  alergiaId: {
+    type: [String, Number],
+    default: null
+  }
+})
+
 const router = useRouter()
 const route = useRoute()
-const mascotaId = route.query.mascotaId
-
-console.log('🔍 Route query:', route.query)
-console.log('🔍 Mascota ID from query:', mascotaId)
-
 const { accessToken, isAuthenticated, checkAuth } = useAuth()
 
 // Estados reactivos
@@ -288,6 +352,26 @@ const procesando = ref(false)
 const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
 const hoy = new Date().toISOString().split('T')[0]
+const mostrarModal = ref(false)
+
+// Determinar si es edición o registro
+const esEdicion = computed(() => {
+  return route.name === 'editarAlergia' || !!route.params.alergiaId
+})
+
+const alergiaId = computed(() => {
+  return props.alergiaId || route.params.alergiaId || null
+})
+
+const mascotaId = computed(() => {
+  return route.query.mascotaId || route.params.mascotaId || null
+})
+
+console.log('🔍 Route params:', route.params)
+console.log('🔍 Route query:', route.query)
+console.log('🔍 Es edición:', esEdicion.value)
+console.log('🔍 Alergia ID:', alergiaId.value)
+console.log('🔍 Mascota ID:', mascotaId.value)
 
 // Datos del formulario
 const alergia = reactive({
@@ -302,6 +386,23 @@ const alergia = reactive({
   recomendaciones_tutor: '',
   observaciones: '',
   medio_envio: '',
+})
+
+// Computed para validación del formulario
+const formularioValido = computed(() => {
+  const camposObligatorios = alergia.tipo_alergia_id && 
+    alergia.fecha_deteccion && 
+    alergia.gravedad && 
+    alergia.reaccion_comun && 
+    alergia.estado
+    
+  // Para registro, el medio de envío es obligatorio
+  if (!esEdicion.value) {
+    return camposObligatorios && alergia.medio_envio
+  }
+  
+  // Para edición, solo los campos básicos son obligatorios
+  return camposObligatorios
 })
 
 // Obtener ID del usuario dueño de la mascota
@@ -331,12 +432,49 @@ const obtenerDireccionCentroSeleccionado = () => {
   return centro ? centro.direccion : ''
 }
 
+// Obtener nombre del tipo de alergia
+const obtenerNombreTipoAlergia = () => {
+  const tipo = tiposAlergia.value.find(t => t.id == alergia.tipo_alergia_id)
+  return tipo ? tipo.nombre : 'No seleccionado'
+}
+
+// Formatear fecha
+const formatFecha = (fecha) => {
+  if (!fecha) return 'No especificada'
+  return new Date(fecha).toLocaleDateString('es-ES')
+}
+
+// Formatear gravedad
+const formatGravedad = (gravedad) => {
+  const opciones = {
+    leve: 'Leve',
+    moderada: 'Moderada',
+    grave: 'Grave'
+  }
+  return gravedad ? (opciones[gravedad] || gravedad) : 'No especificada'
+}
+
+// Formatear estado
+const formatEstado = (estado) => {
+  const opciones = {
+    activa: 'Activa',
+    superada: 'Superada',
+    seguimiento: 'Bajo seguimiento'
+  }
+  return estado ? (opciones[estado] || estado) : 'No especificado'
+}
+
 // Cargar datos de la mascota para obtener el usuario_id
 const cargarDatosMascota = async () => {
   try {
-    console.log('🔄 Cargando datos de mascota con ID:', mascotaId)
+    console.log('🔄 Cargando datos de mascota con ID:', mascotaId.value)
     
-    const response = await fetch(`/api/mascotas/${mascotaId}`, {
+    if (!mascotaId.value) {
+      console.warn('⚠️ No hay mascotaId para cargar datos')
+      return
+    }
+    
+    const response = await fetch(`/api/mascotas/${mascotaId.value}`, {
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
         'Accept': 'application/json'
@@ -419,6 +557,79 @@ const cargarCentrosVeterinarios = async () => {
   }
 }
 
+// Cargar datos de alergia existente (para edición)
+const cargarAlergiaExistente = async () => {
+  if (!alergiaId.value) return
+  
+  try {
+    console.log('🔄 Cargando datos de alergia con ID:', alergiaId.value)
+    console.log('🔍 Mascota ID:', mascotaId.value)
+
+    // Necesitamos tanto el ID de la mascota como el de la alergia
+    if (!mascotaId.value) {
+      console.error('❌ No se encontró el ID de la mascota para cargar la alergia')
+      return
+    }
+
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/alergias/${alergiaId.value}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    console.log('📦 Respuesta de alergia:', result)
+    
+    if (result.success && result.data) {
+      const datosAlergia = result.data
+      
+      // Actualizar el objeto alergia con los datos existentes
+      Object.assign(alergia, {
+        tipo_alergia_id: datosAlergia.tipo_alergia_id,
+        fecha_deteccion: datosAlergia.fecha_deteccion?.split('T')[0] || '',
+        gravedad: datosAlergia.gravedad,
+        reaccion_comun: datosAlergia.reaccion_comun,
+        estado: datosAlergia.estado,
+        desencadenante: datosAlergia.desencadenante || '',
+        centro_veterinario_id: datosAlergia.centro_veterinario_id,
+        conducta_recomendada: datosAlergia.conducta_recomendada || '',
+        recomendaciones_tutor: datosAlergia.recomendaciones_tutor || '',
+        observaciones: datosAlergia.observaciones || '',
+        medio_envio: datosAlergia.medio_envio || '',
+      })
+      
+      console.log('✅ Datos de alergia cargados:', alergia)
+    } else {
+      console.warn('❌ No se encontraron datos de alergia:', result)
+      alert('No se pudo cargar la alergia a editar: ' + (result.message || 'Error desconocido'))
+      
+      // Redirigir a la página anterior
+      if (mascotaId.value) {
+        router.push({
+          name: 'veterinario-alergias',
+          params: { id: mascotaId.value }
+        })
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error cargando datos de alergia:', error)
+    alert('Error al cargar la alergia: ' + error.message)
+    
+    // Redirigir a la página anterior
+    if (mascotaId.value) {
+      router.push({
+        name: 'veterinario-alergias',
+        params: { id: mascotaId.value }
+      })
+    }
+  }
+}
+
 const onTipoAlergiaChange = () => {
   const tipoSeleccionado = tiposAlergia.value.find(t => t.id == alergia.tipo_alergia_id)
   if (tipoSeleccionado) {
@@ -439,13 +650,44 @@ const seleccionarCentro = (centro) => {
 
 // Navegar al registro de nuevo tipo
 const abrirRegistroTipoAlergia = () => {
+  const query = {
+    from: esEdicion.value ? `/editar/alergia/${alergiaId.value}` : `/registro/alergia/${mascotaId.value}`,
+    mascotaId: mascotaId.value
+  }
+  
   router.push({
     path: '/registro/registroTipoAlergia',
-    query: {
-      from: `/historialPreventivo/mascota/${mascotaId}/alergias/crear`,
-      mascotaId
-    }
+    query
   })
+}
+
+// Mostrar modal de confirmación
+const mostrarModalConfirmacion = () => {
+  if (!formularioValido.value) {
+    alert('Por favor complete todos los campos obligatorios')
+    return
+  }
+  
+  mostrarModal.value = true
+}
+
+// Cerrar modal
+const cerrarModal = () => {
+  mostrarModal.value = false
+}
+
+// Confirmar acción (registrar o actualizar)
+const confirmarAccion = () => {
+  if (esEdicion.value) {
+    actualizarAlergia()
+  } else {
+    registrarAlergia()
+  }
+}
+
+// Procesar formulario (ahora solo muestra el modal)
+const procesarFormulario = () => {
+  mostrarModalConfirmacion()
 }
 
 // Registrar alergia
@@ -454,23 +696,16 @@ const registrarAlergia = async () => {
 
   try {
     procesando.value = true
+    cerrarModal()
 
-    // Validar que se seleccionó un medio de envío
-    if (!alergia.medio_envio) {
-      alert('Por favor seleccione un medio de envío para el registro')
-      return
+    console.log('📤 Enviando datos a servidor para registro:', alergia)
+    console.log('📤 Mascota ID:', mascotaId.value)
+
+    if (!mascotaId.value) {
+      throw new Error('No se encontró el ID de la mascota')
     }
 
-    // Validar campos obligatorios
-    if (!alergia.tipo_alergia_id || !alergia.fecha_deteccion || !alergia.gravedad || 
-        !alergia.reaccion_comun || !alergia.estado) {
-      alert('Por favor complete todos los campos obligatorios')
-      return
-    }
-
-    console.log('📤 Enviando datos a servidor:', alergia)
-
-    const response = await fetch(`/api/mascotas/${mascotaId}/alergias`, {
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/alergias`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -486,7 +721,7 @@ const registrarAlergia = async () => {
     console.log('📄 Respuesta cruda:', responseText)
 
     if (!responseText.trim()) {
-      throw new Error('El servidor devolvió una respuesta vacía (posible redirección)')
+      throw new Error('El servidor devolvió una respuesta vacía')
     }
 
     let result
@@ -494,7 +729,7 @@ const registrarAlergia = async () => {
       result = JSON.parse(responseText)
     } catch (parseError) {
       console.error('No se pudo parsear como JSON:', responseText)
-      throw new Error('El servidor no devolvió JSON válido. Respuesta: ' + responseText.substring(0, 100))
+      throw new Error('El servidor no devolvió JSON válido.')
     }
 
     if (!response.ok) {
@@ -502,10 +737,10 @@ const registrarAlergia = async () => {
     }
 
     if (result.success) {
-      alert('Alergia registrada exitosamente')
+      alert('✅ Alergia registrada exitosamente')
       router.push({
         name: 'veterinario-alergias',
-        params: { id: mascotaId },
+        params: { id: mascotaId.value },
         query: {
           from: 'registroAlergia',
           currentTab: 'Preventivo',
@@ -523,16 +758,92 @@ const registrarAlergia = async () => {
   }
 }
 
-const cancelar = () => {
-  router.push({
-    name: 'veterinario-alergias', 
-    params: { id: mascotaId },
-    query: {
-      from: 'cancelarRegistroAlergia',
-      currentTab: 'Preventivo',
-      ts: Date.now()
+// Actualizar alergia existente
+const actualizarAlergia = async () => {
+  if (procesando.value) return
+
+  try {
+    procesando.value = true
+    cerrarModal()
+
+    console.log('📤 Actualizando alergia con ID:', alergiaId.value)
+    console.log('📤 Mascota ID:', mascotaId.value)
+    console.log('📤 Datos a enviar:', alergia)
+
+    if (!mascotaId.value) {
+      throw new Error('No se encontró el ID de la mascota para actualizar')
     }
-  })
+
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/alergias/${alergiaId.value}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: JSON.stringify(alergia)
+    })
+
+    console.log('📨 Status:', response.status)
+    
+    const responseText = await response.text()
+    console.log('📄 Respuesta cruda:', responseText)
+
+    if (!responseText.trim()) {
+      throw new Error('El servidor devolvió una respuesta vacía')
+    }
+
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('No se pudo parsear como JSON:', responseText)
+      throw new Error('El servidor no devolvió JSON válido.')
+    }
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Error en la operación')
+    }
+
+    if (result.success) {
+      alert('✅ Alergia actualizada exitosamente')
+      
+      router.push({
+        name: 'veterinario-alergias',
+        params: { id: mascotaId.value },
+        query: {
+          from: 'editarAlergia',
+          currentTab: 'Preventivo',
+          ts: Date.now()
+        }
+      })
+    } else {
+      alert('Error al actualizar la alergia: ' + result.message)
+    }
+  } catch (error) {
+    console.error('❌ Error completo:', error)
+    alert('Error al actualizar la alergia: ' + error.message)
+  } finally {
+    procesando.value = false
+  }
+}
+
+const cancelar = () => {
+  const mascotaIdParaRedireccion = mascotaId.value
+  
+  if (mascotaIdParaRedireccion) {
+    router.push({
+      name: 'veterinario-alergias',
+      params: { id: mascotaIdParaRedireccion },
+      query: {
+        from: esEdicion.value ? 'cancelarEditarAlergia' : 'cancelarRegistroAlergia',
+        currentTab: 'Preventivo',
+        ts: Date.now()
+      }
+    })
+  } else {
+    router.push({ name: 'veterinario-alergias', params: { id: '0' } })
+  }
 }
 
 // Verificar autenticación y cargar datos
@@ -548,20 +859,31 @@ onMounted(async () => {
     }
   }
 
-  // Cargar datos en orden
-  await cargarDatosMascota() // Primero cargar datos de mascota para obtener usuario_id
-  
-  if (errorCargandoMascota.value) {
-    console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
-    alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
-    return
+  // Si es edición, cargar datos de la alergia primero
+  if (esEdicion.value) {
+    await cargarAlergiaExistente()
   }
 
-  await cargarTiposAlergia()
-  await cargarCentrosVeterinarios()
+  // Cargar datos en orden
+  if (mascotaId.value) {
+    await cargarDatosMascota()
+    
+    if (errorCargandoMascota.value) {
+      console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
+      alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
+      return
+    }
+  }
 
-  // Establecer fecha actual como predeterminada
-  alergia.fecha_deteccion = hoy
+  await Promise.all([
+    cargarTiposAlergia(),
+    cargarCentrosVeterinarios()
+  ])
+
+  // Establecer fecha actual como predeterminada solo si es registro nuevo y no hay fecha
+  if (!esEdicion.value && !alergia.fecha_deteccion) {
+    alergia.fecha_deteccion = hoy
+  }
   
   console.log('✅ Componente completamente cargado')
   console.log('👤 Usuario ID final:', usuarioId.value)

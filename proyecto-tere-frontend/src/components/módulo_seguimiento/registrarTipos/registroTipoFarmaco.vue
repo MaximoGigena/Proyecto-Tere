@@ -51,16 +51,43 @@
             />
           </div>
 
+          <!-- COMPOSICIÓN/PRINCIPIOS ACTIVOS - MODIFICADO -->
           <div>
-            <label class="block font-medium">Composición/principio activo</label>
-            <textarea 
-              v-model="farmaco.composicion" 
-              rows="2" 
-              required 
-              class="w-full border rounded p-2" 
-              placeholder="Principio activo y concentración"
-              :disabled="loading"
-            ></textarea>
+            <label class="block font-medium">Composición/principios activos</label>
+            <div class="flex gap-2">
+              <textarea 
+                v-model="inputComposicion" 
+                rows="2" 
+                class="w-full border rounded p-2" 
+                placeholder="Principio activo y concentración (una por línea)"
+                :disabled="loading"
+              ></textarea>
+              <button 
+                type="button"
+                @click="agregarItem('composicion')"
+                class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-blue-600 transition-colors disabled:bg-blue-300"
+                :disabled="loading || !inputComposicion.trim()"
+              >
+                <font-awesome-icon :icon="['fas', 'plus']" />
+              </button>
+            </div>
+            <!-- Lista de principios activos agregados -->
+            <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+              <div v-if="composicionAgregada.length > 0" class="mt-2 space-y-1">
+                <div v-for="(principio, index) in composicionAgregada" :key="index" 
+                    class="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                  <span>{{ principio }}</span>
+                  <button 
+                    type="button"
+                    @click="eliminarItem('composicion', index)"
+                    class="text-red-500 hover:text-red-700"
+                    :disabled="loading"
+                  >
+                    <font-awesome-icon :icon="['fas', 'times']" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -95,7 +122,7 @@
 
           <div>
             <label class="block font-medium mb-2">Especie objetivo</label>
-            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" />
+            <CarruselEspecieVeterinario v-model="especiesSeleccionadas" :disabled="loading" />
           </div>
         </div>
 
@@ -168,16 +195,43 @@
             </select>
           </div>
 
+          <!-- INDICACIONES CLÍNICAS COMUNES - MODIFICADO -->
           <div>
             <label class="block font-medium">Indicaciones clínicas comunes</label>
-            <textarea 
-              v-model="farmaco.indicaciones_clinicas" 
-              rows="3" 
-              required 
-              class="w-full border rounded p-2" 
-              placeholder="Condiciones o enfermedades donde se indica este fármaco"
-              :disabled="loading"
-            ></textarea>
+            <div class="flex gap-2">
+              <textarea 
+                v-model="inputIndicaciones" 
+                rows="3" 
+                class="w-full border rounded p-2" 
+                placeholder="Condiciones o enfermedades donde se indica este fármaco (una por línea)"
+                :disabled="loading"
+              ></textarea>
+              <button 
+                type="button"
+                @click="agregarItem('indicaciones')"
+                class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-blue-600 transition-colors disabled:bg-blue-300"
+                :disabled="loading || !inputIndicaciones.trim()"
+              >
+                <font-awesome-icon :icon="['fas', 'plus']" />
+              </button>
+            </div>
+            <!-- Lista de indicaciones agregadas -->
+            <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+              <div v-if="indicacionesAgregadas.length > 0" class="mt-2 space-y-1">
+                <div v-for="(indicacion, index) in indicacionesAgregadas" :key="index" 
+                    class="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                  <span>{{ indicacion }}</span>
+                  <button 
+                    type="button"
+                    @click="eliminarItem('indicaciones', index)"
+                    class="text-red-500 hover:text-red-700"
+                    :disabled="loading"
+                  >
+                    <font-awesome-icon :icon="['fas', 'times']" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -190,37 +244,121 @@
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
+        <!-- CONTRAINDICACIONES - MODIFICADO -->
         <div>
           <label class="block font-medium">Contraindicaciones</label>
-          <textarea 
-            v-model="farmaco.contraindicaciones" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Situaciones donde no debe usarse este fármaco"
-            :disabled="loading"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputContraindicaciones" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Situaciones donde no debe usarse este fármaco (una por línea)"
+              :disabled="loading"
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('contraindicaciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors disabled:bg-green-300"
+              :disabled="loading || !inputContraindicaciones.trim()"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de contraindicaciones agregadas -->
+          <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="contraindicacionesAgregadas.length > 0" class="mt-2 space-y-1">
+              <div v-for="(contraindicacion, index) in contraindicacionesAgregadas" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ contraindicacion }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('contraindicaciones', index)"
+                  class="text-red-500 hover:text-red-700"
+                  :disabled="loading"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- INTERACCIONES MEDICAMENTOSAS - MODIFICADO -->
         <div>
           <label class="block font-medium">Interacciones medicamentosas</label>
-          <textarea 
-            v-model="farmaco.interacciones_medicamentosas" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Fármacos que no deben combinarse con este"
-            :disabled="loading"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputInteracciones" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Fármacos que no deben combinarse con este (una por línea)"
+              :disabled="loading"
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('interacciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors disabled:bg-green-300"
+              :disabled="loading || !inputInteracciones.trim()"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de interacciones agregadas -->
+          <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="interaccionesAgregadas.length > 0" class="mt-2 space-y-1">
+              <div v-for="(interaccion, index) in interaccionesAgregadas" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ interaccion }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('interacciones', index)"
+                  class="text-red-500 hover:text-red-700"
+                  :disabled="loading"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- REACCIONES ADVERSAS FRECUENTES - MODIFICADO -->
         <div>
           <label class="block font-medium">Reacciones adversas frecuentes</label>
-          <textarea 
-            v-model="farmaco.reacciones_adversas" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Efectos secundarios comunes"
-            :disabled="loading"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputReacciones" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Efectos secundarios comunes (una por línea)"
+              :disabled="loading"
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('reacciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors disabled:bg-green-300"
+              :disabled="loading || !inputReacciones.trim()"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de reacciones agregadas -->
+          <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="reaccionesAgregadas.length > 0" class="mt-2 space-y-1">
+              <div v-for="(reaccion, index) in reaccionesAgregadas" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ reaccion }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('reacciones', index)"
+                  class="text-red-500 hover:text-red-700"
+                  :disabled="loading"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div>
@@ -234,15 +372,43 @@
           />
         </div>
 
+        <!-- RECOMENDACIONES CLÍNICAS - MODIFICADO -->
         <div class="col-span-full">
           <label class="block font-medium">Recomendaciones clínicas</label>
-          <textarea 
-            v-model="farmaco.recomendaciones_clinicas" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Consejos para su administración y manejo"
-            :disabled="loading"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRecomendaciones" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Consejos para su administración y manejo (una por línea)"
+              :disabled="loading"
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('recomendaciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors disabled:bg-green-300"
+              :disabled="loading || !inputRecomendaciones.trim()"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de recomendaciones agregadas -->
+          <div class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-if="recomendacionesAgregadas.length > 0" class="mt-2 space-y-1">
+              <div v-for="(recomendacion, index) in recomendacionesAgregadas" :key="index" 
+                  class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                <span>{{ recomendacion }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('recomendaciones', index)"
+                  class="text-red-500 hover:text-red-700"
+                  :disabled="loading"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="col-span-full">
@@ -269,7 +435,7 @@
         <button 
           type="submit" 
           class="bg-blue-500 text-white font-bold text-2xl px-6 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
-          :disabled="loading"
+          :disabled="loading || !formularioValido"
         >
           {{ loading ? (esEdicion ? 'Editando...' : 'Registrando...') : (esEdicion ? 'Editar Tipo' : '+ Tipo') }}
         </button>
@@ -307,6 +473,22 @@ const farmacoId = computed(() => {
   return route.query.editar || route.params.id
 })
 
+// Inputs temporales para agregar elementos
+const inputComposicion = ref('')
+const inputIndicaciones = ref('')
+const inputContraindicaciones = ref('')
+const inputInteracciones = ref('')
+const inputReacciones = ref('')
+const inputRecomendaciones = ref('')
+
+// Arrays para almacenar elementos agregados
+const composicionAgregada = ref([])
+const indicacionesAgregadas = ref([])
+const contraindicacionesAgregadas = ref([])
+const interaccionesAgregadas = ref([])
+const reaccionesAgregadas = ref([])
+const recomendacionesAgregadas = ref([])
+
 // Ajusté los nombres para que coincidan con el modelo del backend
 const farmaco = reactive({
   nombre_comercial: '',
@@ -328,6 +510,130 @@ const farmaco = reactive({
   recomendaciones_clinicas: '',
   observaciones: ''
 })
+
+// Computed para validar el formulario
+const formularioValido = computed(() => {
+  return farmaco.nombre_comercial.trim() !== '' &&
+         farmaco.nombre_generico.trim() !== '' &&
+         composicionAgregada.value.length > 0 && // Validar que haya al menos un principio activo
+         farmaco.categoria !== '' &&
+         especiesSeleccionadas.value.length > 0 &&
+         farmaco.dosis !== '' &&
+         farmaco.frecuencia !== '' &&
+         farmaco.via_administracion !== '' &&
+         indicacionesAgregadas.value.length > 0 && // Validar que haya al menos una indicación
+         (!(farmaco.categoria === 'otro') || farmaco.categoria_otro.trim() !== '') // Validar categoría "otro"
+})
+
+// Función para agregar elementos
+const agregarItem = (tipo) => {
+  let inputValue, arrayDestino
+  
+  switch(tipo) {
+    case 'composicion':
+      inputValue = inputComposicion.value.trim()
+      arrayDestino = composicionAgregada
+      break
+    case 'indicaciones':
+      inputValue = inputIndicaciones.value.trim()
+      arrayDestino = indicacionesAgregadas
+      break
+    case 'contraindicaciones':
+      inputValue = inputContraindicaciones.value.trim()
+      arrayDestino = contraindicacionesAgregadas
+      break
+    case 'interacciones':
+      inputValue = inputInteracciones.value.trim()
+      arrayDestino = interaccionesAgregadas
+      break
+    case 'reacciones':
+      inputValue = inputReacciones.value.trim()
+      arrayDestino = reaccionesAgregadas
+      break
+    case 'recomendaciones':
+      inputValue = inputRecomendaciones.value.trim()
+      arrayDestino = recomendacionesAgregadas
+      break
+    default:
+      return
+  }
+  
+  if (inputValue) {
+    // Verificar si ya existe (case insensitive)
+    const existe = arrayDestino.value.some(item => 
+      item.toLowerCase() === inputValue.toLowerCase()
+    )
+    
+    if (!existe) {
+      arrayDestino.value.push(inputValue)
+      
+      // Limpiar el input
+      switch(tipo) {
+        case 'composicion': inputComposicion.value = ''; break
+        case 'indicaciones': inputIndicaciones.value = ''; break
+        case 'contraindicaciones': inputContraindicaciones.value = ''; break
+        case 'interacciones': inputInteracciones.value = ''; break
+        case 'reacciones': inputReacciones.value = ''; break
+        case 'recomendaciones': inputRecomendaciones.value = ''; break
+      }
+    } else {
+      alert('Este elemento ya ha sido agregado')
+    }
+  }
+}
+
+// Función para eliminar elementos
+const eliminarItem = (tipo, index) => {
+  switch(tipo) {
+    case 'composicion':
+      composicionAgregada.value.splice(index, 1)
+      break
+    case 'indicaciones':
+      indicacionesAgregadas.value.splice(index, 1)
+      break
+    case 'contraindicaciones':
+      contraindicacionesAgregadas.value.splice(index, 1)
+      break
+    case 'interacciones':
+      interaccionesAgregadas.value.splice(index, 1)
+      break
+    case 'reacciones':
+      reaccionesAgregadas.value.splice(index, 1)
+      break
+    case 'recomendaciones':
+      recomendacionesAgregadas.value.splice(index, 1)
+      break
+  }
+}
+
+// Watch para sincronizar arrays con los campos del formulario
+watch([composicionAgregada, indicacionesAgregadas, contraindicacionesAgregadas, 
+       interaccionesAgregadas, reaccionesAgregadas, recomendacionesAgregadas], () => {
+  // Convertir arrays a strings separados por comas para el backend
+  farmaco.composicion = composicionAgregada.value.length > 0 
+    ? composicionAgregada.value.join(', ') 
+    : ''
+  
+  farmaco.indicaciones_clinicas = indicacionesAgregadas.value.length > 0 
+    ? indicacionesAgregadas.value.join(', ') 
+    : ''
+  
+  farmaco.contraindicaciones = contraindicacionesAgregadas.value.length > 0 
+    ? contraindicacionesAgregadas.value.join(', ') 
+    : ''
+  
+  farmaco.interacciones_medicamentosas = interaccionesAgregadas.value.length > 0 
+    ? interaccionesAgregadas.value.join(', ') 
+    : ''
+  
+  farmaco.reacciones_adversas = reaccionesAgregadas.value.length > 0 
+    ? reaccionesAgregadas.value.join(', ') 
+    : ''
+  
+  farmaco.recomendaciones_clinicas = recomendacionesAgregadas.value.length > 0 
+    ? recomendacionesAgregadas.value.join(', ') 
+    : ''
+}, { deep: true })
 
 // Watch para sincronizar especiesSeleccionadas con farmaco.especies
 watch(especiesSeleccionadas, (newEspecies) => {
@@ -382,6 +688,40 @@ const cargarFarmaco = async () => {
         especiesSeleccionadas.value = [...data.data.especies]
       }
 
+      // Cargar arrays desde strings del backend
+      composicionAgregada.value = farmaco.composicion 
+        ? farmaco.composicion.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      indicacionesAgregadas.value = farmaco.indicaciones_clinicas 
+        ? farmaco.indicaciones_clinicas.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      contraindicacionesAgregadas.value = farmaco.contraindicaciones 
+        ? farmaco.contraindicaciones.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      interaccionesAgregadas.value = farmaco.interacciones_medicamentosas 
+        ? farmaco.interacciones_medicamentosas.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      reaccionesAgregadas.value = farmaco.reacciones_adversas 
+        ? farmaco.reacciones_adversas.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      recomendacionesAgregadas.value = farmaco.recomendaciones_clinicas 
+        ? farmaco.recomendaciones_clinicas.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      console.log('Arrays cargados:', {
+        composicion: composicionAgregada.value,
+        indicaciones: indicacionesAgregadas.value,
+        contraindicaciones: contraindicacionesAgregadas.value,
+        interacciones: interaccionesAgregadas.value,
+        reacciones: reaccionesAgregadas.value,
+        recomendaciones: recomendacionesAgregadas.value
+      })
+
     } else {
       throw new Error(data.message || 'Error al cargar el fármaco')
     }
@@ -416,20 +756,9 @@ const cancelar = () => {
 }
 
 const registrarFarmaco = async () => {
-  // Validaciones básicas
-  if (!farmaco.nombre_comercial || !farmaco.nombre_generico || !farmaco.composicion) {
+  // Validaciones usando el computed property
+  if (!formularioValido.value) {
     mostrarMensaje('Por favor complete todos los campos obligatorios', 'error')
-    return
-  }
-
-  if (farmaco.categoria === 'otro' && !farmaco.categoria_otro) {
-    mostrarMensaje('Debe especificar la categoría cuando selecciona "Otro"', 'error')
-    return
-  }
-
-  // Validar que se haya seleccionado al menos una especie
-  if (!farmaco.especies || farmaco.especies.length === 0) {
-    mostrarMensaje('Debe seleccionar al menos una especie objetivo', 'error')
     return
   }
 
@@ -464,6 +793,23 @@ const registrarFarmaco = async () => {
       farmaco.unidad = 'mg'
       farmaco.frecuencia_unidad = 'kg'
       
+      // Limpiar arrays
+      composicionAgregada.value = []
+      indicacionesAgregadas.value = []
+      contraindicacionesAgregadas.value = []
+      interaccionesAgregadas.value = []
+      reaccionesAgregadas.value = []
+      recomendacionesAgregadas.value = []
+      especiesSeleccionadas.value = []
+      
+      // Limpiar inputs temporales
+      inputComposicion.value = ''
+      inputIndicaciones.value = ''
+      inputContraindicaciones.value = ''
+      inputInteracciones.value = ''
+      inputReacciones.value = ''
+      inputRecomendaciones.value = ''
+      
       // Redirigir después de 2 segundos
       setTimeout(() => {
         router.push('/veterinarios/tipos/farmacos')
@@ -486,20 +832,9 @@ const registrarFarmaco = async () => {
 }
 
 const actualizarFarmaco = async () => {
-  // Validaciones básicas
-  if (!farmaco.nombre_comercial || !farmaco.nombre_generico || !farmaco.composicion) {
+  // Validaciones usando el computed property
+  if (!formularioValido.value) {
     mostrarMensaje('Por favor complete todos los campos obligatorios', 'error')
-    return
-  }
-
-  if (farmaco.categoria === 'otro' && !farmaco.categoria_otro) {
-    mostrarMensaje('Debe especificar la categoría cuando selecciona "Otro"', 'error')
-    return
-  }
-
-  // Validar que se haya seleccionado al menos una especie
-  if (!farmaco.especies || farmaco.especies.length === 0) {
-    mostrarMensaje('Debe seleccionar al menos una especie objetivo', 'error')
     return
   }
 

@@ -241,7 +241,7 @@ const editarFarmaco = (farmaco) => {
   console.log('Editar fármaco:', farmaco)
   // Aquí puedes implementar la edición
   router.push({
-    path: `/farmacos/${farmaco.id}/editar`,
+    path: `/editar/farmaco/${farmaco.id}`,
     query: {
       mascotaId: mascotaId.value,
       from: route.fullPath
@@ -249,13 +249,15 @@ const editarFarmaco = (farmaco) => {
   })
 }
 
+
 const eliminarFarmaco = async (id) => {
-  if (!confirm('¿Está seguro de que desea eliminar este registro de fármaco?')) {
+  if (!confirm('¿Está seguro de que desea eliminar este registro de fármaco?\n\nEsta acción marcará el fármaco como eliminado pero mantendrá los datos en el sistema.')) {
     return
   }
 
   try {
-    const response = await fetch(`/api/farmacos/${id}`, {
+    // CORRECCIÓN: Usar la ruta correcta con mascotaId
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/farmacos/${id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
@@ -270,9 +272,9 @@ const eliminarFarmaco = async (id) => {
     const result = await response.json()
     
     if (result.success) {
-      // Remover el fármaco de la lista
+      // Remover el fármaco de la lista (filtramos en lugar de refrescar toda la lista)
       farmacos.value = farmacos.value.filter(f => f.id !== id)
-      alert('Fármaco eliminado correctamente')
+      alert('Fármaco eliminado correctamente (baja lógica)')
     } else {
       alert('Error al eliminar el fármaco: ' + result.message)
     }
@@ -281,6 +283,8 @@ const eliminarFarmaco = async (id) => {
     alert('Error al eliminar el fármaco: ' + error.message)
   }
 }
+
+
 
 const derivarFarmaco = (farmaco) => {
   console.log('Derivar fármaco:', farmaco)

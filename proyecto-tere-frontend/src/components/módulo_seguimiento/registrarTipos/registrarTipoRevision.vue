@@ -69,15 +69,39 @@
               placeholder="Especifique la frecuencia"
             />
           </div>
-
+          
+          <!-- INDICADORES CLÍNICOS - MODIFICADO -->
           <div>
             <label class="block font-medium">Indicadores clave esperables</label>
-            <textarea 
-              v-model="revision.indicadores_clave" 
-              rows="3" 
-              class="w-full border rounded p-2" 
-              placeholder="Ej: Peso, temperatura, pulso, etc."
-            ></textarea>
+            <div class="flex gap-2">
+              <textarea 
+                v-model="inputIndicadores" 
+                rows="3" 
+                class="w-full border rounded p-2" 
+                placeholder="Ej: Temperatura normal, Frecuencia cardíaca estable, Peso adecuado, etc."
+              ></textarea>
+              <button 
+                type="button"
+                @click="agregarItem('indicadores')"
+                class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-blue-600 transition-colors"
+              >
+                <font-awesome-icon :icon="['fas', 'plus']" />
+              </button>
+            </div>
+            <!-- Lista de indicadores agregados -->
+            <div v-if="indicadoresAgregados.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+              <div v-for="(indicador, index) in indicadoresAgregados" :key="index" 
+                  class="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                <span>{{ indicador }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('indicadores', index)"
+                  class="text-red-500 hover:text-red-700"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
           </div>
           
           <div>
@@ -157,25 +181,73 @@
             </select>
           </div>
         </div>
-
+        
+        <!-- RECOMENDACIONES PROFESIONALES - MODIFICADO -->
         <div>
           <label class="block font-medium">Recomendaciones profesionales</label>
-          <textarea 
-            v-model="revision.recomendaciones_profesionales" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Consejos para realizar esta revisión"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRecomendaciones" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Ej: Realizar en ayuno, Monitorear constantes vitales, etc."
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('recomendaciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de recomendaciones agregadas -->
+          <div v-if="recomendacionesAgregadas.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-for="(recomendacion, index) in recomendacionesAgregadas" :key="index" 
+                class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+              <span>{{ recomendacion }}</span>
+              <button 
+                type="button"
+                @click="eliminarItem('recomendaciones', index)"
+                class="text-red-500 hover:text-red-700"
+              >
+                <font-awesome-icon :icon="['fas', 'times']" />
+              </button>
+            </div>
+          </div>
         </div>
 
+        <!-- RIESGOS CLÍNICOS ASOCIADOS - MODIFICADO -->
         <div>
           <label class="block font-medium">Riesgos clínicos asociados</label>
-          <textarea 
-            v-model="revision.riesgos_clinicos" 
-            rows="3" 
-            class="w-full border rounded p-2" 
-            placeholder="Posibles complicaciones o riesgos"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRiesgos" 
+              rows="3" 
+              class="w-full border rounded p-2" 
+              placeholder="Ej: Estrés durante el examen, Reacción alérgica, Complicaciones respiratorias, etc."
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('riesgos')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de riesgos agregados -->
+          <div v-if="riesgosAgregados.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-for="(riesgo, index) in riesgosAgregados" :key="index" 
+                class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+              <span>{{ riesgo }}</span>
+              <button 
+                type="button"
+                @click="eliminarItem('riesgos', index)"
+                class="text-red-500 hover:text-red-700"
+              >
+                <font-awesome-icon :icon="['fas', 'times']" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -224,8 +296,18 @@ import { useAuth } from '@/composables/useAuth'
 import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
 import ClinicalExaminationTree from '@/components/ElementosGraficos/arbolAnatomico.vue' 
 
+// Inputs temporales para agregar elementos
+const inputIndicadores = ref('')
+const inputRecomendaciones = ref('')
+const inputRiesgos = ref('')
+
+// Arrays para almacenar elementos agregados
+const indicadoresAgregados = ref([])
+const recomendacionesAgregadas = ref([])
+const riesgosAgregados = ref([])
+
 const especiesSeleccionadas = ref([])
-const areasSeleccionadas = ref([]) // Nuevo: para almacenar las áreas seleccionadas
+const areasSeleccionadas = ref([])
 const arbolAnatomicoRef = ref(null)
 
 const router = useRouter()
@@ -244,14 +326,92 @@ const revision = reactive({
   descripcion: '',
   frecuencia_recomendada: '',
   frecuencia_personalizada: '',
-  areas_revisar: [], // Cambiado: ahora almacena las áreas del árbol
+  areas_revisar: [],
   otra_area: '',
-  indicadores_clave: '',
+  indicadores_clave: '', // Ahora será un string separado por comas
   edad_sugerida: null,
   edad_unidad: 'meses',
-  recomendaciones_profesionales: '',
-  riesgos_clinicos: ''
+  recomendaciones_profesionales: '', // Ahora será un string separado por comas
+  riesgos_clinicos: '' // Ahora será un string separado por comas
 })
+
+// Función para agregar elementos
+const agregarItem = (tipo) => {
+  let inputValue, arrayDestino
+  
+  switch(tipo) {
+    case 'indicadores':
+      inputValue = inputIndicadores.value.trim()
+      arrayDestino = indicadoresAgregados
+      break
+    case 'recomendaciones':
+      inputValue = inputRecomendaciones.value.trim()
+      arrayDestino = recomendacionesAgregadas
+      break
+    case 'riesgos':
+      inputValue = inputRiesgos.value.trim()
+      arrayDestino = riesgosAgregados
+      break
+    default:
+      return
+  }
+  
+  if (inputValue) {
+    // Verificar si ya existe (case insensitive)
+    const existe = arrayDestino.value.some(item => 
+      item.toLowerCase() === inputValue.toLowerCase()
+    )
+    
+    if (!existe) {
+      arrayDestino.value.push(inputValue)
+      
+      // Limpiar el input
+      switch(tipo) {
+        case 'indicadores': inputIndicadores.value = ''; break
+        case 'recomendaciones': inputRecomendaciones.value = ''; break
+        case 'riesgos': inputRiesgos.value = ''; break
+      }
+    } else {
+      alert('Este elemento ya ha sido agregado')
+    }
+  }
+}
+
+// Función para eliminar elementos
+const eliminarItem = (tipo, index) => {
+  switch(tipo) {
+    case 'indicadores':
+      indicadoresAgregados.value.splice(index, 1)
+      break
+    case 'recomendaciones':
+      recomendacionesAgregadas.value.splice(index, 1)
+      break
+    case 'riesgos':
+      riesgosAgregados.value.splice(index, 1)
+      break
+  }
+}
+
+// Watch para sincronizar arrays con los campos de la revisión
+watch([indicadoresAgregados, recomendacionesAgregadas, riesgosAgregados], () => {
+  // Convertir arrays a strings separados por comas para el backend
+  revision.indicadores_clave = indicadoresAgregados.value.length > 0 
+    ? indicadoresAgregados.value.join(', ') 
+    : ''
+  
+  revision.recomendaciones_profesionales = recomendacionesAgregadas.value.length > 0 
+    ? recomendacionesAgregadas.value.join(', ') 
+    : ''
+  
+  revision.riesgos_clinicos = riesgosAgregados.value.length > 0 
+    ? riesgosAgregados.value.join(', ') 
+    : ''
+  
+  console.log('Valores convertidos para backend:')
+  console.log('indicadores_clave:', revision.indicadores_clave)
+  console.log('recomendaciones_profesionales:', revision.recomendaciones_profesionales)
+  console.log('riesgos_clinicos:', revision.riesgos_clinicos)
+}, { deep: true })
 
 // Función para manejar cambios en la selección del árbol
 const handleArbolSelectionChange = (data) => {
@@ -329,11 +489,26 @@ const cargarDatosEdicion = async () => {
         revision.frecuencia_recomendada = datos.frecuencia_recomendada || ''
         revision.frecuencia_personalizada = datos.frecuencia_personalizada || ''
         revision.otra_area = datos.otra_area || ''
-        revision.indicadores_clave = datos.indicadores_clave || ''
         revision.edad_sugerida = datos.edad_sugerida || null
         revision.edad_unidad = datos.edad_unidad || 'meses'
+        
+        // Convertir strings del backend a arrays
+        revision.indicadores_clave = datos.indicadores_clave || ''
         revision.recomendaciones_profesionales = datos.recomendaciones_profesionales || ''
         revision.riesgos_clinicos = datos.riesgos_clinicos || ''
+        
+        // Convertir strings a arrays
+        indicadoresAgregados.value = revision.indicadores_clave 
+          ? revision.indicadores_clave.split(',').map(s => s.trim()).filter(s => s !== '')
+          : []
+        
+        recomendacionesAgregadas.value = revision.recomendaciones_profesionales 
+          ? revision.recomendaciones_profesionales.split(',').map(s => s.trim()).filter(s => s !== '')
+          : []
+        
+        riesgosAgregados.value = revision.riesgos_clinicos 
+          ? revision.riesgos_clinicos.split(',').map(s => s.trim()).filter(s => s !== '')
+          : []
         
         // Cargar las especies objetivo
         if (datos.especies_objetivo && Array.isArray(datos.especies_objetivo)) {
@@ -344,7 +519,7 @@ const cargarDatosEdicion = async () => {
           especiesSeleccionadas.value = [datos.especie_objetivo]
         }
         
-        // Cargar las áreas de revisión - ESTO ES LO IMPORTANTE
+        // Cargar las áreas de revisión
         if (datos.areas_revisar && Array.isArray(datos.areas_revisar)) {
           revision.areas_revisar = datos.areas_revisar
           areasSeleccionadas.value = datos.areas_revisar.map(area => ({
@@ -371,7 +546,9 @@ const cargarDatosEdicion = async () => {
         
         console.log('✅ Datos asignados al formulario:', revision)
         console.log('✅ Especies cargadas:', especiesSeleccionadas.value)
-        console.log('✅ Áreas cargadas en revision.areas_revisar:', revision.areas_revisar)
+        console.log('✅ Indicadores cargados:', indicadoresAgregados.value)
+        console.log('✅ Recomendaciones cargadas:', recomendacionesAgregadas.value)
+        console.log('✅ Riesgos cargados:', riesgosAgregados.value)
       } else {
         throw new Error(result.message || 'Error en la respuesta del servidor')
       }
@@ -446,7 +623,7 @@ const registrarRevision = async () => {
       descripcion: revision.descripcion,
       frecuencia_recomendada: revision.frecuencia_recomendada,
       frecuencia_personalizada: revision.frecuencia_recomendada === 'personalizada' ? revision.frecuencia_personalizada : null,
-      areas_revisar: revision.areas_revisar, // Áreas del árbol anatómico
+      areas_revisar: revision.areas_revisar,
       otra_area: revision.otra_area || null,
       indicadores_clave: revision.indicadores_clave || null,
       especies_objetivo: especiesSeleccionadas.value,

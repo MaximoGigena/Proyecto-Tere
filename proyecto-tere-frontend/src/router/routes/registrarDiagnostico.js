@@ -2,7 +2,15 @@ import RegistrarDiagnostico from '@/components/módulo_seguimiento/registrarDiag
 
 export const registrarDiagnostico = [
    {
-    path: '/registro/diagnostico',
+    path: '/registro/diagnostico/:mascotaId?',
     component: RegistrarDiagnostico,
+    name: 'registrarDiagnostico',
+    props: true
+  },
+  {
+    path: '/editar/diagnostico/:diagnosticoId',
+    component: RegistrarDiagnostico,
+    name: 'editarDiagnostico',
+    props: true
   }
 ]

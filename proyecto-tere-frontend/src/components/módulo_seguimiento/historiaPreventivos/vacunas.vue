@@ -186,10 +186,38 @@ const editarVacuna = (vacuna) => {
   })
 }
 
-const eliminarVacuna = (id) => {
-  console.log('Eliminar vacuna ID:', id)
-  // Aquí puedes implementar la eliminación
+const eliminarVacuna = async (id) => {
+  if (!confirm('¿Está seguro de que desea eliminar esta vacuna? Esta acción no se puede deshacer.')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/vacunas/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // Mostrar mensaje de éxito
+      alert('Vacuna eliminada correctamente');
+      
+      // Recargar la lista de vacunas
+      await cargarVacunas();
+    } else {
+      alert(`Error: ${result.message}`);
+    }
+  } catch (error) {
+    console.error('❌ Error al eliminar vacuna:', error);
+    alert('Error al eliminar la vacuna. Por favor, intente nuevamente.');
+  }
 }
+
 </script>
 
 <style scoped>

@@ -6,9 +6,9 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Procedimiento Paliativo</h1>
+    <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Procedimiento Paliativo' : 'Registrar Procedimiento Paliativo' }}</h1>
 
-    <form @submit.prevent="registrarPaliativo" class="space-y-4">
+    <form @submit.prevent="mostrarModalConfirmacion" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -415,10 +415,10 @@
         </button>
         <button 
           type="submit" 
-          :disabled="procesando"
+          :disabled="procesando || !formularioValido"
           class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
         >
-          {{ procesando ? 'Registrando...' : 'Registrar Procedimiento' }}
+          {{ procesando ? 'Registrando...' : (esEdicion ? 'Actualizar Procedimiento' : 'Registrar Procedimiento') }}
         </button>
       </div>
     </form>
@@ -451,6 +451,128 @@
       @cerrar="mostrarModalMedicacion = false"
       @add="agregarFarmaco"
     />
+
+    <!-- Modal de confirmación (NUEVO) -->
+    <div v-if="mostrarModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <h3 class="text-2xl font-bold mb-6 text-center text-gray-800">
+          {{ esEdicion ? 'Confirmar Actualización' : 'Confirmar Registro' }} de Procedimiento Paliativo
+        </h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <!-- Columna izquierda -->
+          <div class="space-y-3">
+            <div>
+              <span class="font-semibold text-gray-700">Tipo de procedimiento:</span>
+              <p class="mt-1 text-gray-900">{{ obtenerNombreTipoProcedimiento() }}</p>
+            </div>
+            
+            <div>
+              <span class="font-semibold text-gray-700">Fecha aplicación/inicio:</span>
+              <p class="mt-1 text-gray-900">{{ formatFecha(paliativo.fecha_inicio) }}</p>
+            </div>
+            
+            <div v-if="paliativo.centro_veterinario_id">
+              <span class="font-semibold text-gray-700">Centro veterinario:</span>
+              <p class="mt-1 text-gray-900">{{ obtenerNombreCentroSeleccionado() }}</p>
+              <p class="text-sm text-gray-600">{{ obtenerDireccionCentroSeleccionado() }}</p>
+            </div>
+            
+            <div>
+              <span class="font-semibold text-gray-700">Resultado/efecto:</span>
+              <p class="mt-1 text-gray-900 capitalize">{{ obtenerTextoResultado() }}</p>
+            </div>
+            
+            <div>
+              <span class="font-semibold text-gray-700">Estado mascota:</span>
+              <p class="mt-1 text-gray-900 capitalize">{{ obtenerTextoEstado() }}</p>
+            </div>
+          </div>
+
+          <!-- Columna derecha -->
+          <div class="space-y-3">
+            <div v-if="diagnosticosSeleccionados.length > 0">
+              <span class="font-semibold text-gray-700">Diagnóstico(s) base:</span>
+              <div class="mt-1 flex flex-wrap gap-1">
+                <span 
+                  v-for="diagnostico in diagnosticosSeleccionados" 
+                  :key="diagnostico.id"
+                  class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-sm"
+                >
+                  {{ diagnostico.nombre }}
+                </span>
+              </div>
+            </div>
+            
+            <div v-if="paliativo.frecuencia_valor">
+              <span class="font-semibold text-gray-700">Frecuencia seguimiento:</span>
+              <p class="mt-1 text-gray-900">
+                {{ paliativo.frecuencia_valor }} {{ paliativo.frecuencia_unidad }}
+              </p>
+            </div>
+            
+            <div v-if="paliativo.fecha_control">
+              <span class="font-semibold text-gray-700">Fecha de control:</span>
+              <p class="mt-1 text-gray-900">{{ formatFecha(paliativo.fecha_control) }}</p>
+            </div>
+            
+            <div v-if="farmacosAsociados.length > 0">
+              <span class="font-semibold text-gray-700">Fármacos asociados:</span>
+              <div class="mt-1 space-y-1">
+                <div 
+                  v-for="(farmaco, index) in farmacosAsociados" 
+                  :key="index"
+                  class="text-sm text-gray-700"
+                >
+                  • {{ farmaco.drug.nombre_comercial || farmaco.drug.name }} 
+                  ({{ farmaco.dose }} {{ farmaco.drug.unidad }}, {{ farmaco.frequency }})
+                </div>
+              </div>
+            </div>
+            
+            <div v-if="paliativo.medio_envio">
+              <span class="font-semibold text-gray-700">Medio de envío:</span>
+              <p class="mt-1 text-blue-600 font-medium">{{ obtenerNombreMedio(paliativo.medio_envio) }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sección de descripción y recomendaciones -->
+        <div v-if="paliativo.descripcion || paliativo.recomendaciones" class="mb-6 border-t pt-4">
+          <div v-if="paliativo.descripcion" class="mb-3">
+            <span class="font-semibold text-gray-700 block mb-1">Descripción del procedimiento:</span>
+            <p class="text-gray-700 bg-gray-50 p-3 rounded">{{ paliativo.descripcion }}</p>
+          </div>
+          
+          <div v-if="paliativo.recomendaciones">
+            <span class="font-semibold text-gray-700 block mb-1">Recomendaciones para el tutor:</span>
+            <p class="text-gray-700 bg-gray-50 p-3 rounded">{{ paliativo.recomendaciones }}</p>
+          </div>
+        </div>
+
+        <!-- Archivos adjuntos -->
+        <div v-if="archivosAdjuntosCount > 0" class="mb-6 border-t pt-4">
+          <span class="font-semibold text-gray-700">Archivos adjuntos:</span>
+          <p class="text-gray-600 text-sm mt-1">{{ archivosAdjuntosCount }} archivo(s)</p>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t">
+          <button
+            @click="cerrarModal"
+            class="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="confirmarAccion"
+            :disabled="procesando"
+            class="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
+          >
+            {{ procesando ? (esEdicion ? 'Actualizando...' : 'Registrando...') : (esEdicion ? 'Confirmar Actualización' : 'Confirmar Registro') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -467,10 +589,23 @@ const router = useRouter()
 const route = useRoute()
 const mascotaId = route.query.mascotaId
 
+const props = defineProps({
+  id: String // Recibe el parámetro de la ruta
+})
+
 console.log('🔍 Route query:', route.query)
 console.log('🔍 Mascota ID from query:', mascotaId)
 
 const { accessToken, isAuthenticated, checkAuth } = useAuth()
+
+// Determinar si es edición o registro
+const esEdicion = computed(() => {
+  return route.name === 'EditarPaliativo' || !!paliativoId.value
+})
+
+const paliativoId = computed(() => {
+  return props.id || route.params.paliativoId || null
+})
 
 // Estados reactivos
 const tiposProcedimiento = ref([])
@@ -480,6 +615,7 @@ const mostrarModalDiagnosticos = ref(false)
 const procesando = ref(false)
 const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
+const mostrarModal = ref(false) // NUEVO: estado para controlar el modal
 
 // Diagnósticos seleccionados
 const diagnosticosSeleccionados = ref([])
@@ -504,6 +640,43 @@ const paliativo = reactive({
 // Estados reactivos para medicación
 const mostrarModalMedicacion = ref(false)
 const farmacosAsociados = ref([])
+
+// Computed para validación del formulario
+const formularioValido = computed(() => {
+  const camposObligatorios = paliativo.tipo_procedimiento_id && 
+    paliativo.fecha_inicio && 
+    paliativo.resultado && 
+    paliativo.estado
+    
+  // Para registro, el medio de envío es obligatorio
+  if (!esEdicion.value) {
+    return camposObligatorios && paliativo.medio_envio
+  }
+  
+  // Para edición, solo los campos básicos son obligatorios
+  return camposObligatorios
+})
+
+// Computed para contar archivos adjuntos
+const archivosAdjuntosCount = computed(() => {
+  return archivos.value.filter(a => a.archivo !== null).length
+})
+
+// Computed para mostrar en el input
+const diagnosticosSeleccionadosTexto = computed(() => {
+  if (diagnosticosSeleccionados.value.length === 0) {
+    return ''
+  } else if (diagnosticosSeleccionados.value.length === 1) {
+    return diagnosticosSeleccionados.value[0].nombre
+  } else {
+    return `${diagnosticosSeleccionados.value.length} diagnósticos seleccionados`
+  }
+})
+
+// Obtener ID del usuario dueño de la mascota
+const usuarioId = computed(() => {
+  return mascotaData.value?.usuario_id || null
+})
 
 // Métodos para manejar fármacos
 const agregarFarmaco = (farmacoData) => {
@@ -532,22 +705,6 @@ const eliminarFarmaco = (index) => {
   actualizarCampoMedicacion()
 }
 
-// Computed para mostrar en el input
-const diagnosticosSeleccionadosTexto = computed(() => {
-  if (diagnosticosSeleccionados.value.length === 0) {
-    return ''
-  } else if (diagnosticosSeleccionados.value.length === 1) {
-    return diagnosticosSeleccionados.value[0].nombre
-  } else {
-    return `${diagnosticosSeleccionados.value.length} diagnósticos seleccionados`
-  }
-})
-
-// Obtener ID del usuario dueño de la mascota
-const usuarioId = computed(() => {
-  return mascotaData.value?.usuario_id || null
-})
-
 // Función para obtener nombre del medio seleccionado
 const obtenerNombreMedio = (medioId) => {
   const medios = {
@@ -558,16 +715,78 @@ const obtenerNombreMedio = (medioId) => {
   return medios[medioId] || medioId
 }
 
-// Obtener nombre del centro seleccionado
+// Obtener nombre del tipo de procedimiento - verificado
+const obtenerNombreTipoProcedimiento = () => {
+  const tipo = tiposProcedimiento.value.find(t => t.id == paliativo.tipo_procedimiento_id)
+  console.log('🔍 Buscando tipo procedimiento:', {
+    id: paliativo.tipo_procedimiento_id,
+    tipos: tiposProcedimiento.value,
+    encontrado: tipo
+  })
+  return tipo ? tipo.nombre : 'No seleccionado'
+}
+
+// Obtener dirección del centro veterinario seleccionado
+const obtenerDireccionCentroSeleccionado = () => {
+  const centro = centrosVeterinarios.value.find(c => c.id === paliativo.centro_veterinario_id)
+  console.log('🔍 Buscando dirección de centro veterinario:', {
+    id: paliativo.centro_veterinario_id,
+    centros: centrosVeterinarios.value,
+    encontrado: centro
+  })
+  return centro ? centro.direccion : 'Dirección no disponible'
+}
+
+// Obtener centro veterinario - desde proceso_medico
 const obtenerNombreCentroSeleccionado = () => {
   const centro = centrosVeterinarios.value.find(c => c.id === paliativo.centro_veterinario_id)
+  console.log('🔍 Buscando centro veterinario:', {
+    id: paliativo.centro_veterinario_id,
+    centros: centrosVeterinarios.value,
+    encontrado: centro
+  })
   return centro ? centro.nombre : 'Centro no encontrado'
 }
 
-// Obtener dirección del centro seleccionado
-const obtenerDireccionCentroSeleccionado = () => {
-  const centro = centrosVeterinarios.value.find(c => c.id === paliativo.centro_veterinario_id)
-  return centro ? centro.direccion : ''
+
+// Obtener texto del resultado
+const obtenerTextoResultado = () => {
+  const opciones = {
+    'mejoria': 'Mejoría evidente',
+    'alivio': 'Alivio parcial',
+    'estabilizacion': 'Estabilización',
+    'sin_cambio': 'Sin cambios',
+    'empeoramiento': 'Empeoramiento'
+  }
+  return opciones[paliativo.resultado] || paliativo.resultado
+}
+
+// Obtener texto del estado
+const obtenerTextoEstado = () => {
+  const opciones = {
+    'estable': 'Estable',
+    'dolor_controlado': 'Con dolor controlado',
+    'dolor_parcial': 'Con dolor parcialmente controlado',
+    'deterioro': 'En deterioro',
+    'critico': 'Crítico'
+  }
+  return opciones[paliativo.estado] || paliativo.estado
+}
+
+// Formatear fecha
+const formatFecha = (fecha) => {
+  if (!fecha) return 'No especificada'
+  
+  // Si es una fecha con hora (datetime-local)
+  if (fecha.includes('T')) {
+    const [datePart, timePart] = fecha.split('T')
+    const time = timePart ? timePart.substring(0, 5) : ''
+    const date = new Date(datePart + 'T' + timePart)
+    return date.toLocaleDateString('es-ES') + (time ? ` ${time}` : '')
+  }
+  
+  // Si es solo fecha (date)
+  return new Date(fecha).toLocaleDateString('es-ES')
 }
 
 // Cargar datos de la mascota para obtener el usuario_id
@@ -605,6 +824,8 @@ const cargarDatosMascota = async () => {
     errorCargandoMascota.value = error.message
   }
 }
+
+
 
 // Cargar tipos de procedimiento paliativo
 const cargarTiposProcedimiento = async () => {
@@ -693,6 +914,97 @@ const cargarCentrosVeterinarios = async () => {
   }
 }
 
+// Cargar datos de procedimiento existente (para edición)
+const cargarPaliativoExistente = async () => {
+  if (!paliativoId.value || !mascotaId) return
+  
+  try {
+    console.log('🔄 Cargando datos de procedimiento paliativo con ID:', paliativoId.value)
+    console.log('📌 Mascota ID:', mascotaId)
+    console.log('🔄 Cargando datos de procedimiento paliativo con ID:', paliativoId.value)
+    console.log('📌 Mascota ID:', mascotaId)
+    console.log('🔗 URL completa:', `/api/mascotas/${mascotaId}/paliativos/${paliativoId.value}`)
+    console.log('🔐 Token disponible:', !!accessToken.value)
+    
+    
+    const response = await fetch(`/api/mascotas/${mascotaId}/paliativos/${paliativoId.value}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    console.log('📦 Respuesta COMPLETA de procedimiento paliativo:', JSON.stringify(result, null, 2))
+    
+    if (result.success && result.data) {
+      const datosPaliativo = result.data
+      
+      // VERIFICAR la estructura de los datos recibidos
+      console.log('🔍 Estructura de datos recibidos:', {
+        datosPaliativo,
+        tieneTipoPaliativo: datosPaliativo.tipo_paliativo,
+        tieneProcesoMedico: datosPaliativo.proceso_medico,
+        tieneCentroVeterinario: datosPaliativo.proceso_medico?.centro_veterinario,
+        tieneDiagnosticos: datosPaliativo.diagnosticos_asociados,
+        tieneEstado: datosPaliativo.estado_mascota
+      })
+      
+      // Actualizar el objeto paliativo con los datos existentes
+      // IMPORTANTE: Usar los nombres correctos de campos
+      Object.assign(paliativo, {
+        tipo_procedimiento_id: datosPaliativo.tipo_paliativo_id || datosPaliativo.tipo_procedimiento_id,
+        fecha_inicio: datosPaliativo.fecha_inicio ? 
+          datosPaliativo.fecha_inicio.replace('T', ' ').substring(0, 16) : '',
+        // El centro veterinario está en proceso_medico, no directamente en paliativo
+        centro_veterinario_id: datosPaliativo.proceso_medico?.centro_veterinario_id || datosPaliativo.centro_veterinario_id,
+        resultado: datosPaliativo.resultado,
+        estado: datosPaliativo.estado_mascota || datosPaliativo.estado, // ❗ Importante: usar estado_mascota
+        frecuencia_valor: datosPaliativo.frecuencia_valor || '',
+        frecuencia_unidad: datosPaliativo.frecuencia_unidad || 'dias',
+        fecha_control: datosPaliativo.fecha_control?.split('T')[0] || '',
+        descripcion: datosPaliativo.observaciones || datosPaliativo.descripcion || '',
+        medicacion_notas: datosPaliativo.medicacion_complementaria || datosPaliativo.medicacion_notas || '',
+        recomendaciones: datosPaliativo.recomendaciones_tutor || datosPaliativo.recomendaciones || '',
+        medio_envio: datosPaliativo.medio_envio || '',
+      })
+      
+      console.log('✅ Paliativo cargado en formulario:', paliativo)
+      
+      // Cargar diagnósticos asociados
+      if (datosPaliativo.diagnosticos_asociados && Array.isArray(datosPaliativo.diagnosticos_asociados)) {
+        // Transformar la estructura si es necesario
+        diagnosticosSeleccionados.value = datosPaliativo.diagnosticos_asociados.map(d => ({
+          id: d.diagnostico_id || d.id,
+          nombre: d.nombre || d.diagnostico_nombre,
+          type: d.diagnostico_type || 'tipo' // Ajustar según tu estructura
+        }))
+        console.log('✅ Diagnosticos cargados:', diagnosticosSeleccionados.value)
+      } else {
+        console.log('⚠️ No hay diagnósticos asociados en la respuesta')
+      }
+      
+      // Cargar fármacos asociados
+      if (datosPaliativo.farmacos_asociados && Array.isArray(datosPaliativo.farmacos_asociados)) {
+        farmacosAsociados.value = datosPaliativo.farmacos_asociados
+        actualizarCampoMedicacion()
+        console.log('✅ Fármacos cargados:', farmacosAsociados.value.length)
+      }
+      
+    } else {
+      console.warn('❌ No se encontraron datos de procedimiento:', result)
+      alert('No se pudo cargar el procedimiento a editar: ' + (result.message || 'Error desconocido'))
+    }
+  } catch (error) {
+    console.error('❌ Error cargando datos de procedimiento:', error)
+    alert('Error al cargar el procedimiento: ' + error.message)
+  }
+}
+
 const onTipoPaliativoChange = () => {
   const tipoSeleccionado = tiposProcedimiento.value.find(t => t.id == paliativo.tipo_procedimiento_id)
   if (tipoSeleccionado) {
@@ -704,6 +1016,7 @@ const onTipoPaliativoChange = () => {
 const abrirOverlayCentros = () => {
   mostrarOverlayCentros.value = true
 }
+
 
 // Seleccionar centro desde overlay
 const seleccionarCentro = (centro) => {
@@ -728,10 +1041,34 @@ const abrirRegistroTipoPaliativo = () => {
   router.push({
     path: '/registro/registroTipoPaliativo',
     query: {
-      from: `/mascotas/${mascotaId}/paliativos/crear`,
+      from: esEdicion.value ? `/editar/paliativo/${paliativoId.value}` : `/registro/paliativo/${mascotaId}`,
       mascotaId
     }
   })
+}
+
+// Función para mostrar el modal de confirmación
+const mostrarModalConfirmacion = () => {
+  if (!formularioValido.value) {
+    alert('Por favor complete todos los campos obligatorios')
+    return
+  }
+  
+  mostrarModal.value = true
+}
+
+// Función para cerrar el modal
+const cerrarModal = () => {
+  mostrarModal.value = false
+}
+
+// Confirmar acción (registrar o actualizar)
+const confirmarAccion = () => {
+  if (esEdicion.value) {
+    actualizarPaliativo()
+  } else {
+    registrarPaliativo()
+  }
 }
 
 // Registrar procedimiento paliativo
@@ -740,35 +1077,36 @@ const registrarPaliativo = async () => {
 
   try {
     procesando.value = true
+    cerrarModal()
 
     // Validar que se seleccionó un medio de envío
     if (!paliativo.medio_envio) {
       alert('Por favor seleccione un medio de envío para el informe')
-      return
-    }
-
-    // Validar campos obligatorios
-    if (!paliativo.tipo_procedimiento_id || !paliativo.fecha_inicio || !paliativo.resultado || !paliativo.estado) {
-      alert('Por favor complete todos los campos obligatorios')
+      procesando.value = false
       return
     }
 
     // Preparar datos para enviar
     const datosPaliativo = {
-    ...paliativo,
-    diagnosticos: diagnosticosSeleccionados.value.map(d => d.id),
-    farmacos_asociados: farmacosAsociados.value.map(f => ({
-      farmaco_id: f.drug.id,
-      dosis: f.dose,
-      frecuencia: f.frequency,
-      duracion: f.duracion,
-      observaciones: f.notes,
-      momento_aplicacion: 'mantenimiento' // <-- AGREGAR ESTE CAMPO CON VALOR POR DEFECTO
-    })),
-    mascota_id: mascotaId,
-    frecuencia_seguimiento: paliativo.frecuencia_valor ? 
-      `${paliativo.frecuencia_valor} ${paliativo.frecuencia_unidad}` : null
-  }
+      ...paliativo,
+      diagnosticos: diagnosticosSeleccionados.value.map(d => ({
+        id: d.id,
+        type: d.type === 'pet' 
+          ? 'App\\Models\\ProcedimientosMedicos\\Diagnostico'
+          : 'App\\Models\\TiposProcedimientos\\TipoDiagnostico'
+      })),
+      farmacos_asociados: farmacosAsociados.value.map(f => ({
+        farmaco_id: f.drug.id,
+        dosis: f.dose,
+        frecuencia: f.frequency,
+        duracion: f.duracion,
+        observaciones: f.notes,
+        momento_aplicacion: 'mantenimiento'
+      })),
+      mascota_id: mascotaId,
+      frecuencia_seguimiento: paliativo.frecuencia_valor ? 
+        `${paliativo.frecuencia_valor} ${paliativo.frecuencia_unidad}` : null
+    }
 
     console.log('📤 Enviando datos a servidor:', datosPaliativo)
 
@@ -824,16 +1162,115 @@ const registrarPaliativo = async () => {
   }
 }
 
-const cancelar = () => {
-  router.push({
-    name: 'veterinario-paliativos',
-    params: { id: mascotaId },
-    query: {
-      from: 'cancelarRegistroPaliativo',
-      currentTab: 'Paliativos',
-      ts: Date.now()
+// Actualizar procedimiento paliativo existente
+const actualizarPaliativo = async () => {
+  if (procesando.value) return
+
+  try {
+    procesando.value = true
+    cerrarModal()
+
+    console.log('📤 Actualizando procedimiento con ID:', paliativoId.value)
+    console.log('🔍 Diagnosticos seleccionados:', diagnosticosSeleccionados.value)
+    
+    // Preparar datos para enviar - Asegurarse de incluir siempre los diagnósticos
+    const datosPaliativo = {
+      ...paliativo,
+      diagnosticos: diagnosticosSeleccionados.value.map(d => ({
+        id: d.id,
+        type: d.type === 'pet' 
+          ? 'App\\Models\\ProcedimientosMedicos\\Diagnostico'
+          : 'App\\Models\\TiposProcedimientos\\TipoDiagnostico'
+      })),
+      farmacos_asociados: farmacosAsociados.value.map(f => ({
+        farmaco_id: f.drug.id,
+        dosis: f.dose,
+        frecuencia: f.frequency,
+        duracion: f.duracion,
+        observaciones: f.notes,
+        momento_aplicacion: 'mantenimiento'
+      })),
+      frecuencia_seguimiento: paliativo.frecuencia_valor ? 
+        `${paliativo.frecuencia_valor} ${paliativo.frecuencia_unidad}` : null
     }
-  })
+
+    console.log('📤 Datos a enviar (incluyendo diagnosticos):', datosPaliativo)
+
+    const response = await fetch(`/api/mascotas/${mascotaId}/paliativos/${paliativoId.value}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken.value}`
+      },
+      body: JSON.stringify(datosPaliativo)
+    })
+
+    console.log('📨 Status:', response.status)
+    
+    const responseText = await response.text()
+    console.log('📄 Respuesta cruda:', responseText)
+
+    if (!responseText.trim()) {
+      throw new Error('El servidor devolvió una respuesta vacía')
+    }
+
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('No se pudo parsear como JSON:', responseText)
+      throw new Error('El servidor no devolvió JSON válido.')
+    }
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Error en la operación')
+    }
+
+    if (result.success) {
+      alert('✅ Procedimiento paliativo actualizado exitosamente')
+      
+      // Redirigir después de actualizar
+      if (mascotaId) {
+        router.push({
+          name: 'veterinario-paliativos',
+          params: { id: mascotaId },
+          query: {
+            from: 'editarPaliativo',
+            currentTab: 'Paliativos',
+            ts: Date.now()
+          }
+        })
+      } else {
+        router.push({ name: 'veterinario-paliativos', params: { id: '0' } })
+      }
+    } else {
+      alert('Error al actualizar el procedimiento: ' + result.message)
+    }
+  } catch (error) {
+    console.error('❌ Error completo:', error)
+    alert('Error al actualizar el procedimiento: ' + error.message)
+  } finally {
+    procesando.value = false
+  }
+}
+
+const cancelar = () => {
+  const mascotaIdParaRedireccion = mascotaId
+  
+  if (mascotaIdParaRedireccion) {
+    router.push({
+      name: 'veterinario-paliativos',
+      params: { id: mascotaIdParaRedireccion },
+      query: {
+        from: esEdicion.value ? 'cancelarEditarPaliativo' : 'cancelarRegistroPaliativo',
+        currentTab: 'Paliativos',
+        ts: Date.now()
+      }
+    })
+  } else {
+    router.push({ name: 'veterinario-paliativos', params: { id: '0' } })
+  }
 }
 
 // Archivos adjuntos (manteniendo la funcionalidad existente)
@@ -869,6 +1306,8 @@ const quitarArchivo = (index) => {
 // Verificar autenticación y cargar datos
 onMounted(async () => {
   console.log('🚀 Iniciando componente RegistrarPaliativo')
+  console.log('🔍 Es edición:', esEdicion.value)
+  console.log('🔍 Paliativo ID:', paliativoId.value)
   
   if (!isAuthenticated.value) {
     const isAuth = await checkAuth()
@@ -879,23 +1318,34 @@ onMounted(async () => {
     }
   }
 
-  // Cargar datos en orden
-  await cargarDatosMascota()
-  
-  if (errorCargandoMascota.value) {
-    console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
-    alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
-    return
+  // Si es edición, cargar datos del procedimiento primero
+  if (esEdicion.value) {
+    await cargarPaliativoExistente()
   }
 
-  await cargarTiposProcedimiento()
-  await cargarCentrosVeterinarios()
+  // Cargar datos en orden
+  if (mascotaId) {
+    await cargarDatosMascota()
+    
+    if (errorCargandoMascota.value) {
+      console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
+      alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
+      return
+    }
+  }
 
-  // Establecer fecha y hora actual como predeterminada
-  const ahora = new Date()
-  const offset = ahora.getTimezoneOffset()
-  ahora.setMinutes(ahora.getMinutes() - offset)
-  paliativo.fecha_inicio = ahora.toISOString().slice(0, 16)
+  await Promise.all([
+    cargarTiposProcedimiento(),
+    cargarCentrosVeterinarios()
+  ])
+
+  // Establecer fecha y hora actual como predeterminada solo si es registro nuevo y no hay fecha
+  if (!esEdicion.value && !paliativo.fecha_inicio) {
+    const ahora = new Date()
+    const offset = ahora.getTimezoneOffset()
+    ahora.setMinutes(ahora.getMinutes() - offset)
+    paliativo.fecha_inicio = ahora.toISOString().slice(0, 16)
+  }
   
   console.log('✅ Componente completamente cargado')
   console.log('👤 Usuario ID final:', usuarioId.value)

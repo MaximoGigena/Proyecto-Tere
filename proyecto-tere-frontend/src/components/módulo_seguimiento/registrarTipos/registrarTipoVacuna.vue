@@ -39,15 +39,38 @@
             </div>
           </div>
 
+          <!-- ENFERMEDADES QUE PREVIENE - MODIFICADO -->
           <div>
             <label class="block font-medium">Enfermedades que previene</label>
-            <textarea 
-              v-model="vacuna.enfermedades" 
-              rows="2" 
-              required 
-              class="w-full border rounded p-2" 
-              placeholder="Liste las enfermedades que cubre esta vacuna"
-            ></textarea>
+            <div class="flex gap-2">
+              <textarea 
+                v-model="inputEnfermedades" 
+                rows="2" 
+                class="w-full border rounded p-2" 
+                placeholder="Ej: Moquillo, Parvovirus, Hepatitis, etc."
+              ></textarea>
+              <button 
+                type="button"
+                @click="agregarItem('enfermedades')"
+                class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-blue-600 transition-colors"
+              >
+                <font-awesome-icon :icon="['fas', 'plus']" />
+              </button>
+            </div>
+            <!-- Lista de enfermedades agregadas -->
+            <div v-if="enfermedadesAgregadas.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+              <div v-for="(enfermedad, index) in enfermedadesAgregadas" :key="index" 
+                  class="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                <span>{{ enfermedad }}</span>
+                <button 
+                  type="button"
+                  @click="eliminarItem('enfermedades', index)"
+                  class="text-red-500 hover:text-red-700"
+                >
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -180,34 +203,72 @@
           />
         </div>
 
+        <!-- RIESGOS CONOCIDOS - MODIFICADO -->
         <div>
           <label class="block font-medium">Riesgos conocidos</label>
-          <textarea 
-            v-model="vacuna.riesgos" 
-            rows="2" 
-            class="w-full border rounded p-2" 
-            placeholder="Efectos adversos reportados"
-          ></textarea>
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRiesgos" 
+              rows="2" 
+              class="w-full border rounded p-2" 
+              placeholder="Ej: Fiebre leve, Hinchazón en sitio de inyección, Reacción alérgica, etc."
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('riesgos')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de riesgos agregados -->
+          <div v-if="riesgosAgregados.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-for="(riesgo, index) in riesgosAgregados" :key="index" 
+                class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+              <span>{{ riesgo }}</span>
+              <button 
+                type="button"
+                @click="eliminarItem('riesgos', index)"
+                class="text-red-500 hover:text-red-700"
+              >
+                <font-awesome-icon :icon="['fas', 'times']" />
+              </button>
+            </div>
+          </div>
         </div>
 
+        <!-- RECOMENDACIONES PROFESIONALES - MODIFICADO -->
         <div>
           <label class="block font-medium">Recomendaciones profesionales</label>
-          <textarea 
-            v-model="vacuna.recomendaciones" 
-            rows="2" 
-            class="w-full border rounded p-2" 
-            placeholder="Consejos para su aplicación"
-          ></textarea>
-        </div>
-
-        <div class="col-span-full">
-          <label class="block font-medium mb-1">Lote / Serie del frasco</label>
-          <input 
-            v-model="vacuna.lote" 
-            type="text" 
-            class="w-full border rounded p-2" 
-            placeholder="Número de lote"
-          />
+          <div class="flex gap-2">
+            <textarea 
+              v-model="inputRecomendaciones" 
+              rows="2" 
+              class="w-full border rounded p-2" 
+              placeholder="Ej: Monitorear temperatura, No bañar por 48h, Observar sitio de inyección, etc."
+            ></textarea>
+            <button 
+              type="button"
+              @click="agregarItem('recomendaciones')"
+              class="bg-green-500 text-white w-10 h-10 rounded flex items-center justify-center hover:bg-green-600 transition-colors"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+            </button>
+          </div>
+          <!-- Lista de recomendaciones agregadas -->
+          <div v-if="recomendacionesAgregadas.length > 0" class="mt-3 border border-gray-200 rounded-lg p-2 space-y-1 bg-white shadow-sm">
+            <div v-for="(recomendacion, index) in recomendacionesAgregadas" :key="index" 
+                class="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+              <span>{{ recomendacion }}</span>
+              <button 
+                type="button"
+                @click="eliminarItem('recomendaciones', index)"
+                class="text-red-500 hover:text-red-700"
+              >
+                <font-awesome-icon :icon="['fas', 'times']" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -268,10 +329,20 @@ import CarruselEspecieVeterinario from '@/components/ElementosGraficos/CarruselE
 
 const especiesSeleccionadas = ref([])
 
+// Inputs temporales para agregar elementos
+const inputEnfermedades = ref('')
+const inputRiesgos = ref('')
+const inputRecomendaciones = ref('')
+
+// Arrays para almacenar elementos agregados
+const enfermedadesAgregadas = ref([])
+const riesgosAgregados = ref([])
+const recomendacionesAgregadas = ref([])
+
 // Solo para debug, no para lógica de negocio
 watch(especiesSeleccionadas, (val) => {
   console.log('🔄 Especies seleccionadas cambiaron:', val)
-}, { deep: true, flush: 'post' }) // 'flush: post' ayuda a evitar efectos secundarios
+}, { deep: true, flush: 'post' })
 
 const route = useRoute()
 const router = useRouter()
@@ -287,8 +358,7 @@ const esEdicion = computed(() => id !== null)
 
 const vacuna = reactive({
   nombre: '',
-  enfermedades: '',
-  especie: '',
+  enfermedades: '', // Ahora será un string separado por comas
   edadMinima: '',
   edadUnidad: 'semanas',
   dosis: '',
@@ -299,10 +369,106 @@ const vacuna = reactive({
   obligatoria: '',
   intervaloDosis: '',
   fabricante: '',
-  riesgos: '',
-  recomendaciones: '',
-  lote: ''
+  riesgos: '', // Ahora será un string separado por comas
+  recomendaciones: '', // Ahora será un string separado por comas
 })
+
+const validarDatosAntesDeEnviar = () => {
+  console.log('🔍 Validación previa al envío:')
+  console.log('1. Enfermedades agregadas:', enfermedadesAgregadas.value)
+  console.log('2. Enfermedades en vacuna.enfermedades:', vacuna.enfermedades)
+  console.log('3. Riesgos agregados:', riesgosAgregados.value)
+  console.log('4. Recomendaciones agregadas:', recomendacionesAgregadas.value)
+  console.log('5. Especies seleccionadas:', especiesSeleccionadas.value)
+  
+  // Convertir manualmente para asegurar
+  vacuna.enfermedades = enfermedadesAgregadas.value.join(', ')
+  vacuna.riesgos = riesgosAgregados.value.join(', ')
+  vacuna.recomendaciones = recomendacionesAgregadas.value.join(', ')
+  
+  console.log('6. Después de convertir:')
+  console.log('   - Enfermedades:', vacuna.enfermedades)
+  console.log('   - Riesgos:', vacuna.riesgos)
+  console.log('   - Recomendaciones:', vacuna.recomendaciones)
+}
+
+// Función para agregar elementos
+const agregarItem = (tipo) => {
+  let inputValue, arrayDestino
+  
+  switch(tipo) {
+    case 'enfermedades':
+      inputValue = inputEnfermedades.value.trim()
+      arrayDestino = enfermedadesAgregadas
+      break
+    case 'riesgos':
+      inputValue = inputRiesgos.value.trim()
+      arrayDestino = riesgosAgregados
+      break
+    case 'recomendaciones':
+      inputValue = inputRecomendaciones.value.trim()
+      arrayDestino = recomendacionesAgregadas
+      break
+    default:
+      return
+  }
+  
+  if (inputValue) {
+    // Verificar si ya existe (case insensitive)
+    const existe = arrayDestino.value.some(item => 
+      item.toLowerCase() === inputValue.toLowerCase()
+    )
+    
+    if (!existe) {
+      arrayDestino.value.push(inputValue)
+      
+      // Limpiar el input
+      switch(tipo) {
+        case 'enfermedades': inputEnfermedades.value = ''; break
+        case 'riesgos': inputRiesgos.value = ''; break
+        case 'recomendaciones': inputRecomendaciones.value = ''; break
+      }
+    } else {
+      alert('Este elemento ya ha sido agregado')
+    }
+  }
+}
+
+// Función para eliminar elementos
+const eliminarItem = (tipo, index) => {
+  switch(tipo) {
+    case 'enfermedades':
+      enfermedadesAgregadas.value.splice(index, 1)
+      break
+    case 'riesgos':
+      riesgosAgregados.value.splice(index, 1)
+      break
+    case 'recomendaciones':
+      recomendacionesAgregadas.value.splice(index, 1)
+      break
+  }
+}
+
+// Watch para sincronizar arrays con los campos de la vacuna
+watch([enfermedadesAgregadas, riesgosAgregados, recomendacionesAgregadas], () => {
+  // Convertir arrays a strings separados por comas para el backend
+  vacuna.enfermedades = enfermedadesAgregadas.value.length > 0 
+    ? enfermedadesAgregadas.value.join(', ') 
+    : ''
+  
+  vacuna.riesgos = riesgosAgregados.value.length > 0 
+    ? riesgosAgregados.value.join(', ') 
+    : ''
+  
+  vacuna.recomendaciones = recomendacionesAgregadas.value.length > 0 
+    ? recomendacionesAgregadas.value.join(', ') 
+    : ''
+  
+  console.log('Valores convertidos para backend:')
+  console.log('enfermedades:', vacuna.enfermedades)
+  console.log('riesgos:', vacuna.riesgos)
+  console.log('recomendaciones:', vacuna.recomendaciones)
+}, { deep: true })
 
 // Verificar autenticación y cargar datos si es edición
 onMounted(async () => {
@@ -356,7 +522,6 @@ const cargarVacuna = async () => {
       Object.assign(vacuna, {
         nombre: data.nombre || '',
         enfermedades: data.enfermedades || '',
-        // especie: data.especie || '', // ❌ ESTO ESTÁ MAL
         edadMinima: data.edad_minima || '',
         edadUnidad: data.edad_unidad || 'semanas',
         dosis: data.dosis || '',
@@ -371,6 +536,19 @@ const cargarVacuna = async () => {
         recomendaciones: data.recomendaciones || '',
         lote: data.lote || ''
       })
+
+      // Convertir strings del backend a arrays
+      enfermedadesAgregadas.value = vacuna.enfermedades 
+        ? vacuna.enfermedades.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      riesgosAgregados.value = vacuna.riesgos 
+        ? vacuna.riesgos.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
+      
+      recomendacionesAgregadas.value = vacuna.recomendaciones 
+        ? vacuna.recomendaciones.split(',').map(s => s.trim()).filter(s => s !== '')
+        : []
 
       // ✅ CORRECCIÓN: Convertir el JSON de especies a array
       if (data.especies) {
@@ -394,6 +572,9 @@ const cargarVacuna = async () => {
 
       console.log('📝 Datos mapeados al formulario:', vacuna)
       console.log('🐾 Especies cargadas en el carrusel:', especiesSeleccionadas.value)
+      console.log('🦠 Enfermedades cargadas:', enfermedadesAgregadas.value)
+      console.log('⚠️ Riesgos cargados:', riesgosAgregados.value)
+      console.log('💡 Recomendaciones cargadas:', recomendacionesAgregadas.value)
     } else {
       throw new Error(result.message || 'No se pudieron cargar los datos de la vacuna')
     }
@@ -421,24 +602,63 @@ const cancelar = () => {
 }
 
 const prepararEnvio = () => {
+  // Asegurar que los arrays estén convertidos a strings antes de enviar
+  vacuna.enfermedades = enfermedadesAgregadas.value.length > 0 
+    ? enfermedadesAgregadas.value.join(', ') 
+    : ''
+  
+  vacuna.riesgos = riesgosAgregados.value.length > 0 
+    ? riesgosAgregados.value.join(', ') 
+    : ''
+  
+  vacuna.recomendaciones = recomendacionesAgregadas.value.length > 0 
+    ? recomendacionesAgregadas.value.join(', ') 
+    : ''
+
+  console.log('🔍 Datos convertidos para envio:')
+  console.log('enfermedades:', vacuna.enfermedades)
+  console.log('riesgos:', vacuna.riesgos)
+  console.log('recomendaciones:', vacuna.recomendaciones)
+
   // Validaciones básicas
-  if (!vacuna.nombre || !vacuna.enfermedades || !especiesSeleccionadas.value.length || 
-      !vacuna.edadMinima || !vacuna.dosis || !vacuna.via || 
-      !vacuna.frecuencia || !vacuna.obligatoria) {
+  if (!vacuna.nombre.trim() || 
+      enfermedadesAgregadas.value.length === 0 || 
+      especiesSeleccionadas.value.length === 0 || 
+      !vacuna.edadMinima || 
+      !vacuna.dosis || 
+      !vacuna.via || 
+      !vacuna.frecuencia || 
+      !vacuna.obligatoria) {
+    
     showMessage('Por favor complete todos los campos obligatorios', 'error')
+    
+    // Debug: mostrar qué campos faltan
+    console.log('❌ Campos faltantes:', {
+      nombre: !vacuna.nombre.trim(),
+      enfermedades: enfermedadesAgregadas.value.length === 0,
+      especies: especiesSeleccionadas.value.length === 0,
+      edadMinima: !vacuna.edadMinima,
+      dosis: !vacuna.dosis,
+      via: !vacuna.via,
+      frecuencia: !vacuna.frecuencia,
+      obligatoria: !vacuna.obligatoria
+    })
+    
     return null
   }
 
   console.log('🐾 Especies seleccionadas para enviar:', especiesSeleccionadas.value)
+  console.log('🦠 Enfermedades para enviar:', enfermedadesAgregadas.value)
 
   // Convertir el Proxy de Vue a un array simple
-  const especiesArray = [...especiesSeleccionadas.value]
+ const especiesArray = [...especiesSeleccionadas.value]
 
   // Mapear los datos para que coincidan con el controlador Laravel
+  // CAMBIO IMPORTANTE: Enviar array directamente, no JSON string
   return {
-    nombre: vacuna.nombre,
-    enfermedades: vacuna.enfermedades,
-    especies: especiesArray, // ← Envía el array de especies
+    nombre: vacuna.nombre.trim(),
+    enfermedades: vacuna.enfermedades, // String separado por comas
+    especies: especiesArray, // ← ENVIAR ARRAY DIRECTAMENTE
     edad_minima: parseFloat(vacuna.edadMinima),
     edad_unidad: vacuna.edadUnidad,
     dosis: parseFloat(vacuna.dosis),

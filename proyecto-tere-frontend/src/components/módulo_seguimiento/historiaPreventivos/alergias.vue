@@ -184,16 +184,17 @@ const editarAlergia = (alergia) => {
 }
 
 const eliminarAlergia = async (id) => {
-  if (!confirm('¿Estás seguro de que deseas eliminar esta alergia?')) {
+  if (!confirm('¿Estás seguro de que deseas dar de baja esta alergia?\n\nNota: Se realizará una baja lógica, no se eliminará permanentemente.')) {
     return
   }
 
   try {
-    const response = await fetch(`/api/alergias/${id}`, {
-      method: 'DELETE',
+    const response = await fetch(`/api/mascotas/${mascotaId}/alergias/${id}/baja`, {
+      method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       }
     })
 
@@ -204,15 +205,18 @@ const eliminarAlergia = async (id) => {
     const result = await response.json()
     
     if (result.success) {
-      console.log('✅ Alergia eliminada:', id)
+      console.log('✅ Alergia dada de baja:', id)
       // Recargar la lista de alergias
       await cargarAlergias()
+      
+      // Mostrar mensaje de éxito
+      alert('Alergia dada de baja exitosamente')
     } else {
-      alert('Error al eliminar la alergia: ' + (result.message || 'Error desconocido'))
+      alert('Error al dar de baja la alergia: ' + (result.message || 'Error desconocido'))
     }
   } catch (error) {
-    console.error('❌ Error eliminando alergia:', error)
-    alert('Error al eliminar la alergia: ' + error.message)
+    console.error('❌ Error dando de baja alergia:', error)
+    alert('Error al dar de baja la alergia: ' + error.message)
   }
 }
 </script>
