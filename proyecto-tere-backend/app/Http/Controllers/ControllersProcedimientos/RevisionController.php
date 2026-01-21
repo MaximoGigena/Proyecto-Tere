@@ -1,5 +1,5 @@
 <?php
-// app/Http/Controllers/ControllersProcedimientos/RevisionController.php
+// app/Http\Controllers/ControllersProcedimientos/RevisionController.php
 
 namespace App\Http\Controllers\ControllersProcedimientos;
 
@@ -86,6 +86,7 @@ class RevisionController extends Controller
                     'fecha_aplicacion' => $validated['fecha_revision'], // Usamos fecha_revision como fecha_aplicacion
                     'observaciones' => $validated['observaciones'] ?? null,
                     'costo' => $validated['costo'] ?? null,
+                    'medio_envio' => $validated['medio_envio'] ?? null,
                 ]);
 
                 // 3. Asociar la revisión con el proceso médico
@@ -248,32 +249,50 @@ class RevisionController extends Controller
     public function show($mascotaId, $revisionId): JsonResponse
     {
         try {
-            $revision = Revision::with([
-                'tipoRevision',
-                'procesoMedico.centroVeterinario',
-                'procesoMedico.veterinario',
-                'procesoMedico.mascota'
-            ])
-            ->whereHas('procesoMedico', function($query) use ($mascotaId) {
-                $query->where('mascota_id', $mascotaId);
-            })
-            ->findOrFail($revisionId);
+            $revision = Revision::where('id', $revisionId)
+                ->whereHas('procesoMedico', function($query) use ($mascotaId) {
+                    $query->where('mascota_id', $mascotaId);
+                })
+                ->with([
+                    'tipoRevision',
+                    'procesoMedico.centroVeterinario',
+                    'procesoMedico.veterinario',
+                    'procesoMedico.mascota'
+                ])
+                ->first();
 
+            if (!$revision) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Revisión no encontrada'
+                ], 404);
+            }
+
+            // ✅ DEVUELVE DATOS CORRECTAMENTE ESTRUCTURADOS
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'revision' => $revision,
-                    'archivos' => $revision->archivos ?? [] // Si tienes relación de archivos
+                    'id' => $revision->id,
+                    'tipo_revision_id' => $revision->tipo_revision_id,
+                    'fecha_revision' => $revision->fecha_revision,
+                    'nivel_urgencia' => $revision->nivel_urgencia,
+                    'motivo_consulta' => $revision->motivo_consulta,
+                    'diagnostico' => $revision->diagnostico,
+                    'fecha_proxima_revision' => $revision->fecha_proxima_revision,
+                    'indicaciones_medicas' => $revision->indicaciones_medicas,
+                    'recomendaciones_tutor' => $revision->recomendaciones_tutor,
+                    'centro_veterinario_id' => $revision->procesoMedico->centro_veterinario_id ?? null,
+                    'observaciones' => $revision->procesoMedico->observaciones ?? null,
+                    'costo' => $revision->procesoMedico->costo ?? null,
+                    'medio_envio' => $revision->procesoMedico->medio_envio ?? null,
+                    'diagnosticos' => [],
+                    'archivos' => []
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error al obtener revisión: ' . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Revisión no encontrada'
-            ], 404);
+            Log::error('Error en show revisión', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Error al cargar revisión'], 500);
         }
     }
 
@@ -283,59 +302,118 @@ class RevisionController extends Controller
     public function update(Request $request, $mascotaId, $revisionId): JsonResponse
     {
         try {
-            $request->validate([
-                'tipo_revision_id' => 'sometimes|exists:tipos_revision,id',
-                'fecha_revision' => 'sometimes|date',
-                'nivel_urgencia' => 'sometimes|in:rutinaria,preventiva,urgencia,emergencia',
+            // ✅ ACEPTAR TANTO JSON COMO FORMDATA
+            $datos = $request->all();
+            
+            Log::info('🔄 ACTUALIZAR REVISIÓN - DATOS RECIBIDOS RAW', $datos);
+            Log::info('🔄 Content-Type:', ['type' => $request->header('Content-Type')]);
+
+            // ✅ VALIDACIÓN CORREGIDA - ACEPTAR STRING JSON O ARRAY
+            $validated = $request->validate([
+                'tipo_revision_id' => 'required|exists:tipos_revision,id',
+                'fecha_revision' => 'required|date',
+                'nivel_urgencia' => 'required|in:rutinaria,preventiva,urgencia,emergencia',
                 'motivo_consulta' => 'nullable|string|max:500',
                 'diagnostico' => 'nullable|string|max:500',
-                'fecha_proxima_revision' => 'nullable|date|after:fecha_revision',
+                'fecha_proxima_revision' => 'nullable|date',
                 'indicaciones_medicas' => 'nullable|string',
                 'recomendaciones_tutor' => 'nullable|string',
                 'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
                 'observaciones' => 'nullable|string|max:500',
                 'costo' => 'nullable|numeric|min:0',
+                'medio_envio' => 'nullable|in:email,telegram,whatsapp',
+                'diagnosticos_ids' => 'nullable', // ✅ Cambiado de 'array' a nullable
             ]);
 
-            $revision = Revision::with('procesoMedico')
+            Log::info('✅ DATOS VALIDADOS:', $validated);
+
+            // ✅ Buscar la revisión
+            $revision = Revision::with(['procesoMedico'])
+                ->where('id', $revisionId)
                 ->whereHas('procesoMedico', function($query) use ($mascotaId) {
                     $query->where('mascota_id', $mascotaId);
                 })
-                ->findOrFail($revisionId);
+                ->first();
 
-            DB::transaction(function () use ($request, $revision) {
-                // 1. Actualizar la revisión
+            if (!$revision) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Revisión no encontrada para esta mascota'
+                ], 404);
+            }
+
+            // ✅ INICIO DE LA TRANSACCIÓN
+            DB::transaction(function () use ($request, $revision, $validated) {
+
+                // ✅ 1. Actualizar la revisión
                 $revision->update([
-                    'tipo_revision_id' => $request->tipo_revision_id ?? $revision->tipo_revision_id,
-                    'fecha_revision' => $request->fecha_revision ?? $revision->fecha_revision,
-                    'nivel_urgencia' => $request->nivel_urgencia ?? $revision->nivel_urgencia,
-                    'motivo_consulta' => $request->motivo_consulta ?? $revision->motivo_consulta,
-                    'diagnostico' => $request->diagnostico ?? $revision->diagnostico,
-                    'fecha_proxima_revision' => $request->fecha_proxima_revision ?? $revision->fecha_proxima_revision,
-                    'indicaciones_medicas' => $request->indicaciones_medicas ?? $revision->indicaciones_medicas,
-                    'recomendaciones_tutor' => $request->recomendaciones_tutor ?? $revision->recomendaciones_tutor,
+                    'tipo_revision_id' => $validated['tipo_revision_id'],
+                    'fecha_revision' => $validated['fecha_revision'],
+                    'nivel_urgencia' => $validated['nivel_urgencia'],
+                    'motivo_consulta' => $validated['motivo_consulta'] ?? $revision->motivo_consulta,
+                    'diagnostico' => $validated['diagnostico'] ?? $revision->diagnostico,
+                    'fecha_proxima_revision' => $validated['fecha_proxima_revision'] ?? $revision->fecha_proxima_revision,
+                    'indicaciones_medicas' => $validated['indicaciones_medicas'] ?? $revision->indicaciones_medicas,
+                    'recomendaciones_tutor' => $validated['recomendaciones_tutor'] ?? $revision->recomendaciones_tutor,
                 ]);
 
-                // 2. Actualizar el proceso médico asociado
+                // ✅ 2. Actualizar el proceso médico asociado
                 if ($revision->procesoMedico) {
                     $revision->procesoMedico->update([
-                        'centro_veterinario_id' => $request->centro_veterinario_id ?? $revision->procesoMedico->centro_veterinario_id,
-                        'fecha_aplicacion' => $request->fecha_revision ?? $revision->procesoMedico->fecha_aplicacion,
-                        'observaciones' => $request->observaciones ?? $revision->procesoMedico->observaciones,
-                        'costo' => $request->costo ?? $revision->procesoMedico->costo,
-                        'categoria' => 'preventivo', // ← SIEMPRE 'preventivo'
+                        'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? $revision->procesoMedico->centro_veterinario_id,
+                        'fecha_aplicacion' => $validated['fecha_revision'],
+                        'categoria' => 'preventivo',
+                        'observaciones' => $validated['observaciones'] ?? $revision->procesoMedico->observaciones,
+                        'costo' => $validated['costo'] ?? $revision->procesoMedico->costo,
+                        'medio_envio' => $validated['medio_envio'] ?? $revision->procesoMedico->medio_envio,
                     ]);
                 }
+
+                // ✅ 3. Manejar archivos nuevos si existen
+                if ($request->hasFile('archivos_nuevos')) {
+                    foreach ($request->file('archivos_nuevos') as $archivo) {
+                        if ($archivo->isValid()) {
+                            $path = $archivo->store('revisiones/' . $revision->id, 'public');
+                        }
+                    }
+                }
+
+                // ✅ 4. Manejar diagnosticos_ids si existe
+                if (isset($validated['diagnosticos_ids']) && !empty($validated['diagnosticos_ids'])) {
+                    // Convertir de string JSON a array si es necesario
+                    if (is_string($validated['diagnosticos_ids'])) {
+                        try {
+                            $diagnosticosIds = json_decode($validated['diagnosticos_ids'], true);
+                            if (json_last_error() === JSON_ERROR_NONE && is_array($diagnosticosIds)) {
+                                // Aquí puedes guardar los IDs en tu base de datos si tienes una relación
+                                Log::info('📋 Diagnosticos IDs procesados:', $diagnosticosIds);
+                            }
+                        } catch (\Exception $e) {
+                            Log::warning('Error al decodificar diagnosticos_ids', [
+                                'error' => $e->getMessage(),
+                                'diagnosticos_ids' => $validated['diagnosticos_ids']
+                            ]);
+                        }
+                    }
+                }
             });
+
+            // ✅ Cargar relaciones actualizadas
+            $revision->refresh();
+            $revision->load(['tipoRevision', 'procesoMedico.centroVeterinario']);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Revisión actualizada exitosamente',
-                'data' => $revision->load(['tipoRevision', 'procesoMedico.centroVeterinario'])
+                'data' => $revision
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error al actualizar revisión: ' . $e->getMessage());
+            Log::error('❌ ERROR AL ACTUALIZAR REVISIÓN', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
             
             return response()->json([
                 'success' => false,
@@ -350,11 +428,31 @@ class RevisionController extends Controller
     public function destroy($mascotaId, $revisionId): JsonResponse
     {
         try {
+            Log::info('🗑️ Eliminar revisión', [
+                'mascotaId' => $mascotaId,
+                'revisionId' => $revisionId,
+                'user_id' => Auth::id()
+            ]);
+
+            // CORRECCIÓN: Filtrar por ID y mascota_id
             $revision = Revision::with('procesoMedico')
+                ->where('id', $revisionId)
                 ->whereHas('procesoMedico', function($query) use ($mascotaId) {
                     $query->where('mascota_id', $mascotaId);
                 })
-                ->findOrFail($revisionId);
+                ->first();
+
+            if (!$revision) {
+                Log::warning('❌ Revisión no encontrada para eliminar', [
+                    'mascota_id' => $mascotaId,
+                    'revision_id' => $revisionId
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Revisión no encontrada'
+                ], 404);
+            }
 
             DB::transaction(function () use ($revision) {
                 // Eliminar el proceso médico primero (depende de la relación)
@@ -366,13 +464,22 @@ class RevisionController extends Controller
                 $revision->delete();
             });
 
+            Log::info('✅ Revisión eliminada exitosamente', [
+                'revision_id' => $revisionId
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Revisión eliminada exitosamente'
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error al eliminar revisión: ' . $e->getMessage());
+            Log::error('❌ Error al eliminar revisión', [
+                'mascota_id' => $mascotaId,
+                'revision_id' => $revisionId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             
             return response()->json([
                 'success' => false,
@@ -387,10 +494,11 @@ class RevisionController extends Controller
     public function edit($mascotaId, $revisionId)
     {
         $revision = Revision::with('procesoMedico')
+            ->where('id', $revisionId)
             ->whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
             })
-            ->findOrFail($revisionId);
+            ->firstOrFail();
 
         $tiposRevision = TipoRevision::where('activo', true)->get();
         $centrosVeterinarios = CentroVeterinario::where('activo', true)->get();
@@ -462,5 +570,34 @@ class RevisionController extends Controller
                 'message' => 'Error al cargar medios de contacto: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    // Agrega en tu RevisionController
+    public function debugUpdate(Request $request, $mascotaId, $revisionId): JsonResponse
+    {
+        Log::info('🔍 DEBUG - Método:', ['method' => $request->method()]);
+        Log::info('🔍 DEBUG - Headers:', $request->headers->all());
+        Log::info('🔍 DEBUG - Content-Type:', $request->header('Content-Type'));
+        Log::info('🔍 DEBUG - Tiene archivos?', ['has_files' => $request->hasFile('archivos_nuevos')]);
+        Log::info('🔍 DEBUG - Todos los inputs:', $request->all());
+        Log::info('🔍 DEBUG - Inputs específicos:', [
+            'tipo_revision_id' => $request->input('tipo_revision_id'),
+            'fecha_revision' => $request->input('fecha_revision'),
+            'nivel_urgencia' => $request->input('nivel_urgencia')
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'debug' => [
+                'method' => $request->method(),
+                'content_type' => $request->header('Content-Type'),
+                'all_inputs' => $request->all(),
+                'specific_fields' => [
+                    'tipo_revision_id' => $request->input('tipo_revision_id'),
+                    'fecha_revision' => $request->input('fecha_revision'),
+                    'nivel_urgencia' => $request->input('nivel_urgencia')
+                ]
+            ]
+        ]);
     }
 }

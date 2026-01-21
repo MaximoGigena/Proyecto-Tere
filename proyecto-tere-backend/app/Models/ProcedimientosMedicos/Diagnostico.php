@@ -1,10 +1,12 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\TiposProcedimientos\TipoDiagnostico;
+use App\Models\ProcedimientoDiagnostico;
+use App\Models\ProcesoMedico;
 
 class Diagnostico extends Model
 {
@@ -163,5 +165,32 @@ class Diagnostico extends Model
     public function getFechaDiagnosticoFormateadaAttribute()
     {
         return $this->fecha_diagnostico->format('d/m/Y');
+    }
+
+     public function procesoMedico()
+    {
+        return $this->morphOne(ProcesoMedico::class, 'procesable');
+    }
+
+    // En App\Models\ProcedimientosMedicos\Diagnostico.php
+
+    public function procedimientosDiagnosticos()
+    {
+        // Esto relaciona el Diagnostico como "procedimiento" (no como "diagnostico")
+        return $this->morphMany(ProcedimientoDiagnostico::class, 'procedimiento');
+    }
+
+    // Agregar esta relación si quieres los diagnósticos asociados como "diagnostico"
+    public function diagnosticosAsociados()
+    {
+        return $this->morphMany(ProcedimientoDiagnostico::class, 'diagnostico');
+    }
+
+    /**
+     * Scope para diagnósticos dados de baja
+     */
+    public function scopeDadosDeBaja($query)
+    {
+        return $query->where('estado', 'resuelto');
     }
 }

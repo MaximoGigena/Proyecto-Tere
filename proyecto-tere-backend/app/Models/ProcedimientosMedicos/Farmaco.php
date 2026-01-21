@@ -1,14 +1,16 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\ProcesoMedico;
 use App\Models\TiposProcedimientos\TipoFarmaco;
 
 class Farmaco extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -35,7 +37,7 @@ class Farmaco extends Model
     protected $casts = [
         'fecha_administracion' => 'datetime',
         'proxima_dosis' => 'datetime',
-        'dosis' => 'decimal:2',
+        'deleted_at' => 'datetime',
     ];
 
     /**
@@ -79,6 +81,22 @@ class Farmaco extends Model
     }
 
     /**
+     * Scope para obtener solo fármacos activos (no eliminados).
+     */
+    public function scopeActivos($query)
+    {
+        return $query->whereNull('deleted_at');
+    }
+
+    /**
+     * Scope para obtener fármacos eliminados.
+     */
+    public function scopeEliminados($query)
+    {
+        return $query->whereNotNull('deleted_at');
+    }
+
+    /**
      * Calcular la próxima dosis basada en la frecuencia.
      */
     public function calcularProximaDosis()
@@ -101,5 +119,13 @@ class Farmaco extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Obtener el proceso médico asociado.
+     */
+    public function procesoMedico()
+    {
+        return $this->morphOne(ProcesoMedico::class, 'procesable');
     }
 }

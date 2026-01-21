@@ -8,9 +8,13 @@ use App\Models\TiposProcedimientos\TipoVacuna;
 use App\Models\ProcesoMedico;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Vacuna extends Model
 {
+
+    use SoftDeletes; 
+
     protected $table = 'vacunas';
 
     protected $fillable = [
@@ -24,6 +28,7 @@ class Vacuna extends Model
         'fecha_proxima_dosis' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
     /**
@@ -85,5 +90,21 @@ class Vacuna extends Model
         }
 
         return $this->fecha_proxima_dosis->isPast();
+    }
+
+    /**
+     * Scope para excluir vacunas eliminadas lógicamente
+     */
+    public function scopeActivas($query)
+    {
+        return $query->whereNull('deleted_at');
+    }
+
+    /**
+     * Scope para incluir solo vacunas eliminadas
+     */
+    public function scopeEliminadas($query)
+    {
+        return $query->whereNotNull('deleted_at');
     }
 }

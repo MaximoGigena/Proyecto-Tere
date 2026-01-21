@@ -23,14 +23,12 @@ class OfertaAdopcionController extends Controller
             $usuarioId = $user->userable->id;
             
             $ofertas = OfertaAdopcion::with(['mascota' => function($query) {
-                // CORRECCIÓN: No seleccionar 'foto' porque no existe como campo
                 $query->select('id', 'nombre', 'especie');
             }])
             ->where('id_usuario_responsable', $usuarioId)
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function($oferta) {
-                // Agregar manualmente la URL de la foto
                 $oferta->mascota->foto_url = $oferta->mascota->foto_principal_url;
                 return $oferta;
             });
@@ -57,18 +55,14 @@ class OfertaAdopcionController extends Controller
         DB::beginTransaction();
         
         try {
-
-            
             $user = Auth::user();
             $usuarioId = $user->userable->id; 
             
-            // Log para depuración
             Log::info('Creando oferta de adopción', [
                 'usuario_id' => $user->id,
                 'datos_recibidos' => $request->all()
             ]);
             
-            // Validar datos
             $validator = Validator::make($request->all(), [
                 'mascotaId' => 'required|integer|exists:mascotas,id',
                 'permisos' => 'required|array',
@@ -85,29 +79,27 @@ class OfertaAdopcionController extends Controller
                 ], 422);
             }
             
-            // Verificar que la mascota pertenece al usuario
             $mascota = Mascota::with(['fotos' => function($query) {
                 $query->where('es_principal', true)->first();
             }])
             ->where('id', $request->mascotaId)
-            ->where('usuario_id', $usuarioId) // Cambiar esto
+            ->where('usuario_id', $usuarioId)
             ->first();
             
             if (!$mascota) {
-            Log::error('Mascota no pertenece al usuario', [
-                'mascota_id' => $request->mascotaId,
-                'usuario_id' => $usuarioId, // Actualizar
-                'user_id' => $user->id,
-                'userable_type' => $user->userable_type,
-                'userable_id' => $user->userable_id
-            ]);
+                Log::error('Mascota no pertenece al usuario', [
+                    'mascota_id' => $request->mascotaId,
+                    'usuario_id' => $usuarioId,
+                    'user_id' => $user->id,
+                    'userable_type' => $user->userable_type,
+                    'userable_id' => $user->userable_id
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'La mascota no existe o no pertenece al usuario'
                 ], 404);
             }
             
-            // Verificar que no existe una oferta activa para esta mascota
             $ofertaExistente = OfertaAdopcion::where('id_mascota', $request->mascotaId)
                 ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
                 ->first();
@@ -120,10 +112,9 @@ class OfertaAdopcionController extends Controller
                 ], 409);
             }
             
-            // Crear la oferta
             $oferta = OfertaAdopcion::create([
                 'id_mascota' => $request->mascotaId,
-                'id_usuario_responsable' => $usuarioId, // <- CAMBIAR esto a $usuarioId
+                'id_usuario_responsable' => $usuarioId,
                 'estado_oferta' => 'publicada',
                 'permiso_historial_medico' => $request->permisos['compartirHistorialMedico'],
                 'permiso_contacto_tutor' => $request->permisos['compartirMediosContacto'],
@@ -133,7 +124,6 @@ class OfertaAdopcionController extends Controller
             
             DB::commit();
             
-            // Preparar respuesta sin cargar relaciones problemáticas
             $responseData = [
                 'success' => true,
                 'message' => 'Oferta de adopción creada exitosamente',
@@ -142,7 +132,7 @@ class OfertaAdopcionController extends Controller
                     'id_mascota' => $oferta->id_mascota,
                     'estado_oferta' => $oferta->estado_oferta,
                     'mascota_nombre' => $mascota->nombre,
-                    'mascota_foto_url' => $mascota->foto_principal_url, // Usar el accessor
+                    'mascota_foto_url' => $mascota->foto_principal_url,
                     'mascota_especie' => $mascota->especie,
                     'permisos' => [
                         'historial_medico' => $oferta->permiso_historial_medico,
@@ -173,34 +163,30 @@ class OfertaAdopcionController extends Controller
     /**
      * Display the specified resource.
      */
-    // En OfertaAdopcionController.php
     public function show($id)
     {
         try {
-
             Log::info('OfertaAdopcionController@show llamado', [
-            'id_recibido' => $id,
-            'es_numerico' => is_numeric($id),
-            'url_completa' => request()->fullUrl()
-        ]);
-        
-        // Si el ID no es numérico, podría ser una ruta incorrecta
-        if (!is_numeric($id)) {
-            Log::warning('ID no numérico recibido en show', ['id' => $id]);
-            return response()->json([
-                'success' => false,
-                'message' => 'ID inválido',
-                'debug' => '¿Estás intentando acceder a otra ruta? ID recibido: ' . $id
-            ], 400);
-        }
+                'id_recibido' => $id,
+                'es_numerico' => is_numeric($id),
+                'url_completa' => request()->fullUrl()
+            ]);
+            
+            if (!is_numeric($id)) {
+                Log::warning('ID no numérico recibido en show', ['id' => $id]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ID inválido'
+                ], 400);
+            }
 
-            // No verificar que sea del usuario autenticado
-            // Solo verificar que exista y esté publicada
+            // ✅ Cargar TODAS las relaciones necesarias CORRECTAMENTE
             $oferta = OfertaAdopcion::with([
                 'mascota.fotos',
                 'mascota.caracteristicas',
                 'mascota.edadRelacion',
-                'usuarioResponsable' // Agregar esta relación
+                'mascota.usuario.user.ubicacionActual',
+                'usuarioResponsable'
             ])
             ->where('id_oferta', $id)
             ->where('estado_oferta', 'publicada')
@@ -213,46 +199,84 @@ class OfertaAdopcionController extends Controller
                 ], 404);
             }
             
-            // Preparar datos de la mascota
-            $mascota = $oferta->mascota;
+            // ✅ Obtener ubicación del tutor con logs de debug
+            $ubicacionTutor = null;
+            $ubicacionTexto = 'Ubicación no disponible';
             
-            // Decodificar características si es necesario
-            $caracteristicas = is_string($mascota->caracteristicas ?? '') 
-                ? json_decode($mascota->caracteristicas, true) 
-                : ($mascota->caracteristicas ?? []);
+            Log::debug('Verificando relaciones de ubicación', [
+                'tiene_mascota' => !is_null($oferta->mascota),
+                'tiene_usuario' => !is_null($oferta->mascota->usuario),
+                'tiene_user' => $oferta->mascota->usuario ? !is_null($oferta->mascota->usuario->user) : false,
+                'tiene_ubicacion' => $oferta->mascota->usuario && $oferta->mascota->usuario->user ? 
+                    !is_null($oferta->mascota->usuario->user->ubicacionActual) : false
+            ]);
+            
+            if ($oferta->mascota->usuario && 
+                $oferta->mascota->usuario->user && 
+                $oferta->mascota->usuario->user->ubicacionActual) {
+                
+                $ubicacion = $oferta->mascota->usuario->user->ubicacionActual;
+                $ubicacionTutor = [
+                    'latitude' => $ubicacion->latitude,
+                    'longitude' => $ubicacion->longitude,
+                    'city' => $ubicacion->city,
+                    'state' => $ubicacion->state,
+                    'country' => $ubicacion->country,
+                    'country_code' => $ubicacion->country_code,
+                    'accuracy' => $ubicacion->accuracy,
+                    'location_updated_at' => $ubicacion->location_updated_at
+                ];
+                
+                $ubicacionTexto = $this->formatearUbicacionTexto($ubicacionTutor);
+                Log::debug('Ubicación obtenida', ['ubicacion' => $ubicacionTutor, 'texto' => $ubicacionTexto]);
+            }
+            
+            $fotos = $oferta->mascota->fotos->map(function($foto) {
+                return [
+                    'id' => $foto->id,
+                    'url' => $foto->url,
+                    'es_principal' => $foto->es_principal,
+                    'ruta_foto' => $foto->ruta_foto
+                ];
+            });
             
             $datosMascota = [
-                'id' => $mascota->id,
-                'nombre' => $mascota->nombre,
-                'especie' => $mascota->especie,
-                'sexo' => $mascota->sexo,
-                'castrado' => $mascota->castrado,
-                'fecha_nacimiento' => $mascota->fecha_nacimiento,
-                'usuario_id' => $mascota->usuario_id,
-                'caracteristicas' => $caracteristicas,
-                'fotos' => $mascota->fotos->map(function($foto) {
-                    return [
-                        'id' => $foto->id,
-                        'url' => $foto->url ?? asset('storage/' . $foto->ruta_foto),
-                        'es_principal' => $foto->es_principal,
-                        'ruta_foto' => $foto->ruta_foto
-                    ];
-                }),
-                'edad' => $mascota->edadRelacion ? [
-                    'dias' => $mascota->edadRelacion->dias,
-                    'meses' => $mascota->edadRelacion->meses,
-                    'años' => $mascota->edadRelacion->años,
-                    'edad_formateada' => $mascota->edadRelacion->edad_formateada
+                'id' => $oferta->mascota->id,
+                'nombre' => $oferta->mascota->nombre,
+                'especie' => $oferta->mascota->especie,
+                'sexo' => $oferta->mascota->sexo,
+                'castrado' => $oferta->mascota->castrado,
+                'fecha_nacimiento' => $oferta->mascota->fecha_nacimiento,
+                'usuario_id' => $oferta->mascota->usuario_id,
+                'caracteristicas' => is_string($oferta->mascota->caracteristicas ?? '') 
+                    ? json_decode($oferta->mascota->caracteristicas, true) 
+                    : ($oferta->mascota->caracteristicas ?? []),
+                'fotos' => $fotos,
+                'foto_principal_url' => $oferta->mascota->foto_principal_url,
+                'edad' => $oferta->mascota->edadRelacion ? [
+                    'dias' => $oferta->mascota->edadRelacion->dias,
+                    'meses' => $oferta->mascota->edadRelacion->meses,
+                    'años' => $oferta->mascota->edadRelacion->años,
+                    'edad_formateada' => $oferta->mascota->edadRelacion->edad_formateada
                 ] : null,
-                'edad_formateada' => $mascota->edad_formateada,
-                'foto_principal_url' => $mascota->foto_principal_url,
+                'edad_formateada' => $oferta->mascota->edad_formateada,
+                // ✅ INCLUIR UBICACIÓN CORRECTAMENTE
+                'ubicacion' => $ubicacionTutor,
+                'ubicacion_texto' => $ubicacionTexto
             ];
             
-            // Información del usuario responsable
             $usuarioResponsable = [
                 'id' => $oferta->usuarioResponsable->id ?? null,
                 'nombre' => $oferta->usuarioResponsable->nombre ?? 'Usuario',
             ];
+            
+            Log::info('Oferta cargada exitosamente', [
+                'oferta_id' => $oferta->id_oferta,
+                'mascota_id' => $oferta->mascota->id,
+                'fotos_count' => $fotos->count(),
+                'tiene_ubicacion' => !is_null($ubicacionTutor),
+                'ubicacion_incluida' => isset($datosMascota['ubicacion'])
+            ]);
             
             return response()->json([
                 'success' => true,
@@ -271,6 +295,7 @@ class OfertaAdopcionController extends Controller
             
         } catch (\Exception $e) {
             Log::error('Error en OfertaAdopcionController@show: ' . $e->getMessage());
+            Log::error('Trace:', ['trace' => $e->getTraceAsString()]);
             
             return response()->json([
                 'success' => false,
@@ -358,7 +383,6 @@ class OfertaAdopcionController extends Controller
         try {
             $user = Auth::user();
             
-            // Buscar la oferta activa
             $oferta = OfertaAdopcion::where('id_oferta', $id)
                 ->where('id_usuario_responsable', $user->id)
                 ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
@@ -371,7 +395,6 @@ class OfertaAdopcionController extends Controller
                 ], 404);
             }
             
-            // Cambiar estado a cancelada
             $oferta->update([
                 'estado_oferta' => 'cancelada'
             ]);
@@ -404,7 +427,6 @@ class OfertaAdopcionController extends Controller
         try {
             $user = Auth::user();
             
-            // Buscar la oferta activa para esta mascota
             $oferta = OfertaAdopcion::where('id_mascota', $mascotaId)
                 ->where('id_usuario_responsable', $user->id)
                 ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
@@ -417,7 +439,6 @@ class OfertaAdopcionController extends Controller
                 ], 404);
             }
             
-            // Cambiar estado a cancelada
             $oferta->update([
                 'estado_oferta' => 'cancelada'
             ]);
@@ -451,11 +472,9 @@ class OfertaAdopcionController extends Controller
             
             Log::info('Obteniendo mascotas disponibles para usuario', [
                 'usuario_id' => $user->id,
-                'user_class' => get_class($user),
                 'userable_type' => $user->userable_type ?? 'N/A',
                 'userable_id' => $user->userable_id ?? 'N/A'
             ]);
-            
             
             if (!$usuarioId) {
                 return response()->json([
@@ -464,7 +483,6 @@ class OfertaAdopcionController extends Controller
                 ], 404);
             }
             
-            // Obtener IDs de mascotas que ya tienen ofertas activas
             $mascotasConOfertaActiva = OfertaAdopcion::where('id_usuario_responsable', $usuarioId)
                 ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
                 ->pluck('id_mascota')
@@ -472,10 +490,9 @@ class OfertaAdopcionController extends Controller
             
             Log::info('Mascotas con oferta activa', ['ids' => $mascotasConOfertaActiva]);
             
-            // Obtener mascotas del usuario que no están en ofertas activas
-            $mascotas = Mascota::where('usuario_id', $usuarioId) // <-- CORRECCIÓN AQUÍ
+            $mascotas = Mascota::where('usuario_id', $usuarioId)
                 ->whereNotIn('id', $mascotasConOfertaActiva)
-                ->whereNull('deleted_at') // Solo mascotas no eliminadas
+                ->whereNull('deleted_at')
                 ->get()
                 ->map(function($mascota) {
                     $caracteristicas = is_string($mascota->caracteristicas) 
@@ -485,7 +502,7 @@ class OfertaAdopcionController extends Controller
                     return [
                         'id' => $mascota->id,
                         'nombre' => $mascota->nombre,
-                        'foto_url' => $mascota->foto_principal_url, // Usar el accessor
+                        'foto_url' => $mascota->foto_principal_url,
                         'especie' => $mascota->especie,
                         'edad_formateada' => $mascota->edad_formateada,
                         'caracteristicas' => $caracteristicas
@@ -527,7 +544,6 @@ class OfertaAdopcionController extends Controller
             $usuarioId = $user->userable->id;
             
             $ofertas = OfertaAdopcion::with(['mascota' => function($query) {
-                // No seleccionar 'foto' porque no existe
                 $query->select('id', 'nombre', 'especie');
             }])
             ->where('id_usuario_responsable', $usuarioId)
@@ -537,7 +553,7 @@ class OfertaAdopcionController extends Controller
                 return [
                     'id' => $oferta->mascota->id,
                     'nombre' => $oferta->mascota->nombre,
-                    'foto' => $oferta->mascota->foto_principal_url, // Usar el accessor
+                    'foto' => $oferta->mascota->foto_principal_url,
                     'especie' => $oferta->mascota->especie,
                     'estadoAdopcion' => $oferta->estado_oferta,
                     'oferta_id' => $oferta->id_oferta
@@ -560,11 +576,11 @@ class OfertaAdopcionController extends Controller
 
     /**
      * Obtener todas las ofertas de adopción disponibles (excepto las del usuario autenticado)
-     * CON FILTROS
+     * CON FILTROS Y UBICACIÓN
      */
     public function getOfertasDisponibles(Request $request)
     {
-        Log::info('=== INICIO getOfertasDisponibles CON FILTROS ===');
+        Log::info('=== INICIO getOfertasDisponibles CON FILTROS Y UBICACIÓN ===');
         Log::info('Request data:', $request->all());
         
         try {
@@ -578,76 +594,187 @@ class OfertaAdopcionController extends Controller
                 ], 401);
             }
             
-            Log::info('Usuario autenticado:', ['id' => $user->id, 'email' => $user->email]);
+            Log::info('Usuario autenticado:', [
+                'id' => $user->id, 
+                'email' => $user->email,
+                'userable_type' => $user->userable_type ?? 'N/A',
+                'userable_id' => $user->userable_id ?? 'N/A'
+            ]);
             
-            // ✅ Consulta base con relaciones necesarias para filtros
+            // ✅ Obtener la ubicación actual del usuario autenticado
+            $ubicacionUsuario = null;
+            $userLocation = $user->ubicacionActual;
+            if ($userLocation) {
+                $ubicacionUsuario = [
+                    'latitude' => $userLocation->latitude,
+                    'longitude' => $userLocation->longitude,
+                    'city' => $userLocation->city,
+                    'state' => $userLocation->state,
+                    'country' => $userLocation->country
+                ];
+            }
+            
+            Log::info('Ubicación del usuario autenticado:', $ubicacionUsuario);
+            
+            // ✅ Consulta base con TODAS las relaciones necesarias CORREGIDA
             $query = OfertaAdopcion::with([
-                'mascota' => function($query) {
-                    $query->with([
-                        'fotos' => function($q) {
-                            $q->where('es_principal', true);
-                        },
-                        'caracteristicas',
-                        'edadRelacion' // Necesario para filtro de edad
-                    ]);
-                },
+                'mascota.fotos',
+                'mascota.caracteristicas',
+                'mascota.edadRelacion',
+                'mascota.usuario.user.ubicacionActual',
                 'usuarioResponsable:id,nombre'
             ])
             ->where('estado_oferta', 'publicada');
             
-            Log::info('Consulta base creada, excluyendo ofertas del usuario: ' . $user->id);
-            
             // Excluir ofertas del usuario autenticado
             $query->where('id_usuario_responsable', '!=', $user->id);
+            
+            Log::info('Consulta base creada');
             
             // ✅ APLICAR FILTROS usando el controlador de filtros
             $filtrosController = new FiltrosMascotasController();
             $query = $filtrosController->aplicarFiltros($query, $request);
             
-            Log::info('Consulta después de filtros:', ['sql' => $query->toSql()]);
+            // Filtrar por distancia si el usuario tiene ubicación
+            if ($ubicacionUsuario && $request->has('distancia_maxima')) {
+                $distanciaMaxima = $request->distancia_maxima ?: 50;
+                
+                $query->whereHas('mascota.usuario.user.ubicacionActual', function($q) use ($ubicacionUsuario, $distanciaMaxima) {
+                    $lat = $ubicacionUsuario['latitude'];
+                    $lon = $ubicacionUsuario['longitude'];
+                    
+                    $q->whereRaw(
+                        "ST_Distance_Sphere(
+                            location,
+                            ST_GeomFromText(?, 4326)
+                        ) <= ?",
+                        ["POINT({$lon} {$lat})", $distanciaMaxima * 1000]
+                    );
+                });
+            }
+            
+            Log::info('Consulta después de filtros aplicados');
             
             $ofertas = $query->orderBy('created_at', 'desc')->get();
             Log::info('Total ofertas encontradas después de filtros: ' . $ofertas->count());
             
-            $ofertasFormateadas = $ofertas->map(function($oferta) {
+            // ✅ Procesar cada oferta para incluir ubicación CORRECTAMENTE
+            $ofertasFormateadas = $ofertas->map(function($oferta) use ($ubicacionUsuario) {
                 try {
-                    // Verificar relaciones
                     if (!$oferta->mascota) {
                         Log::warning('Oferta sin mascota: ' . $oferta->id_oferta);
                         return null;
                     }
                     
-                    if (!$oferta->usuarioResponsable) {
-                        Log::warning('Oferta sin usuario responsable: ' . $oferta->id_oferta);
-                        return null;
+                    $mascota = $oferta->mascota;
+                    
+                    // ✅ Obtener ubicación del tutor con logs detallados
+                    $ubicacionTutor = null;
+                    $ubicacionTexto = 'Ubicación no disponible';
+                    
+                    Log::debug('Procesando ubicación para mascota ' . $mascota->id, [
+                        'tiene_usuario' => !is_null($mascota->usuario),
+                        'usuario_id' => $mascota->usuario_id,
+                        'tiene_user' => $mascota->usuario ? !is_null($mascota->usuario->user) : false,
+                        'tiene_ubicacionActual' => $mascota->usuario && $mascota->usuario->user ? 
+                            !is_null($mascota->usuario->user->ubicacionActual) : false
+                    ]);
+                    
+                    if ($mascota->usuario && 
+                        $mascota->usuario->user && 
+                        $mascota->usuario->user->ubicacionActual) {
+                        
+                        $ubicacion = $mascota->usuario->user->ubicacionActual;
+                        
+                        $ubicacionTutor = [
+                            'latitude' => $ubicacion->latitude,
+                            'longitude' => $ubicacion->longitude,
+                            'city' => $ubicacion->city,
+                            'state' => $ubicacion->state,
+                            'country' => $ubicacion->country,
+                            'country_code' => $ubicacion->country_code,
+                            'accuracy' => $ubicacion->accuracy
+                        ];
+                        
+                        // Formatear texto de ubicación
+                        $ubicacionTexto = $this->formatearUbicacionTexto($ubicacionTutor);
+                        
+                        // Calcular distancia si el usuario tiene ubicación
+                        if ($ubicacionUsuario) {
+                            $distancia = $this->calcularDistancia(
+                                $ubicacionUsuario['latitude'],
+                                $ubicacionUsuario['longitude'],
+                                $ubicacion->latitude,
+                                $ubicacion->longitude
+                            );
+                            $ubicacionTutor['distancia_km'] = round($distancia, 1);
+                            $ubicacionTutor['distancia_texto'] = $this->formatearDistancia($distancia);
+                        }
+                        
+                        Log::debug('Ubicación obtenida para tutor', [
+                            'ubicacion' => $ubicacionTutor,
+                            'texto' => $ubicacionTexto
+                        ]);
+                    } else {
+                        Log::debug('No se pudo obtener ubicación para mascota ' . $mascota->id);
                     }
                     
-                    // ✅ Usar FiltrosMascotasController para determinar rango etario CORRECTAMENTE
+                    // Obtener foto principal
+                    $fotoPrincipal = $mascota->fotos->first();
+                    $fotoPrincipalUrl = $fotoPrincipal ? $fotoPrincipal->url : null;
+                    
+                    if (!$fotoPrincipalUrl && $mascota->fotos->isNotEmpty()) {
+                        $fotoPrincipalUrl = $mascota->fotos->first()->url;
+                    }
+                    
+                    // Determinar rango etario
                     $rangoEtario = 'Adulto';
-                    if ($oferta->mascota->edadRelacion && $oferta->mascota->edadRelacion->dias !== null) {
+                    if ($mascota->edadRelacion && $mascota->edadRelacion->dias !== null) {
                         $rangoEtario = FiltrosMascotasController::determinarRangoEtario(
-                            $oferta->mascota->especie,
-                            $oferta->mascota->edadRelacion->dias
+                            $mascota->especie,
+                            $mascota->edadRelacion->dias
                         );
                     }
                     
+                    // ✅ Asegurar que la ubicación se incluya en el array de la mascota
+                    $datosMascota = [
+                        'id' => $mascota->id,
+                        'nombre' => $mascota->nombre ?? 'Sin nombre',
+                        'especie' => $mascota->especie ?? 'Desconocido',
+                        'sexo' => $mascota->sexo ?? 'Desconocido',
+                        'castrado' => $mascota->castrado,
+                        'edad_formateada' => $mascota->edad_formateada ?? 'Edad no especificada',
+                        'rango_etario' => $rangoEtario,
+                        'caracteristicas' => is_string($mascota->caracteristicas ?? '') 
+                            ? json_decode($mascota->caracteristicas, true) 
+                            : ($mascota->caracteristicas ?? []),
+                        'foto_principal_url' => $fotoPrincipalUrl,
+                        // ✅ INCLUIR UBICACIÓN CORRECTAMENTE - esto es lo más importante
+                        'ubicacion' => $ubicacionTutor,
+                        'ubicacion_texto' => $ubicacionTexto,
+                        'fotos' => $mascota->fotos->map(function($foto) {
+                            return [
+                                'id' => $foto->id,
+                                'url' => $foto->url,
+                                'es_principal' => $foto->es_principal,
+                                'ruta_foto' => $foto->ruta_foto
+                            ];
+                        })->toArray(),
+                        'usuario_id' => $mascota->usuario_id,
+                    ];
+                    
+                    Log::debug('Datos de mascota preparados', [
+                        'mascota_id' => $mascota->id,
+                        'incluye_ubicacion' => isset($datosMascota['ubicacion']),
+                        'ubicacion_no_nula' => !is_null($datosMascota['ubicacion']),
+                        'ubicacion_texto' => $datosMascota['ubicacion_texto']
+                    ]);
+                    
                     return [
                         'id_oferta' => $oferta->id_oferta,
-                        'mascota' => [
-                            'id' => $oferta->mascota->id,
-                            'nombre' => $oferta->mascota->nombre ?? 'Sin nombre',
-                            'especie' => $oferta->mascota->especie ?? 'Desconocido',
-                            'sexo' => $oferta->mascota->sexo ?? 'Desconocido',
-                            'castrado' => $oferta->mascota->castrado,
-                            'edad_formateada' => $oferta->mascota->edad_formateada ?? 'Edad no especificada',
-                            'rango_etario' => $rangoEtario, // <-- USAR EL RANGO CORRECTO
-                            'caracteristicas' => is_string($oferta->mascota->caracteristicas ?? '') 
-                                ? json_decode($oferta->mascota->caracteristicas, true) 
-                                : ($oferta->mascota->caracteristicas ?? []),
-                            'foto_principal_url' => $oferta->mascota->foto_principal_url ?? null,
-                        ],
+                        'mascota' => $datosMascota,
                         'usuario_responsable' => [
-                            'id' => $oferta->usuarioResponsable->id,
+                            'id' => $oferta->usuarioResponsable->id ?? null,
                             'nombre' => $oferta->usuarioResponsable->nombre ?? 'Usuario',
                         ],
                         'permisos' => [
@@ -656,24 +783,34 @@ class OfertaAdopcionController extends Controller
                         ],
                         'estado_oferta' => $oferta->estado_oferta,
                         'created_at' => $oferta->created_at ? $oferta->created_at->format('d/m/Y H:i') : 'Fecha no disponible',
+                        'distancia' => $ubicacionTutor['distancia_texto'] ?? null
                     ];
                 } catch (\Exception $e) {
                     Log::error('Error procesando oferta ' . ($oferta->id_oferta ?? 'unknown') . ': ' . $e->getMessage());
+                    Log::error('Trace:', ['trace' => $e->getTraceAsString()]);
                     return null;
                 }
             })->filter()->values();
             
             Log::info('Ofertas formateadas después de filtros: ' . $ofertasFormateadas->count());
             
+            // ✅ Verificar que al menos una oferta tenga ubicación
+            $ofertasConUbicacion = $ofertasFormateadas->filter(function($oferta) {
+                return !is_null($oferta['mascota']['ubicacion']);
+            })->count();
+            
+            Log::info('Ofertas con ubicación disponible: ' . $ofertasConUbicacion);
+            
             return response()->json([
                 'success' => true,
                 'data' => $ofertasFormateadas,
                 'total' => $ofertasFormateadas->count(),
+                'ubicacion_usuario' => $ubicacionUsuario,
                 'debug' => [
                     'user_id' => $user->id,
                     'filters_applied' => $request->all(),
-                    'filters_processed' => true,
-                    'query_time' => now()->toDateTimeString(),
+                    'ofertas_con_ubicacion' => $ofertasConUbicacion,
+                    'total_ofertas' => $ofertasFormateadas->count()
                 ]
             ]);
             
@@ -698,6 +835,65 @@ class OfertaAdopcionController extends Controller
     }
 
     /**
+     * Calcular distancia entre dos puntos en kilómetros
+     */
+    private function calcularDistancia($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371; // Radio de la Tierra en kilómetros
+        
+        $latFrom = deg2rad($lat1);
+        $lonFrom = deg2rad($lon1);
+        $latTo = deg2rad($lat2);
+        $lonTo = deg2rad($lon2);
+        
+        $latDelta = $latTo - $latFrom;
+        $lonDelta = $lonTo - $lonFrom;
+        
+        $angle = 2 * asin(sqrt(pow(sin($latDelta / 2), 2) +
+            cos($latFrom) * cos($latTo) * pow(sin($lonDelta / 2), 2)));
+        
+        return $angle * $earthRadius;
+    }
+
+    /**
+     * Formatear distancia para mostrar
+     */
+    private function formatearDistancia($distanciaKm)
+    {
+        if ($distanciaKm < 1) {
+            $metros = round($distanciaKm * 1000);
+            return "{$metros} m";
+        } elseif ($distanciaKm < 10) {
+            return round($distanciaKm, 1) . " km";
+        } else {
+            return round($distanciaKm) . " km";
+        }
+    }
+
+    /**
+     * Formatear texto de ubicación
+     */
+    private function formatearUbicacionTexto($ubicacion)
+    {
+        if (!$ubicacion) {
+            return 'Ubicación no disponible';
+        }
+        
+        $parts = [];
+        if (!empty($ubicacion['city'])) {
+            $parts[] = $ubicacion['city'];
+        }
+        if (!empty($ubicacion['state']) && $ubicacion['state'] !== $ubicacion['city']) {
+            $parts[] = $ubicacion['state'];
+        }
+        if (!empty($ubicacion['country'])) {
+            $parts[] = $ubicacion['country'];
+        }
+        
+        return implode(', ', $parts) ?: 'Ubicación no disponible';
+    }
+
+    /**
      * Obtener oferta por ID de mascota
      */
     public function getOfertaPorMascota($mascotaId)
@@ -705,7 +901,6 @@ class OfertaAdopcionController extends Controller
         try {
             $user = Auth::user();
             
-            // Verificar que la mascota pertenece al usuario
             $mascota = Mascota::where('id', $mascotaId)
                 ->where('usuario_id', $user->id)
                 ->first();
@@ -717,7 +912,6 @@ class OfertaAdopcionController extends Controller
                 ], 404);
             }
             
-            // Buscar oferta activa para esta mascota
             $oferta = OfertaAdopcion::with([
                 'mascota' => function($query) {
                     $query->with(['fotos', 'caracteristicas', 'edadRelacion']);
@@ -734,7 +928,6 @@ class OfertaAdopcionController extends Controller
                 ], 404);
             }
             
-            // Preparar datos de la mascota
             $mascotaData = [
                 'id' => $oferta->mascota->id,
                 'nombre' => $oferta->mascota->nombre,

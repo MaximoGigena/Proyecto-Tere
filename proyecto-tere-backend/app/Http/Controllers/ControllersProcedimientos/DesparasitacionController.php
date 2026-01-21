@@ -170,32 +170,33 @@ class DesparasitacionController extends Controller
             }
 
             $desparasitaciones = Desparasitacion::with([
-                'tipoDesparasitacion',
-                'procesoMedico.centroVeterinario',
-                'procesoMedico.veterinario'
-            ])
-            ->whereHas('procesoMedico', function($query) use ($mascotaId) {
-                $query->where('mascota_id', $mascotaId);
-            })
-            ->orderBy('fecha', 'desc')
-            ->get()
-            ->map(function($desparasitacion) {
-                return [
-                    'id' => $desparasitacion->id,
-                    'tipo' => $desparasitacion->tipoDesparasitacion->nombre ?? 'Tipo no especificado',
-                    'tipo_desparasitacion_id' => $desparasitacion->tipo_desparasitacion_id,
-                    'nombre_producto' => $desparasitacion->nombre_producto,
-                    'dosis' => $desparasitacion->dosis,
-                    'fecha' => $desparasitacion->fecha,
-                    'frecuencia' => $desparasitacion->frecuencia_valor . ' ' . $desparasitacion->frecuencia_unidad,
-                    'peso' => $desparasitacion->peso,
-                    'proxima_fecha' => $desparasitacion->proxima_fecha,
-                    'centro_veterinario' => $desparasitacion->procesoMedico->centroVeterinario->nombre ?? 'No especificado',
-                    'veterinario' => $desparasitacion->procesoMedico->veterinario->name ?? 'No especificado',
-                    'observaciones' => $desparasitacion->procesoMedico->observaciones,
-                    'created_at' => $desparasitacion->created_at
-                ];
-            });
+                    'tipoDesparasitacion',
+                    'procesoMedico.centroVeterinario',
+                    'procesoMedico.veterinario'
+                ])
+                ->whereHas('procesoMedico', function($query) use ($mascotaId) {
+                    $query->where('mascota_id', $mascotaId);
+                })
+                ->whereNull('deleted_at') // Solo desparasitaciones no eliminadas
+                ->orderBy('fecha', 'desc')
+                ->get()
+                ->map(function($desparasitacion) {
+                    return [
+                        'id' => $desparasitacion->id,
+                        'tipo' => $desparasitacion->tipoDesparasitacion->nombre ?? 'Tipo no especificado',
+                        'tipo_desparasitacion_id' => $desparasitacion->tipo_desparasitacion_id,
+                        'nombre_producto' => $desparasitacion->nombre_producto,
+                        'dosis' => $desparasitacion->dosis,
+                        'fecha' => $desparasitacion->fecha,
+                        'frecuencia' => $desparasitacion->frecuencia_valor . ' ' . $desparasitacion->frecuencia_unidad,
+                        'peso' => $desparasitacion->peso,
+                        'proxima_fecha' => $desparasitacion->proxima_fecha,
+                        'centro_veterinario' => $desparasitacion->procesoMedico->centroVeterinario->nombre ?? 'No especificado',
+                        'veterinario' => $desparasitacion->procesoMedico->veterinario->name ?? 'No especificado',
+                        'observaciones' => $desparasitacion->procesoMedico->observaciones,
+                        'created_at' => $desparasitacion->created_at
+                    ];
+                });
 
             return response()->json([
                 'success' => true,
@@ -266,6 +267,136 @@ class DesparasitacionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al cargar los tipos de desparasitación'
+            ], 500);
+        }
+    }
+
+    // En DesparasitacionController.php
+    public function update(Request $request, $id)
+    {
+        try {
+            $desparasitacion = Desparasitacion::with('procesoMedico')->find($id);
+            
+            if (!$desparasitacion) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Desparasitación no encontrada'
+                ], 404);
+            }
+
+            // Validación
+            $validated = $request->validate([
+                'tipo_desparasitacion_id' => 'required|exists:tipos_desparasitacion,id',
+                'fecha' => 'required|date',
+                'nombre_producto' => 'required|string|max:255',
+                'dosis' => 'required|string|max:100',
+                'frecuencia_valor' => 'required|integer|min:1',
+                'frecuencia_unidad' => 'required|in:dias,semanas,meses',
+                'peso' => 'nullable|numeric|min:0',
+                'proxima_fecha' => 'nullable|date|after:fecha',
+                'observaciones' => 'nullable|string|max:500',
+                'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
+                // Nota: En modo edición, el medio_envio no se puede cambiar
+            ]);
+
+            DB::transaction(function () use ($desparasitacion, $validated) {
+                // 1. Actualizar la desparasitación
+                $desparasitacion->update([
+                    'tipo_desparasitacion_id' => $validated['tipo_desparasitacion_id'],
+                    'fecha' => $validated['fecha'],
+                    'nombre_producto' => $validated['nombre_producto'],
+                    'dosis' => $validated['dosis'],
+                    'frecuencia_valor' => $validated['frecuencia_valor'],
+                    'frecuencia_unidad' => $validated['frecuencia_unidad'],
+                    'peso' => $validated['peso'] ?? null,
+                    'proxima_fecha' => $validated['proxima_fecha'] ?? null,
+                    'observaciones' => $validated['observaciones'] ?? null,
+                ]);
+
+                // 2. Actualizar el proceso médico asociado
+                if ($desparasitacion->procesoMedico) {
+                    $desparasitacion->procesoMedico->update([
+                        'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
+                        'fecha_aplicacion' => $validated['fecha'],
+                        'observaciones' => $validated['observaciones'] ?? null,
+                        // No actualizamos el medio_envio en edición
+                    ]);
+                }
+            });
+
+            // Recargar relaciones
+            $desparasitacion->load([
+                'tipoDesparasitacion',
+                'procesoMedico.centroVeterinario',
+                'procesoMedico.mascota'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Desparasitación actualizada exitosamente',
+                'data' => $desparasitacion
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al actualizar desparasitación: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar la desparasitación: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Eliminar (soft delete) una desparasitación
+     */
+    public function destroy($id): JsonResponse
+    {
+        try {
+            $desparasitacion = Desparasitacion::find($id);
+            
+            if (!$desparasitacion) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Desparasitación no encontrada'
+                ], 404);
+            }
+
+            // Opcional: Verificar permisos (ej: solo el veterinario que la creó puede eliminarla)
+            if ($desparasitacion->procesoMedico && $desparasitacion->procesoMedico->veterinario_id != Auth::id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tiene permisos para eliminar esta desparasitación'
+                ], 403);
+            }
+
+            // Realizar soft delete
+            $desparasitacion->delete();
+
+            Log::info('Desparasitación eliminada (soft delete)', [
+                'desparasitacion_id' => $id,
+                'veterinario_id' => Auth::id(),
+                'mascota_id' => $desparasitacion->procesoMedico->mascota_id ?? null
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Desparasitación eliminada exitosamente',
+                'data' => [
+                    'deleted_at' => now(),
+                    'mascota_id' => $desparasitacion->procesoMedico->mascota_id ?? null
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al eliminar desparasitación: ' . $e->getMessage(), [
+                'desparasitacion_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar la desparasitación: ' . $e->getMessage()
             ], 500);
         }
     }

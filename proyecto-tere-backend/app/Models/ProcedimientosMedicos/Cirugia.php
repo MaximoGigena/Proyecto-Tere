@@ -1,14 +1,20 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\ProcedimientosMedicos;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\TiposProcedimientos\TipoCirugia;
+use App\Models\ArchivoCirugia;
+use App\Models\ProcedimientoDiagnostico;
+use App\Models\TiposProcedimientos\TipoDiagnostico;
+use App\Models\ProcesoMedico;
+use App\Models\FarmacoAsociado;
 
 class Cirugia extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -37,6 +43,7 @@ class Cirugia extends Model
         'fecha_control_estimada' => 'date',
         'resultado' => 'string',
         'estado_actual' => 'string',
+        'deleted_at' => 'datetime',
     ];
 
     /**
@@ -103,5 +110,58 @@ class Cirugia extends Model
     public function procesoMedico()
     {
         return $this->morphOne(ProcesoMedico::class, 'procesable');
+    }
+
+    /**
+     * Fármacos asociados a la cirugía
+     */
+    public function farmacosAsociados()
+    {
+        return $this->morphMany(FarmacoAsociado::class, 'farmacable');
+    }
+    
+    /**
+     * Agregar un fármaco a la cirugía
+     */
+    public function agregarFarmaco(array $datos)
+    {
+        return $this->farmacosAsociados()->create(array_merge(
+            $datos,
+            ['farmacable_type' => self::class]
+        ));
+    }
+    
+    /**
+     * Obtener fármacos por etapa
+     */
+    public function farmacosPorEtapa($etapa)
+    {
+        return $this->farmacosAsociados()
+                    ->with('tipoFarmaco')
+                    ->where('etapa_aplicacion', $etapa)
+                    ->get();
+    }
+
+    /**
+     * Obtener los diagnósticos asociados a la cirugía
+     */
+    public function diagnosticosAsociados()
+    {
+        return $this->morphMany(ProcedimientoDiagnostico::class, 'procedimiento');
+    }
+
+    /**
+     * Obtener los diagnósticos (con acceso directo al tipo de diagnóstico)
+     */
+    public function diagnosticos()
+    {
+        return $this->hasManyThrough(
+            TipoDiagnostico::class,
+            ProcedimientoDiagnostico::class,
+            'procedimiento_id', // Foreign key on procedimiento_diagnosticos table
+            'id', // Foreign key on tipos_diagnostico table
+            'id', // Local key on cirugias table
+            'diagnostico_id' // Local key on procedimiento_diagnosticos table
+        )->where('procedimiento_type', 'App\Models\ProcedimientosMedicos\Cirugia');
     }
 }

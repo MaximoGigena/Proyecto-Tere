@@ -25,7 +25,7 @@ return new class extends Migration
             
             // Campo opcional según caso de uso
             $table->date('fecha_proxima_dosis')->nullable();
-            
+            $table->softDeletes();
             $table->timestamps();
             
             // Índices para mejor performance

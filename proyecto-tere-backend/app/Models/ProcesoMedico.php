@@ -6,9 +6,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ProcesoMedico extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'procesos_medicos';
 
     protected $fillable = [
@@ -21,6 +24,12 @@ class ProcesoMedico extends Model
         'costo',
         'procesable_type',
         'procesable_id'
+    ];
+
+    protected $casts = [
+        'fecha_aplicacion' => 'datetime',
+        'costo' => 'decimal:2',
+        'deleted_at' => 'datetime'
     ];
 
     public function mascota(): BelongsTo
@@ -43,4 +52,36 @@ class ProcesoMedico extends Model
     {
         return $this->morphTo();
     }
+
+    /**
+     * Relación polimórfica con ProcesoMedico
+     */
+    public function procesoMedico()
+    {
+        return $this->morphOne(ProcesoMedico::class, 'procesable');
+    }
+
+    /**
+     * Relación con FarmacoAsociado
+     */
+    public function farmacosAsociados()
+    {
+        return $this->morphMany(FarmacoAsociado::class, 'farmacable');
+    }
+
+    /**
+     * Dar de baja lógica.
+     */
+    public function darDeBaja($observaciones = null)
+    {
+        $this->activo = false;
+        
+        if ($observaciones) {
+            $this->observaciones = $this->observaciones . 
+                "\n\n[BAJA LOGICA: " . now()->format('d/m/Y H:i') . "] " . $observaciones;
+        }
+        
+        return $this->save();
+    }
+
 }

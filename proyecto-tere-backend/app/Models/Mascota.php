@@ -326,4 +326,42 @@ class Mascota extends Model
     {
         return $value === null ? null : (bool) $value;
     }
+
+    public function ubicacion()
+    {
+        return $this->hasOne(UbicacionUsuario::class, 'mascota_id');
+    }
+
+    // En App\Models\Mascota
+    public function ubicacionUsuario()
+    {
+        // Obtener la ubicación a través del usuario responsable
+        return $this->hasOneThrough(
+            UbicacionUsuario::class,
+            Usuario::class,
+            'id', // Foreign key en Usuario
+            'user_id', // Foreign key en UbicacionUsuario
+            'usuario_id', // Local key en Mascota
+            'id' // Local key en Usuario
+        );
+    }
+
+    // Accessor para obtener ubicación formateada
+    public function getUbicacionTextoAttribute()
+    {
+        if ($this->usuario && $this->usuario->ubicacionActual) {
+            $ubicacion = $this->usuario->ubicacionActual;
+            $parts = [];
+            
+            if ($ubicacion->city) $parts[] = $ubicacion->city;
+            if ($ubicacion->state && $ubicacion->state !== $ubicacion->city) {
+                $parts[] = $ubicacion->state;
+            }
+            if ($ubicacion->country) $parts[] = $ubicacion->country;
+            
+            return implode(', ', $parts);
+        }
+        
+        return 'Ubicación no disponible';
+    }
 }

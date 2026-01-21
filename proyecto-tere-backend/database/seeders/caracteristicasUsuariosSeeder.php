@@ -4,43 +4,64 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
+use App\Models\CaracteristicasUsuario;
+use App\Models\Usuario;
 
-class caracteristicasUsuariosSeeder extends Seeder
+class CaracteristicasUsuariosSeeder extends Seeder
 {
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
-        DB::table('caracteristicas_usuarios')->insert([
-            'tipoVivienda' => 'Lunar',
-            'ocupacion' => 'gigolo',
-            'experiencia' => 'sodaEstero',
-            'convivenciaNiños' => 'si',
-            'convivenciaMascotas' => 'no',
-            'usuario_id' => 1,
-            'descripción' => 'Vivo en un lugar con muchas estrellas y me gusta tocar la guitarra.',]);
-
-        DB::table('caracteristicas_usuarios')->insert([
-            'tipoVivienda' => 'Casa rodante',
-            'ocupacion' => 'domador de dragones',
-            'experiencia' => 'muchas batallas en Skyrim',
-            'convivenciaNiños' => 'no',
-            'convivenciaMascotas' => 'sí',
-            'usuario_id' => 2,
-            'descripción' => 'Viajo por el mundo en mi casa rodante con mi perro dragón llamado Fuego.'
-]);
-        DB::table('caracteristicas_usuarios')->insert([
-            'tipoVivienda' => 'Cueva',
-            'ocupacion' => 'recolector de setas mágicas',
-            'experiencia' => 'cazador de tesoros',
-            'convivenciaNiños' => 'no',
-            'convivenciaMascotas' => 'sí',
-            'usuario_id' => 3,
-            'descripción' => 'Vivo en una cueva mágica llena de setas que brillan en la oscuridad y me gusta explorar ruinas antiguas.'
-        ]);
-
+        // Obtener los usuarios existentes
+        $usuarios = Usuario::all();
+        
+        // Si no hay usuarios, crear algunos
+        if ($usuarios->isEmpty()) {
+            $this->call([UsuariosSeeder::class]);
+            $usuarios = Usuario::all();
+        }
+        
+        // Datos para características - USAR "descripción" (con acento)
+        $caracteristicas = [
+            [
+                'tipoVivienda' => 'Casa',
+                'ocupacion' => 'Desarrollador',
+                'experiencia' => '2 años con mascotas',
+                'convivenciaNiños' => 'si',
+                'convivenciaMascotas' => 'si',
+                'descripción' => 'Vivo en una casa con patio grande, ideal para mascotas.', // ¡Con acento!
+                'usuario_id' => $usuarios[0]->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'tipoVivienda' => 'Departamento',
+                'ocupacion' => 'Diseñador',
+                'experiencia' => '5 años con perros',
+                'convivenciaNiños' => 'no',
+                'convivenciaMascotas' => 'si',
+                'descripción' => 'Departamento espacioso cerca de parques para pasear.', // ¡Con acento!
+                'usuario_id' => $usuarios[1]->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'tipoVivienda' => 'Casa con jardín',
+                'ocupacion' => 'Profesor',
+                'experiencia' => '10 años con gatos',
+                'convivenciaNiños' => 'si',
+                'convivenciaMascotas' => 'si',
+                'descripción' => 'Amplio jardín para que las mascotas jueguen libremente.', // ¡Con acento!
+                'usuario_id' => $usuarios[2]->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ];
+        
+        foreach ($caracteristicas as $caracteristica) {
+            CaracteristicasUsuario::create($caracteristica);
+        }
     }
 }

@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Usuario;
+use App\Models\User;
 use App\Traits\Auditable;
 
 class UbicacionUsuario extends Model
@@ -13,11 +13,17 @@ class UbicacionUsuario extends Model
     protected $table = 'user_locations';
     
     protected $fillable = [
-        'usuario_id',
+        'user_id',
         'latitude',
         'longitude',
         'location',
-        'location_updated_at'
+        'location_updated_at',
+        'country',
+        'country_code',
+        'state',
+        'city',
+        'source',
+        'accuracy',
     ];
     
     protected $casts = [
@@ -29,16 +35,33 @@ class UbicacionUsuario extends Model
     /**
      * Relación con el usuario
      */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    // Para compatibilidad
     public function usuario()
     {
-        return $this->belongsTo(Usuario::class, 'usuario_id');
+        if ($this->user && $this->user->userable_type === 'App\Models\Usuario') {
+            return $this->user->userable;
+        }
+        return null;
     }
-    
+
     /**
      * Scope para ubicaciones recientes
      */
     public function scopeRecientes($query, $horas = 24)
     {
         return $query->where('location_updated_at', '>=', now()->subHours($horas));
+    }
+
+    /**
+     * Scope para ubicaciones de un usuario específico
+     */
+    public function scopeDelUsuario($query, $userId)
+    {
+        return $query->where('user_id', $userId);
     }
 }

@@ -143,28 +143,82 @@ class RegistrarUsuarioController extends Controller
     public function show($id)
     {
         try {
-            Log::info('🔍 Solicitando perfil de usuario', ['usuario_id' => $id]);
+            Log::info('🔍 ===== INICIANDO SOLICITUD DE USUARIO =====');
+            Log::info('🔍 ID recibido en show():', ['id' => $id]);
+            Log::info('🔍 Headers:', request()->headers->all());
 
             // Cargar todas las relaciones necesarias
             $usuario = Usuario::with([
                 'user', 
                 'caracteristicas', 
                 'contacto', 
-                'ubicaciones', // Cargar ubicaciones
-                'fotos' // Cargar TODAS las fotos, no solo la principal
-            ])->findOrFail($id);
+                'ubicaciones',
+                'fotos'
+            ])->findOrFail($id);  // ← Cambiado a findOrFail
+            
+            Log::info('✅ Usuario encontrado:', [
+                'id' => $usuario->id,
+                'nombre' => $usuario->nombre,
+                'tiene_user' => $usuario->user ? 'SI' : 'NO',
+                'tiene_caracteristicas' => $usuario->caracteristicas ? 'SI' : 'NO'
+            ]);
 
             // Obtener ubicación actual (más reciente)
             $ubicacionActual = $usuario->ubicaciones()->latest('location_updated_at')->first();
+            
+            // CALCULAR TIEMPO DE REGISTRO CON LA FECHA DEL USUARIO (NO DEL SERVER)
+            $createdAt = $usuario->created_at;
+            
+            // Asegurar que estamos usando la fecha en UTC
+            $now = now(); // Esto ya es UTC por defecto en Laravel
+            
+            // Usar Carbon para el cálculo correcto
+            $diasRegistrado = $createdAt->diffInDays($now);
+            
+            // CALCULAR CORRECTAMENTE EL TIEMPO DE REGISTRO
+            if ($diasRegistrado === 0) {
+                $horas = $createdAt->diffInHours($now);
+                if ($horas === 0) {
+                    $minutos = $createdAt->diffInMinutes($now);
+                    if ($minutos === 0) {
+                        $tiempoRegistro = 'Hace unos segundos';
+                    } else if ($minutos === 1) {
+                        $tiempoRegistro = 'Hace 1 minuto';
+                    } else {
+                        $tiempoRegistro = "Hace {$minutos} minutos";
+                    }
+                } else if ($horas === 1) {
+                    $tiempoRegistro = 'Hace 1 hora';
+                } else {
+                    $tiempoRegistro = "Hace {$horas} horas";
+                }
+            } else if ($diasRegistrado === 1) {
+                $tiempoRegistro = 'Ayer';
+            } else if ($diasRegistrado < 7) {
+                $tiempoRegistro = "Hace {$diasRegistrado} días";
+            } else if ($diasRegistrado < 30) {
+                $semanas = floor($diasRegistrado / 7);
+                $tiempoRegistro = "Hace {$semanas} semana" . ($semanas > 1 ? 's' : '');
+            } else if ($diasRegistrado < 365) {
+                $meses = floor($diasRegistrado / 30);
+                $tiempoRegistro = "Hace {$meses} mes" . ($meses > 1 ? 'es' : '');
+            } else {
+                $anios = floor($diasRegistrado / 365);
+                $tiempoRegistro = "Hace {$anios} año" . ($anios > 1 ? 's' : '');
+            }
 
-            Log::info('🔍 Usuario encontrado', [
-                'id' => $usuario->id,
-                'nombre' => $usuario->nombre,
-                'tiene_caracteristicas' => !is_null($usuario->caracteristicas),
-                'tiene_contacto' => !is_null($usuario->contacto),
-                'cantidad_fotos' => $usuario->fotos->count(),
-                'tiene_ubicacion' => !is_null($ubicacionActual)
+            Log::info('📅 Tiempo de registro calculado', [
+                'created_at' => $createdAt,
+                'now' => $now,
+                'dias' => $diasRegistrado,
+                'texto' => $tiempoRegistro
             ]);
+
+            // OBTENER FOTO PRINCIPAL CORRECTAMENTE
+            $fotoPrincipal = $usuario->fotos()->where('es_principal', true)->first();
+            if (!$fotoPrincipal) {
+                $fotoPrincipal = $usuario->fotos()->first();
+            }
 
             // Estructura más clara para el frontend
             $response = [
@@ -175,6 +229,12 @@ class RegistrarUsuarioController extends Controller
                     'edad' => $usuario->edad,
                     'ubicacion' => $ubicacionActual ? $ubicacionActual->location : null,
                     'email' => $usuario->user ? $usuario->user->email : null,
+                    // DATOS DE TIEMPO DE REGISTRO
+                    'tiempo_registro' => $tiempoRegistro,
+                    'dias_registrado' => $diasRegistrado,
+                    'created_at' => $createdAt->toISOString(),
+                    // FOTO DE PERFIL
+                    'foto_principal' => $fotoPrincipal ? asset('storage/' . $fotoPrincipal->ruta_foto) : null,
                     'caracteristicas' => $usuario->caracteristicas ? [
                         'ocupacion' => $usuario->caracteristicas->ocupacion,
                         'tipoVivienda' => $usuario->caracteristicas->tipoVivienda,
@@ -192,49 +252,39 @@ class RegistrarUsuarioController extends Controller
                     'fotos' => $usuario->fotos->map(function($foto) {
                         return [
                             'ruta_foto' => $foto->ruta_foto,
-                            'url_foto' => $foto->ruta_foto ? Storage::url($foto->ruta_foto) : null,
+                            'url' => $foto->ruta_foto ? asset('storage/' . $foto->ruta_foto) : null,
                             'es_principal' => $foto->es_principal
                         ];
-                    }),
-                    'foto_principal' => $usuario->fotos->where('es_principal', true)->first() 
-                        ? Storage::url($usuario->fotos->where('es_principal', true)->first()->ruta_foto)
-                        : ($usuario->fotos->first() 
-                            ? Storage::url($usuario->fotos->first()->ruta_foto) 
-                            : null)
-
-                            
+                    })
                 ]
-                
             ];
 
-            Log::info('🔍 Enviando respuesta al frontend', [
-                'tiene_caracteristicas' => !is_null($response['usuario']['caracteristicas']),
-                'tiene_fotos' => count($response['usuario']['fotos']),
-                'tiene_foto_principal' => !is_null($response['usuario']['foto_principal'])
-            ]);
-
-            // En el método show() del controlador, justo antes del return
             Log::info('📤 Enviando respuesta JSON:', [
-                'success' => $response['success'],
-                'usuario_nombre' => $response['usuario']['nombre'] ?? 'NO',
-                'usuario_email' => $response['usuario']['email'] ?? 'NO',
-                'tiene_foto_principal' => !empty($response['usuario']['foto_principal']),
-                'foto_principal' => $response['usuario']['foto_principal'] ?? 'NO',
-                'cantidad_fotos' => count($response['usuario']['fotos'])
+                'usuario_nombre' => $response['usuario']['nombre'],
+                'tiempo_registro' => $response['usuario']['tiempo_registro'],
+                'dias_registrado' => $response['usuario']['dias_registrado'],
+                'foto_principal' => $response['usuario']['foto_principal'] ? 'SI' : 'NO'
             ]);
 
             return response()->json($response);
 
-            return response()->json($response);
-
-        } catch (\Exception $e) {
-            Log::error('❌ Error al obtener usuario: ' . $e->getMessage());
-            Log::error('❌ Stack trace: ' . $e->getTraceAsString());
+            } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('❌ Usuario no encontrado (ModelNotFoundException):', [
+                'id' => $id,
+                'error' => $e->getMessage()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Usuario no encontrado'
             ], 404);
+        } catch (\Exception $e) {
+            Log::error('❌ Error al obtener usuario: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener usuario'
+            ], 500);
         }
+
     }
 
     /**

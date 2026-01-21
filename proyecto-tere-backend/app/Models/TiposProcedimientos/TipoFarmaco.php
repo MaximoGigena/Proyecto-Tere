@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Veterinario;
+use App\Models\ProcedimientosMedicos\Cirugia;
+use App\Models\ProcedimientosMedicos\CuidadoPaliativo;
+use App\Models\FarmacoAsociado;
+
 
 class TipoFarmaco extends Model
 {
@@ -252,5 +256,33 @@ class TipoFarmaco extends Model
             'via_administracion.required' => 'La vía de administración es obligatoria.',
             'indicaciones_clinicas.required' => 'Las indicaciones clínicas son obligatorias.',
         ];
+    }
+
+    /**
+     * Procedimientos donde se usa este fármaco
+     */
+    public function procedimientosAsociados()
+    {
+        return $this->hasMany(FarmacoAsociado::class, 'tipo_farmaco_id');
+    }
+    
+    /**
+     * Cirugías donde se usa este fármaco
+     */
+    public function cirugias()
+    {
+        return $this->procedimientosAsociados()
+                    ->where('farmacable_type', Cirugia::class)
+                    ->with('farmacable');
+    }
+    
+    /**
+     * Cuidados paliativos donde se usa este fármaco
+     */
+    public function cuidadosPaliativos()
+    {
+        return $this->procedimientosAsociados()
+                    ->where('farmacable_type', CuidadoPaliativo::class)
+                    ->with('farmacable');
     }
 }

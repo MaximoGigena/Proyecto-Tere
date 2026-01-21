@@ -34,7 +34,7 @@ return new class extends Migration
             $table->date('fecha_proxima_revision')->nullable();
             $table->text('indicaciones_medicas')->nullable(); // Indicaciones o conducta médica
             $table->text('recomendaciones_tutor')->nullable(); // Recomendaciones al tutor
-            
+            $table->softDeletes();
             $table->timestamps();
             
             // Índices para mejor performance

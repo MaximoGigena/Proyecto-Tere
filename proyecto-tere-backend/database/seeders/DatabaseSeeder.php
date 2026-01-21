@@ -2,27 +2,26 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
+        // Ejecutar en orden para mantener las relaciones
         $this->call([
-        UsuariosSeeder::class,
-        caracteristicasUsuariosSeeder::class,
-        // Add other seeders here as needed
-        ]);
-        // User::factory(10)->create();
+            // 1. Primero crear todos los usuarios CON sus ubicaciones
+            UsersSeeder::class, // Este ahora incluye usuarios y ubicaciones
+            
+            // 2. Eliminar UbicacionUsuariosSeeder (ya se hace en UsersSeeder)
+            
+            // 3. Puedes agregar más seeders después según dependencias
+            MascotasSeeder::class,
+            CaracteristicasMascotaSeeder::class,
+            MascotaFotosSeeder::class,
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+            // 4. Seeder de ofertas de adopción - AHORA SÍ funcionará
+            OfertasAdopcionSeeder::class,
         ]);
     }
 }

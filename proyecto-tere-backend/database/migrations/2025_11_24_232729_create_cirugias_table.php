@@ -30,7 +30,7 @@ return new class extends Migration
             $table->text('descripcion_procedimiento')->nullable();
             $table->text('medicacion_postquirurgica')->nullable();
             $table->text('recomendaciones_tutor')->nullable();
-            
+            $table->softDeletes();
             $table->timestamps();
             
             // Índices para mejor performance

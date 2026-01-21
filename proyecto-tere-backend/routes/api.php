@@ -21,6 +21,9 @@ use App\Http\Controllers\ControllersProcedimientos\RevisionController;
 use App\Http\Controllers\ControllersProcedimientos\AlergiaController;
 use App\Http\Controllers\ControllersProcedimientos\CirugiaController;
 use App\Http\Controllers\ControllersProcedimientos\DiagnosticoController;
+use App\Http\Controllers\ControllersProcedimientos\PaliativoController;
+use App\Http\Controllers\ControllersProcedimientos\TerapiaController;
+use App\Http\Controllers\ControllersProcedimientos\FarmacoController;
 use App\Http\Controllers\ControllersProcedimientos\TipoProcedimientoController;
 use App\Http\Controllers\CentroVeterinarioController;
 use App\Http\Controllers\ControllersProcedimientos\VacunaController;
@@ -28,6 +31,7 @@ use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\UsuarioContactoController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\OfertaAdopcionController;
+use App\Http\Controllers\OfertasProximidadController;
 use App\Http\Controllers\ManejarOfertasController;
 use App\Http\Controllers\SolicitudAdopcionController;
 use App\Http\Controllers\ProcesoAdopcionController;
@@ -106,6 +110,53 @@ Route::post('/auth/google/complete-registration', [GoogleAuthController::class, 
 // =============================================
 Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::class])->group(function () {
     
+    Route::get('/usuarios/{usuario}/ubicacion', function (App\Models\Usuario $usuario) {
+        try {
+            $ubicacion = $usuario->ubicacionActual;
+            
+            if (!$ubicacion) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no tiene ubicación registrada'
+                ], 404);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'city' => $ubicacion->city,
+                    'state' => $ubicacion->state,
+                    'country' => $ubicacion->country,
+                    'country_code' => $ubicacion->country_code,
+                    'latitude' => $ubicacion->latitude,
+                    'longitude' => $ubicacion->longitude,
+                    'formatted' => $ubicacion->city . ', ' . $ubicacion->state . ', ' . $ubicacion->country
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener ubicación'
+            ], 500);
+        }
+    });
+
+    // Ofertas por proximidad
+    Route::get('/adopciones/proximidad', [OfertasProximidadController::class, 'obtenerPorProximidad']);
+    Route::get('/adopciones/por-region', [OfertasProximidadController::class, 'obtenerPorRegion']);
+
+    Route::get('/ubicacion/actual', [UserLocationController::class, 'show']);
+    
+    // Mantén también tu ruta existente:
+    Route::post('/guardar-ubicacion', [UserLocationController::class, 'store']);
+    
+    // Ofertas por proximidad
+    Route::get('/adopciones/proximidad', [OfertasProximidadController::class, 'obtenerPorProximidad']);
+
+    // Ruta para obtener la ubicación del usuario autenticado
+    Route::get('/user/location', [UserLocationController::class, 'show']);
+
     // Rutas para la gestión de usuarios
     Route::post('/actualizar-datos-opcionales', [RegistrarUsuarioController::class, 'actualizarDatosOpcionales']);
     Route::post('/actualizar-datos-contacto', [RegistrarUsuarioController::class, 'actualizarDatosContacto']);
@@ -434,6 +485,9 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         Route::get('/vacunas/{vacuna}', [VacunaController::class, 'show'])->name('vacunas.show');
         Route::get('/vacunas/{vacuna}/editar', [VacunaController::class, 'edit'])->name('vacunas.edit');
         Route::put('/vacunas/{vacuna}', [VacunaController::class, 'update'])->name('vacunas.update');
+        Route::delete('/vacunas/{vacuna}', [VacunaController::class, 'destroy'])->name('vacunas.destroy');
+        Route::get('/vacunas/{vacuna}', [VacunaController::class, 'show'])->name('api.vacunas.show');
+        Route::put('/vacunas/{vacuna}', [VacunaController::class, 'updateApi'])->name('api.vacunas.update');
 
         Route::get('/desparasitaciones', [DesparasitacionController::class, 'index']);
         Route::post('/desparasitaciones', [DesparasitacionController::class, 'store']);
@@ -452,6 +506,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
             Route::get('/{alergiaId}', [AlergiaController::class, 'show']);
             Route::put('/{alergiaId}', [AlergiaController::class, 'update']);
             Route::delete('/{alergiaId}', [AlergiaController::class, 'destroy']);
+            Route::patch('/{alergiaId}/baja', [AlergiaController::class, 'bajaLogica']);
         });
 
         Route::get('/cirugias', [CirugiaController::class, 'index'])->name('cirugias.index');
@@ -460,15 +515,57 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         Route::put('/cirugias/{cirugia}', [CirugiaController::class, 'update'])->name('cirugias.update');
         Route::delete('/cirugias/{cirugia}', [CirugiaController::class, 'destroy'])->name('cirugias.destroy');
 
-        Route::get('/diagnosticos', [DiagnosticoController::class, 'index']);
-        Route::post('/diagnosticos', [DiagnosticoController::class, 'store']);
-        Route::get('/diagnosticos/estadisticas', [DiagnosticoController::class, 'estadisticas']);
-        
-        Route::prefix('diagnosticos/{diagnostico}')->group(function () {
-            Route::get('/', [DiagnosticoController::class, 'show']);
-            Route::put('/', [DiagnosticoController::class, 'update']);
-            Route::delete('/', [DiagnosticoController::class, 'destroy']);
-            Route::post('/marcar-resuelto', [DiagnosticoController::class, 'marcarComoResuelto']);
+         Route::get('/diagnosticos', [DiagnosticoController::class, 'index']);
+         Route::post('/diagnosticos', [DiagnosticoController::class, 'store']);
+         Route::get('/diagnosticos/estadisticas', [DiagnosticoController::class, 'estadisticas']);
+            
+            Route::prefix('diagnosticos/{diagnosticoId}')->group(function () {
+                Route::get('/', [DiagnosticoController::class, 'show']);
+                Route::put('/', [DiagnosticoController::class, 'update']);
+                Route::delete('/', [DiagnosticoController::class, 'destroy']);
+                Route::post('/', [DiagnosticoController::class, 'bajaLogica']);
+                Route::post('/marcar-resuelto', [DiagnosticoController::class, 'marcarComoResuelto']);
+            });
+
+        Route::prefix('terapias')->group(function () {
+            Route::get('/', [TerapiaController::class, 'index']);
+            Route::post('/', [TerapiaController::class, 'store']);
+            Route::get('/activas', [TerapiaController::class, 'activas']);
+        });
+
+        Route::prefix('farmacos')->group(function () {
+            Route::get('/', [FarmacoController::class, 'index']);
+            Route::post('/', [FarmacoController::class, 'store']);
+            Route::get('/{id}', [FarmacoController::class, 'show']);
+            Route::put('/{farmaco}', [FarmacoController::class, 'update']);
+            Route::delete('/{farmaco}', [FarmacoController::class, 'destroy']);
+            Route::get('/{farmacoId}/archivos', [FarmacoController::class, 'obtenerArchivos']);
+        });
+
+         Route::prefix('cirugias')->group(function () {
+            Route::get('/', [CirugiaController::class, 'index']);
+            Route::post('/', [CirugiaController::class, 'store']);
+            Route::get('/estadisticas', [CirugiaController::class, 'estadisticas']);
+            
+            Route::prefix('{cirugia}')->group(function () {
+                Route::get('/', [CirugiaController::class, 'show']);
+                Route::put('/', [CirugiaController::class, 'update']);
+                Route::delete('/', [CirugiaController::class, 'destroy']);
+                Route::get('/archivos/{archivo}/descargar', [CirugiaController::class, 'descargarArchivo']);
+            });
+        });
+        // Agregar estas nuevas rutas para procedimientos paliativos
+        Route::prefix('paliativos')->group(function () {
+            Route::get('/', [PaliativoController::class, 'index']);
+            Route::post('/', [PaliativoController::class, 'store']);
+            Route::get('/estadisticas', [PaliativoController::class, 'estadisticas']);
+            
+            Route::prefix('{paliativo}')->group(function () {
+                Route::get('/', [PaliativoController::class, 'show']);
+                Route::put('/', [PaliativoController::class, 'update']);
+                Route::delete('/', [PaliativoController::class, 'destroy']);
+                Route::get('/archivos/{archivo}/descargar', [PaliativoController::class, 'descargarArchivo']);
+            });
         });
     });
     
@@ -488,6 +585,37 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     // Rutas protegidas de Telegram
     Route::post('/telegram/guardar-chat-id', [TelegramController::class, 'guardarChatId']);
     Route::get('/usuarios/{usuarioId}/telegram-chat-id', [TelegramController::class, 'obtenerChatId']);
+
+    // Rutas para vacunas
+    Route::prefix('vacunas')->group(function () {
+        Route::get('/{id}', [VacunaController::class, 'show'])->name('api.vacunas.show');
+        Route::put('/{id}', [VacunaController::class, 'updateApi'])->name('api.vacunas.update');
+
+        Route::delete('/{id}', [VacunaController::class, 'destroy'])->name('api.vacunas.destroy');
+    });
+
+    Route::prefix('desparasitaciones')->group(function () {
+        // Obtener una desparasitación específica
+        Route::get('/{id}', [DesparasitacionController::class, 'show']);
+        
+        // Actualizar una desparasitación
+        Route::put('/{id}', [DesparasitacionController::class, 'update']);
+        
+        // Eliminar una desparasitación
+        Route::delete('/{id}', [DesparasitacionController::class, 'destroy']);
+    });
+
+    // También mantén la ruta existente para obtener vacunas por mascota
+    Route::get('/mascotas/{mascotaId}/vacunas', [VacunaController::class, 'index']);
+    Route::post('/mascotas/{mascotaId}/vacunas', [VacunaController::class, 'store']);
+
+    Route::put('/mascotas/{mascotaId}/revisiones/{revisionId}/debug', [RevisionController::class, 'debugUpdate']);
+
+    Route::prefix('terapias')->group(function () {
+        Route::get('/{id}', [TerapiaController::class, 'show']);
+        Route::put('/{id}', [TerapiaController::class, 'update']);
+        Route::delete('/{id}', [TerapiaController::class, 'destroy']);
+    });
 
     // Chats
     Route::prefix('chats')->group(function () {
@@ -555,9 +683,12 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
 
 // Rutas que pueden acceder usuarios autenticados, incluso si están suspendidos
 
-Route::middleware('auth:sanctum')->group(function () {
-    // Rutas que pueden acceder incluso usuarios suspendidos
-    Route::get('/api/usuario/sancion-activa', [SancionController::class, 'obtenerSancionActivaUsuario']);
+// Rutas que pueden acceder usuarios autenticados, incluso si están suspendidos
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Rutas para sanciones que pueden acceder usuarios suspendidos
+    Route::get('/usuario/sancion-activa-detallada', [SancionController::class, 'obtenerSancionActivaDetallada']);
+    Route::get('/usuario/historial-sanciones', [SancionController::class, 'obtenerHistorialSancionesUsuario']);
+    Route::get('/usuario/sancion-activa', [SancionController::class, 'obtenerSancionActivaUsuario']);
     Route::post('/logout', [CerrarSesionController::class, 'logout']);
 });
 
