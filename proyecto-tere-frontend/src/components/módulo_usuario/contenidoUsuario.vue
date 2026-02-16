@@ -187,6 +187,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import axios from 'axios'
 import ReportarUsuario from '@/components/módulo_usuario/reportarUsuario.vue'
 
 const { accessToken, isAuthenticated, checkAuth, user } = useAuth()
@@ -239,107 +240,71 @@ const fetchPerfil = async () => {
   error.value = null
 
   try {
-    // Usa accessToken del composable useAuth
-    const token = accessToken.value
+    const token = localStorage.getItem('token') || accessToken.value
     
     if (!token) {
-      // Si no hay token en el composable, intenta obtenerlo del localStorage
-      const fallbackToken = localStorage.getItem('access_token')
-      if (!fallbackToken) {
-        throw new Error('No estás autenticado. Por favor, inicia sesión.')
-      }
+      error.value = 'No estás autenticado. Por favor, inicia sesión.'
+      loading.value = false
+      return
     }
 
     console.log('Solicitando perfil para usuario ID:', userId)
     console.log('Token disponible:', token ? 'Sí' : 'No')
 
-    const response = await fetch(`http://localhost:8000/api/usuarios/${userId}`, {
+    const response = await axios.get(`/api/usuarios/${userId}`, {
       headers: {
-        'Authorization': `Bearer ${token || localStorage.getItem('access_token')}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
       }
     })
-
-    console.log('Respuesta del servidor:', response.status, response.statusText)
-
-    if (response.status === 401) {
-      // Token expirado o inválido
-      error.value = 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.'
-      // Opcional: redirigir al login
-      // router.push('/login')
-      return
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Error response:', errorText)
-      throw new Error(`Error ${response.status}: ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    console.log('Datos recibidos del API:', data)
     
-    if (data.success && data.usuario) {
-      // Mapear los datos del backend a nuestra estructura
+    console.log('Respuesta del servidor:', response.data)
+
+    if (response.data.success && response.data.usuario) {
+      // ✅ Ahora la respuesta contiene tanto user_id como id del usuario
+      const usuarioData = response.data.usuario;
+      
       perfil.value = {
-        id: data.usuario.id,
-        nombre: data.usuario.nombre,
-        edad: data.usuario.edad,
-        descripcion: data.usuario.caracteristicas?.descripción || '',
-        experiencia: data.usuario.caracteristicas?.experiencia || '',
-        tipoVivienda: data.usuario.caracteristicas?.tipoVivienda || '',
-        ocupacion: data.usuario.caracteristicas?.ocupacion || '',
-        convivenciaNiños: data.usuario.caracteristicas?.convivenciaNiños || '',
-        convivenciaMascotas: data.usuario.caracteristicas?.convivenciaMascotas || '',
-        ubicacion: data.usuario.ubicacion || 'Ubicación no especificada',
-        foto_principal: data.usuario.foto_principal || perfil.value.defaultImage,
-        fotos: data.usuario.fotos || [],
-        contacto: data.usuario.contacto || null
+        id: usuarioData.id, // ID del Usuario
+        userId: usuarioData.user_id, // ID del User (para chats, etc.)
+        nombre: usuarioData.nombre,
+        edad: usuarioData.edad,
+        descripcion: usuarioData.caracteristicas?.descripción || '',
+        experiencia: usuarioData.caracteristicas?.experiencia || '',
+        tipoVivienda: usuarioData.caracteristicas?.tipoVivienda || '',
+        ocupacion: usuarioData.caracteristicas?.ocupacion || '',
+        convivenciaNiños: usuarioData.caracteristicas?.convivenciaNiños || '',
+        convivenciaMascotas: usuarioData.caracteristicas?.convivenciaMascotas || '',
+        ubicacion: usuarioData.ubicacion || 'Ubicación no especificada',
+        foto_principal: usuarioData.foto_principal || perfil.value.defaultImage,
+        fotos: usuarioData.fotos || [],
+        contacto: usuarioData.contacto || null,
+        email: usuarioData.email || null,
+        tiempo_registro: usuarioData.tiempo_registro || null,
+        dias_registrado: usuarioData.dias_registrado || 0
       }
       
-      console.log('Perfil mapeado exitosamente:', perfil.value)
+      console.log('Perfil cargado exitosamente:', perfil.value)
+      console.log('Usuario ID:', perfil.value.id)
+      console.log('User ID:', perfil.value.userId)
     } else {
-      throw new Error(data.message || 'Error al cargar el perfil')
+      throw new Error(response.data.message || 'Error al cargar el perfil')
     }
   } catch (err) {
     console.error('Error fetching perfil:', err)
-    error.value = `No se pudo cargar el perfil: ${err.message}`
     
-    // Solo mostrar datos de ejemplo en desarrollo si no es error de autenticación
-    if (process.env.NODE_ENV === 'development' && !err.message.includes('autenticado') && !err.message.includes('sesión')) {
-      console.log('Usando datos de ejemplo para desarrollo')
-      perfil.value = {
-        id: userId,
-        nombre: `Usuario ${userId}`,
-        edad: '30',
-        descripcion: 'Amante de los animales con experiencia en cuidado de mascotas.',
-        experiencia: 'Experto',
-        tipoVivienda: 'Casa con patio',
-        ocupacion: 'Ingeniero',
-        convivenciaNiños: 'si',
-        convivenciaMascotas: 'si',
-        ubicacion: 'Buenos Aires, Argentina',
-        foto_principal: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',
-        fotos: [
-          {
-            url_foto: 'https://cdn.pixabay.com/photo/2020/07/16/07/36/man-5410019_960_720.jpg',
-            es_principal: true
-          }
-        ],
-        contacto: {
-          nombre_completo: 'Usuario Ejemplo',
-          telefono: '+5491122334455',
-          email: 'ejemplo@mail.com',
-          dni: '12345678'
-        }
-      }
-      error.value = null
+    if (err.response?.status === 401) {
+      error.value = 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.'
+    } else if (err.response?.status === 404) {
+      error.value = 'Usuario no encontrado'
+    } else {
+      error.value = `No se pudo cargar el perfil: ${err.message}`
     }
   } finally {
     loading.value = false
   }
 }
+
 
 // Ver foto en grande
 const verFoto = (foto) => {

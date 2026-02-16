@@ -33,6 +33,7 @@ export const veterinarioRoutes = [
         path: 'historial',
         component: Historial,
         name: 'veterinarioHistorial',
+        props: true,
       },
       {
         path: 'rendimiento',

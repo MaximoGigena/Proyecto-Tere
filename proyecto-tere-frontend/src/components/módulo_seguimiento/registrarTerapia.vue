@@ -1,4 +1,4 @@
-<!-- registrarTerapia.vue CON MODAL Y DETECCIÓN DE EDICIÓN -->
+<!-- registrarTerapia.vue CON MANEJO DE ERRORES MEJORADO -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -232,6 +232,34 @@
         </div>
       </div>
 
+      <!-- Sección de errores de validación (IGUAL QUE EN VACUNA) -->
+      <div v-if="mostrarErrores && Object.keys(erroresValidacion).length > 0" 
+          class="mt-6 p-4 bg-red-50 border-l-4 border-red-500">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800">
+              Problemas de validación
+            </h3>
+            <div class="mt-2 text-sm text-red-700">
+              <ul class="list-disc pl-5 space-y-1">
+                <li v-for="(erroresCampo, campo) in erroresValidacion" :key="campo">
+                  <template v-if="campo !== '_debug'">
+                    <span v-for="error in erroresCampo" :key="error" class="block">
+                      {{ error }}
+                    </span>
+                  </template>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="pt-4 flex items-center justify-center gap-4">
         <button
           type="button"
@@ -397,6 +425,10 @@ const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
 const mostrarModal = ref(false)
 
+// AGREGADO: Variables para manejo de errores (IGUAL QUE EN VACUNA)
+const erroresValidacion = ref({})
+const mostrarErrores = ref(false)
+
 // Datos del formulario
 const terapia = reactive({
   tipo_terapia_id: '',
@@ -452,6 +484,35 @@ const archivosExistente = computed(() => {
 const usuarioId = computed(() => {
   return mascotaData.value?.usuario_id || null
 })
+
+// AGREGADO: Función para manejar errores de validación (IGUAL QUE EN VACUNA)
+const mostrarErrorValidacion = (error) => {
+  mostrarErrores.value = true
+  // Crear un array temporal para los errores
+  const erroresArray = []
+  
+  // Verificar si es un error del servidor con estructura de validación
+  if (error.response?.status === 422 && error.response.data?.errors) {
+    erroresValidacion.value = error.response.data.errors
+    
+    // Construir mensaje amigable
+    for (const campo in error.response.data.errors) {
+      const mensajes = error.response.data.errors[campo]
+      mensajes.forEach(mensaje => {
+        erroresArray.push(`• ${mensaje}`)
+      })
+    }
+  } else if (error.message) {
+    // Si es un error genérico
+    erroresArray.push(`• ${error.message}`)
+  } else {
+    erroresArray.push('• Ocurrió un error desconocido')
+  }
+  
+  // Mostrar alerta con mejor formato
+  const mensajeFinal = erroresArray.join('\n')
+  alert(`❌ Error de validación:\n\n${mensajeFinal}`)
+}
 
 // Función para obtener nombre del medio seleccionado
 const obtenerNombreMedio = (medioId) => {
@@ -521,7 +582,6 @@ const obtenerDireccionCentroSeleccionado = () => {
   const centro = centrosVeterinarios.value.find(c => c.id === terapia.centro_veterinario_id)
   return centro ? centro.direccion : ''
 }
-
 
 // Cargar datos de la mascota
 const cargarDatosMascota = async () => {
@@ -613,7 +673,6 @@ const cargarCentrosVeterinarios = async () => {
   }
 }
 
-
 const cargarTerapiaExistente = async () => {
   if (!terapiaId.value) return
   
@@ -643,7 +702,7 @@ const cargarTerapiaExistente = async () => {
         fecha_inicio: datos.fecha_inicio?.split('T')[0] || '',
         frecuencia: datos.frecuencia,
         duracion_tratamiento: datos.duracion_tratamiento,
-        centro_veterinario_id: datos.centro_veterinario_id, // Ya viene en el nivel raíz
+        centro_veterinario_id: datos.centro_veterinario_id,
         costo: datos.costo,
         fecha_fin: datos.fecha_fin?.split('T')[0] || '',
         evolucion: datos.evolucion,
@@ -772,13 +831,17 @@ const procesarFormulario = () => {
   mostrarModalConfirmacion()
 }
 
-// Registrar terapia (modificada para usar desde el modal)
+// MODIFICADO: Registrar terapia con manejo de errores mejorado (SIMILAR A VACUNA)
 const registrarTerapia = async () => {
   if (procesando.value) return
 
   try {
     procesando.value = true
     cerrarModal()
+
+    // Limpiar errores previos
+    erroresValidacion.value = {}
+    mostrarErrores.value = false
 
     const formData = new FormData()
     
@@ -823,6 +886,12 @@ const registrarTerapia = async () => {
       throw new Error('El servidor no devolvió JSON válido')
     }
 
+    // Manejar específicamente el error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
@@ -835,7 +904,15 @@ const registrarTerapia = async () => {
         }
       })
       
-      alert('✅ Terapia registrada exitosamente')
+      // Mostrar mensaje de éxito incluyendo información del envío si existe
+      let mensajeExito = '✅ Terapia registrada exitosamente'
+      if (result.data?.envio_exitoso === true) {
+        mensajeExito += ' y certificado enviado'
+      } else if (result.data?.envio_exitoso === false) {
+        mensajeExito += ' (pero hubo un problema al enviar el certificado)'
+      }
+      
+      alert(mensajeExito)
       
       // Redirigir al historial de terapias
       router.push({
@@ -848,23 +925,27 @@ const registrarTerapia = async () => {
         }
       })
     } else {
-      alert('Error al registrar la terapia: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al registrar la terapia' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al registrar la terapia: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
 }
 
-// Actualizar terapia existente
+// MODIFICADO: Actualizar terapia con manejo de errores mejorado
 const actualizarTerapia = async () => {
   if (procesando.value) return
 
   try {
     procesando.value = true
     cerrarModal()
+
+    // Limpiar errores previos
+    erroresValidacion.value = {}
+    mostrarErrores.value = false
 
     // Preparar payload como JSON (no FormData)
     const payload = {
@@ -906,6 +987,12 @@ const actualizarTerapia = async () => {
       throw new Error('El servidor no devolvió JSON válido')
     }
 
+    // Manejar específicamente el error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
       const errorMessage = result.message || 
                           (result.errors ? Object.values(result.errors).flat().join(', ') : 'Error en la operación')
@@ -938,11 +1025,11 @@ const actualizarTerapia = async () => {
         router.push({ name: 'veterinario-terapias', params: { id: '0' } })
       }
     } else {
-      alert('Error al actualizar la terapia: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al actualizar la terapia' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al actualizar la terapia: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }

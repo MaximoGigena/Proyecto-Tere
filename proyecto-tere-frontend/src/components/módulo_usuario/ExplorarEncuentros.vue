@@ -28,19 +28,41 @@
   </div>
 
       <!-- Navegación inferior -->
-      <div class="absolute bottom-0 w-full bg-white border-t py-3 text-gray-600 flex justify-around z-20">
+      <div class="absolute bottom-0 w-full bg-white border-t py-2 text-gray-600 flex justify-around z-20">
         <router-link
           v-for="item in navItems"
           :key="item.id"
           :to="item.path"
-          class="flex flex-col items-center px-4 py-1 rounded-md transition relative"
-          :class="isActive(item) ? 'bg-white text-black' : 'text-gray-600 hover:text-black'"
+          class="flex flex-col items-center px-4 py-1 rounded-md transition-all duration-300 relative group"
+          :class="isActive(item) ? 'text-emerald-600' : 'text-gray-600 hover:text-emerald-500'"
         >
-          <font-awesome-icon :icon="['fas', item.icon]" class="text-xl" />
-          <span class="text-xs">{{ item.label }}</span>
+          <!-- Contenedor del icono con círculo -->
+          <div class="relative flex justify-center mb-0.5">
+            <!-- Círculo de fondo solo para el icono activo -->
+            <div 
+              v-if="isActive(item)"
+              class="absolute inset-0 bg-emerald-100 rounded-full transition-all duration-300"
+              style="width: 40px; height: 40px; left: 50%; transform: translateX(-50%); top: -4px;"
+            ></div>
+            
+            <!-- Icono con efecto de hinchado -->
+            <div class="relative z-10 transition-all duration-300 flex items-center justify-center" 
+                style="width: 32px; height: 32px;"
+                :class="isActive(item) ? 'scale-125' : 'group-hover:scale-110'">
+              <font-awesome-icon :icon="['fas', item.icon]" class="text-xl" />
+            </div>
+          </div>
+          
+          <!-- Label -->
+          <span class="text-xs relative z-10 font-medium" 
+                :class="isActive(item) ? 'text-emerald-600' : 'text-gray-600 group-hover:text-emerald-500'">
+            {{ item.label }}
+          </span>
+          
+          <!-- Indicador de chats (sin cambios) -->
           <span
             v-if="item.id === 'chats'"
-            class="absolute top-1 right-3 bg-red-500 text-white text-xs px-1.5 rounded-full"
+            class="absolute top-0 right-3 bg-red-500 text-white text-xs px-1.5 rounded-full z-20"
           >●</span>
         </router-link>
       </div>

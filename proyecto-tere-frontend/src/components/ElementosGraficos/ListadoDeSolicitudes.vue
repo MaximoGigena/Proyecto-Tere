@@ -107,15 +107,15 @@ const perfilesConPaletas = reactive([]);
 
 // Función para generar ruta dinámica
 const generarRuta = (perfil) => {
-  // Verificar si el perfil tiene los datos necesarios
   const solicitanteId = perfil.solicitante_id || perfil.id;
+  const solicitudId = perfil.solicitud_id || perfil.id;
   
-  if (!solicitanteId) {
-    console.error('Perfil sin solicitante_id:', perfil);
+  if (!solicitanteId || !solicitudId) {
+    console.error('Perfil sin datos necesarios:', perfil);
     return { name: 'home' };
   }
   
-  // Solo pasar userId como parámetro, el resto como query
+  // IMPORTANTE: Pasar solicitud_id como query parameter
   return {
     name: 'user-profile-list',
     params: { 
@@ -123,11 +123,11 @@ const generarRuta = (perfil) => {
     },
     query: { 
       from: 'chats-list',
-      solicitud_id: perfil.solicitud_id || perfil.id,
+      solicitud_id: solicitudId, // Asegurar que se pase
       mascota_nombre: perfil.mascota_nombre,
       fecha_solicitud: perfil.fecha_solicitud,
       mascota_id: perfil.mascota_id,
-      unique_key: perfil.unique_key || `${solicitanteId}_${perfil.mascota_id}_${perfil.solicitud_id || perfil.id}`
+      unique_key: perfil.unique_key
     }
   };
 };

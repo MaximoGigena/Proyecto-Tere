@@ -86,6 +86,13 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 
+const props = defineProps({
+  mascotaId: {
+    type: [String, Number],
+    default: null
+  }
+})
+
 const router = useRouter()
 const route = useRoute()
 const { accessToken, isAuthenticated, checkAuth } = useAuth()

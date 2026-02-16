@@ -65,11 +65,12 @@
               </button>
               <button
                 @click="aprobarSolicitud"
-                :disabled="procesando"
+                :disabled="!puedeAprobarSolicitud || procesando"
                 class="px-3 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 active:scale-[.98] shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Aprobar solicitud"
+                :title="!puedeAprobarSolicitud ? 'Es necesario tener al menos 5 mensajes intercambiados en el chat' : 'Aprobar solicitud'"
               >
-                <font-awesome-icon :icon="['fas','check']" class="mr-2" /> Aprobar
+                <font-awesome-icon :icon="['fas','check']" class="mr-2" /> 
+                {{ puedeAprobarSolicitud ? 'Aprobar' : 'Esperar interacción' }}
               </button>
             </div>
           </div>
@@ -363,6 +364,23 @@ const datosOferta = ref(null)
 const solicitanteInfo = ref(null)
 const chatExistente = ref(null)
 
+const interaccionChat = ref({
+  totalMensajes: 0,
+  mensajesUsuario: 0,
+  mensajesSolicitante: 0,
+  alcanzoInteraccionMinima: false
+})
+
+const puedeAprobarSolicitud = computed(() => {
+  // Solo puede aprobar si:
+  // 1. La solicitud está pendiente
+  // 2. Hay un chat existente
+  // 3. Se alcanzó la interacción mínima (5 mensajes intercambiados)
+  return datosSolicitud.value.estadoSolicitud === 'pendiente' && 
+         chatExistente.value && 
+         interaccionChat.value.alcanzoInteraccionMinima
+})
+
 // Computed properties
 const fechaFormateada = computed(() => {
   if (!datosSolicitud.value.fechaSolicitud) return 'Fecha no disponible'
@@ -427,10 +445,22 @@ const estadoChat = computed(() => {
   }
   
   if (chatExistente.value) {
-    return {
-      icon: 'check-circle',
-      text: 'Chat activo',
-      color: 'text-green-500'
+    if (interaccionChat.value.alcanzoInteraccionMinima) {
+      return {
+        icon: 'check-circle',
+        text: `Chat listo (${interaccionChat.value.totalMensajes} mensajes)`,
+        color: 'text-green-500'
+      }
+    } else {
+      const mensajesFaltantes = 5 - Math.min(
+        interaccionChat.value.mensajesUsuario, 
+        interaccionChat.value.mensajesSolicitante
+      )
+      return {
+        icon: 'comment',
+        text: `Chat activo - ${mensajesFaltantes} mensajes faltan`,
+        color: 'text-amber-500'
+      }
     }
   }
   
@@ -467,120 +497,54 @@ function asset(path) {
 async function cargarDatosSolicitud() {
   try {
     loading.value = true
-    error.value = null
     
-    const solicitudId = route.query.solicitud_id || route.params.solicitudId
+    const solicitudId = route.query.solicitud_id
     
     if (!solicitudId) {
-      console.error('Error: No se proporcionó ID de solicitud')
       throw new Error('No se proporcionó ID de solicitud')
     }
 
-    console.log('=== INICIO cargarDatosSolicitud ===')
-    console.log('Solicitud ID:', solicitudId)
-
-    // 1. Cargar información de la solicitud específica
+    // 1. Cargar información de la solicitud
     const responseSolicitud = await axios.get(`/api/solicitudes/${solicitudId}`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Accept': 'application/json'
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
     })
 
-    console.log('Datos respuesta:', responseSolicitud.data)
-
     if (responseSolicitud.data.success) {
       datosSolicitud.value = responseSolicitud.data.data.solicitud
-      console.log('Datos de solicitud cargados:', datosSolicitud.value)
       
-      // Cargar información del solicitante desde la solicitud
+      // Cargar información del solicitante - CORREGIDO
       if (responseSolicitud.data.data.solicitante) {
         solicitanteInfo.value = {
-          id: responseSolicitud.data.data.solicitante.id,
-          nombre: responseSolicitud.data.data.solicitante.nombre || responseSolicitud.data.data.solicitante.name,
+          id: responseSolicitud.data.data.solicitante.id, // ID del Usuario
+          userId: responseSolicitud.data.data.solicitante.user_id, // ID del User
+          nombre: responseSolicitud.data.data.solicitante.nombre,
           img: responseSolicitud.data.data.solicitante.foto_perfil_url || 
                'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
-          descripcion: responseSolicitud.data.data.solicitante.descripcion || ''
+          descripcion: responseSolicitud.data.data.solicitante.descripcion || '',
+          edad: responseSolicitud.data.data.solicitante.edad || null,
+          experiencia: responseSolicitud.data.data.solicitante.experiencia || null
         }
-        console.log('Solicitante info:', solicitanteInfo.value)
       }
       
-      // 2. Cargar la oferta de adopción relacionada
+      // 2. Cargar la oferta de adopción (si existe)
       const mascotaId = datosSolicitud.value.idMascota
       if (mascotaId) {
-        console.log('Buscando oferta para mascota ID:', mascotaId)
         await cargarOfertaPorMascota(mascotaId)
-      } else {
-        console.warn('Solicitud no tiene ID de mascota asociado')
       }
       
-      // 3. Verificar si ya existe un chat para esta solicitud
+      // 3. Verificar si ya existe un chat
       if (datosSolicitud.value.idUsuarioSolicitante) {
         await verificarChatExistente()
       }
-      
     } else {
-      console.error('Error en respuesta:', responseSolicitud.data)
       throw new Error(responseSolicitud.data.message || 'Error al cargar solicitud')
     }
     
-    console.log('=== FIN cargarDatosSolicitud ===')
-    
   } catch (err) {
-    console.error('=== ERROR cargando datos de solicitud ===')
-    console.error('Error completo:', err)
-    
+    console.error('Error cargando datos de solicitud:', err)
     error.value = err.response?.data?.message || err.message || 'Error al cargar la solicitud'
-    
-    // Datos de ejemplo para desarrollo
-    if (import.meta.env.DEV || window.location.hostname === 'localhost') {
-      console.log('Usando datos de ejemplo para desarrollo')
-      datosSolicitud.value = {
-        idSolicitud: route.query.solicitud_id || '123',
-        idUsuarioSolicitante: route.params.userId || '101',
-        idMascota: '1',
-        estadoSolicitud: 'pendiente',
-        aceptóTerminos: true,
-        fechaSolicitud: new Date().toISOString()
-      }
-      
-      solicitanteInfo.value = {
-        nombre: route.query.nombre || 'Usuario Ejemplo',
-        img: route.query.img || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
-        descripcion: 'Descripción del usuario solicitante'
-      }
-      
-      // Datos de ejemplo para la oferta
-      datosOferta.value = {
-        id_oferta: '456',
-        estado_oferta: 'publicada',
-        permiso_historial_medico: true,
-        permiso_contacto_tutor: true,
-        created_at: new Date().toISOString(),
-        mascota: {
-          id: '1',
-          nombre: 'Firulais',
-          especie: 'Perro',
-          raza: 'Mestizo',
-          edad_formateada: '2 años',
-          foto_principal_url: 'https://cdn.pixabay.com/photo/2017/09/25/13/12/dog-2785074_1280.jpg',
-          caracteristicas: {
-            tamaño: 'Mediano',
-            pelaje: 'Corto',
-            color: 'Marrón'
-          },
-          fotos: [
-            {
-              url: 'https://cdn.pixabay.com/photo/2017/09/25/13/12/dog-2785074_1280.jpg',
-              ruta_foto: '',
-              es_principal: true
-            }
-          ]
-        }
-      }
-      
-      error.value = null
-    }
   } finally {
     loading.value = false
   }
@@ -609,12 +573,49 @@ async function verificarChatExistente() {
       if (chatConSolicitud) {
         chatExistente.value = chatConSolicitud
         console.log('Chat existente encontrado:', chatExistente.value)
+        
+        // Verificar interacción del chat
+        await verificarInteraccionChat(chatConSolicitud.chat_id)
       } else {
         console.log('No hay chat existente para esta solicitud')
       }
     }
   } catch (err) {
     console.error('Error verificando chat existente:', err)
+  }
+}
+
+async function verificarInteraccionChat(chatId) {
+  try {
+    console.log('Verificando interacción del chat:', chatId)
+    
+    const response = await axios.get(`/api/chats/${chatId}/estadisticas-interaccion`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (response.data.success) {
+      const datos = response.data.data
+      interaccionChat.value = {
+        totalMensajes: datos.total_mensajes || 0,
+        mensajesUsuario: datos.mensajes_cedente || 0,
+        mensajesSolicitante: datos.mensajes_solicitante || 0,
+        alcanzoInteraccionMinima: datos.alcanzo_interaccion_minima || false
+      }
+      
+      console.log('Interacción del chat:', interaccionChat.value)
+      
+      // Si no alcanzó el mínimo, mostrar información
+      if (!interaccionChat.value.alcanzoInteraccionMinima) {
+        console.log(`Faltan ${5 - Math.min(interaccionChat.value.mensajesUsuario, interaccionChat.value.mensajesSolicitante)} mensajes para habilitar aprobación`)
+      }
+    }
+  } catch (err) {
+    console.error('Error verificando interacción del chat:', err)
+    // Si hay error, permitir aprobación para no bloquear el proceso
+    interaccionChat.value.alcanzoInteraccionMinima = true
   }
 }
 
@@ -681,6 +682,14 @@ async function iniciarChat() {
         data: err.response.data,
         headers: err.response.headers
       });
+
+      if (err.response?.status === 403) {
+          // Mostrar información específica del error 403
+          alert(`Error de permisos: ${err.response.data.message || 'No tienes permiso para crear este chat'}`);
+          if (err.response.data.debug) {
+              console.log('Debug info:', err.response.data.debug);
+          }
+      }
       
       if (err.response.status === 401) {
         alert('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
@@ -725,6 +734,10 @@ async function cargarOfertaPorMascota(mascotaId) {
   } catch (err) {
     console.error('Error cargando oferta:', err)
     // No establecer error aquí, ya que la solicitud podría cargarse sin oferta
+    if (err.response?.status === 404) {
+      console.log('Intentando ruta alternativa...')
+      await buscarOfertaEnOfertasUsuario(mascotaId)
+    }
   }
 }
 
@@ -769,27 +782,65 @@ async function aprobarSolicitud() {
     procesando.value = true
     const solicitudId = datosSolicitud.value.idSolicitud || datosSolicitud.value.id
     
+    // Agregar logs para depuración
+    console.log('🚀 Intentando aprobar solicitud ID:', solicitudId)
+    console.log('🔑 Token disponible:', !!localStorage.getItem('token'))
+    console.log('👤 Usuario ID en solicitud:', datosSolicitud.value.idUsuarioSolicitante)
+    
     const response = await axios.put(`/api/solicitudes/${solicitudId}/aprobar`, {}, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       }
     })
+    
+    console.log('✅ Respuesta del servidor:', response.data)
     
     if (response.data.success) {
       datosSolicitud.value.estadoSolicitud = 'aprobada'
       
-      // Mostrar mensaje de transferencia exitosa
       alert('✅ Solicitud aprobada y mascota transferida exitosamente\n' +
             'La mascota ahora pertenece al adoptante.')
       
-      // Recargar datos para mostrar nueva información
       await cargarDatosSolicitud()
     } else {
       throw new Error(response.data.message || 'Error al aprobar solicitud')
     }
   } catch (err) {
-    console.error('Error aprobando solicitud:', err)
+    console.error('❌ Error aprobando solicitud:', err)
+    
+    // Información detallada del error
+    if (err.response) {
+      console.error('📊 Datos de la respuesta:', {
+        status: err.response.status,
+        statusText: err.response.statusText,
+        data: err.response.data,
+        headers: err.response.headers
+      })
+      
+      if (err.response.status === 403) {
+        alert(`Error de permisos: ${err.response.data.message || 'No tienes permiso para aprobar esta solicitud'}`)
+        
+        // Información adicional para depuración
+        console.error('🔍 Posible causa: Comparación incorrecta de IDs')
+        console.error('📝 User ID:', datosUsuario.value?.id)
+        console.error('🏷️  Userable ID:', datosUsuario.value?.userable_id)
+      } else if (err.response.status === 400) {
+        // Mostrar información específica sobre interacciones del chat
+        if (err.response.data.codigo_error === 'INTERACCIONES_INSUFICIENTES') {
+          const detalles = err.response.data.data
+          alert(`Interacciones insuficientes en el chat:\n\n` +
+                `Mensajes intercambiados: ${detalles.interacciones_actuales}/${detalles.interacciones_requeridas}\n` +
+                `Faltan ${detalles.faltan_mensajes} mensajes\n\n` +
+                `Mensajes enviados por ti: ${detalles.mensajes_usuario_actual}\n` +
+                `Mensajes enviados por el solicitante: ${detalles.mensajes_solicitante}`)
+        } else {
+          alert(err.response.data.message || 'Error en la solicitud')
+        }
+      }
+    }
+    
     alert(err.response?.data?.message || err.message || 'Error al aprobar la solicitud')
   } finally {
     procesando.value = false
@@ -870,6 +921,45 @@ function abrirPerfilUsuario() {
         solicitud_id: datosSolicitud.value.idSolicitud || datosSolicitud.value.id
       }
     })
+  }
+}
+
+async function buscarOfertaEnOfertasUsuario(mascotaId) {
+  try {
+    console.log('Buscando oferta en ofertas del usuario para mascota ID:', mascotaId)
+    
+    const response = await axios.get('/api/adopciones/mis-mascotas/en-adopcion', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      }
+    })
+    
+    if (response.data.success && response.data.data) {
+      // Buscar la oferta que corresponde a esta mascota
+      const ofertaEncontrada = response.data.data.find(
+        oferta => oferta.id === parseInt(mascotaId) || oferta.mascota_id === parseInt(mascotaId)
+      )
+      
+      if (ofertaEncontrada) {
+        console.log('Oferta encontrada en lista del usuario:', ofertaEncontrada)
+        
+        // Obtener detalles completos de la oferta
+       const detalleResponse = await axios.get(`/api/adopciones/ofertas/${ofertaEncontrada.oferta_id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Accept': 'application/json'
+          }
+        })
+        
+        if (detalleResponse.data.success) {
+          datosOferta.value = detalleResponse.data.data.oferta
+          console.log('Detalles de oferta cargados:', datosOferta.value)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error buscando oferta en lista del usuario:', err)
   }
 }
 

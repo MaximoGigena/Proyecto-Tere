@@ -1,4 +1,4 @@
-<!-- registrarAlergia.vue - Versión final con registro y edición -->
+<!-- registrarAlergia.vue - Versión final con registro, edición y manejo de errores mejorado -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -37,6 +37,7 @@
                 required
                 class="w-full border rounded p-2"
                 @change="onTipoAlergiaChange"
+                :class="{ 'border-red-500': erroresValidacion.tipo_alergia_id }"
               >
                 <option value="">Seleccione un tipo de alergia</option>
                 <option
@@ -57,6 +58,12 @@
                 + Tipo
               </button>
             </div>
+            <!-- Mensaje de error específico para tipo de alergia -->
+            <div v-if="erroresValidacion.tipo_alergia_id" class="mt-1">
+              <p v-for="error in erroresValidacion.tipo_alergia_id" :key="error" class="text-red-600 text-sm">
+                {{ error }}
+              </p>
+            </div>
           </div>
 
           <div>
@@ -67,7 +74,13 @@
               required
               class="w-full border rounded p-2"
               :max="hoy"
+              :class="{ 'border-red-500': erroresValidacion.fecha_deteccion }"
             />
+            <div v-if="erroresValidacion.fecha_deteccion" class="mt-1">
+              <p v-for="error in erroresValidacion.fecha_deteccion" :key="error" class="text-red-600 text-sm">
+                {{ error }}
+              </p>
+            </div>
           </div>
 
           <div>
@@ -76,12 +89,18 @@
               v-model="alergia.gravedad"
               required
               class="w-full border rounded p-2"
+              :class="{ 'border-red-500': erroresValidacion.gravedad }"
             >
               <option value="">Seleccione una opción</option>
               <option value="leve">Leve</option>
               <option value="moderada">Moderada</option>
               <option value="grave">Grave</option>
             </select>
+            <div v-if="erroresValidacion.gravedad" class="mt-1">
+              <p v-for="error in erroresValidacion.gravedad" :key="error" class="text-red-600 text-sm">
+                {{ error }}
+              </p>
+            </div>
           </div>
 
           <!-- Centro Veterinario -->
@@ -93,6 +112,7 @@
               <div 
                 v-if="alergia.centro_veterinario_id"
                 class="w-full border rounded p-2 bg-gray-50"
+                :class="{ 'border-red-500': erroresValidacion.centro_veterinario_id }"
               >
                 <div class="font-semibold">
                   {{ obtenerNombreCentroSeleccionado() }}
@@ -105,6 +125,7 @@
               <div 
                 v-else
                 class="w-full border rounded p-2 text-gray-400 italic"
+                :class="{ 'border-red-500': erroresValidacion.centro_veterinario_id }"
               >
                 Ningún centro veterinario seleccionado
               </div>
@@ -116,6 +137,11 @@
               >
                 + Centro
               </button>
+            </div>
+            <div v-if="erroresValidacion.centro_veterinario_id" class="mt-1">
+              <p v-for="error in erroresValidacion.centro_veterinario_id" :key="error" class="text-red-600 text-sm">
+                {{ error }}
+              </p>
             </div>
           </div>
         </div>
@@ -130,7 +156,13 @@
               required
               class="w-full border rounded p-2"
               placeholder="Ej: Urticaria, vómitos, shock anafiláctico"
+              :class="{ 'border-red-500': erroresValidacion.reaccion_comun }"
             />
+            <div v-if="erroresValidacion.reaccion_comun" class="mt-1">
+              <p v-for="error in erroresValidacion.reaccion_comun" :key="error" class="text-red-600 text-sm">
+                {{ error }}
+              </p>
+            </div>
           </div>
 
           <div>
@@ -140,7 +172,13 @@
               type="text"
               class="w-full border rounded p-2"
               placeholder="Si se conoce"
+              :class="{ 'border-red-500': erroresValidacion.desencadenante }"
             />
+            <div v-if="erroresValidacion.desencadenante" class="mt-1">
+              <p v-for="error in erroresValidacion.desencadenante" :key="error" class="text-red-600 text-sm">
+                {{ error }}
+              </p>
+            </div>
           </div>
 
           <div>
@@ -149,12 +187,18 @@
               v-model="alergia.estado"
               required
               class="w-full border rounded p-2"
+              :class="{ 'border-red-500': erroresValidacion.estado }"
             >
               <option value="">Seleccione una opción</option>
               <option value="activa">Activa</option>
               <option value="superada">Superada</option>
               <option value="seguimiento">Bajo seguimiento</option>
             </select>
+            <div v-if="erroresValidacion.estado" class="mt-1">
+              <p v-for="error in erroresValidacion.estado" :key="error" class="text-red-600 text-sm">
+                {{ error }}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -178,11 +222,17 @@
             rows="3"
             maxlength="500"
             class="w-full border rounded p-2 resize-none"
+            :class="{ 'border-red-500': erroresValidacion.conducta_recomendada }"
             placeholder="Recomendaciones específicas en caso de exposición al alérgeno"
           ></textarea>
           <p class="text-sm text-gray-500 text-right mt-1">
             {{ alergia.conducta_recomendada?.length || 0 }}/500 caracteres
           </p>
+          <div v-if="erroresValidacion.conducta_recomendada" class="mt-1">
+            <p v-for="error in erroresValidacion.conducta_recomendada" :key="error" class="text-red-600 text-sm">
+              {{ error }}
+            </p>
+          </div>
         </div>
 
         <div>
@@ -192,11 +242,17 @@
             rows="3"
             maxlength="500"
             class="w-full border rounded p-2 resize-none"
+            :class="{ 'border-red-500': erroresValidacion.recomendaciones_tutor }"
             placeholder="Instrucciones para el dueño sobre manejo y prevención"
           ></textarea>
           <p class="text-sm text-gray-500 text-right mt-1">
             {{ alergia.recomendaciones_tutor?.length || 0 }}/500 caracteres
           </p>
+          <div v-if="erroresValidacion.recomendaciones_tutor" class="mt-1">
+            <p v-for="error in erroresValidacion.recomendaciones_tutor" :key="error" class="text-red-600 text-sm">
+              {{ error }}
+            </p>
+          </div>
         </div>
 
         <div>
@@ -206,11 +262,17 @@
             rows="2"
             maxlength="300"
             class="w-full border rounded p-2 resize-none"
+            :class="{ 'border-red-500': erroresValidacion.observaciones }"
             placeholder="Cualquier información adicional relevante"
           ></textarea>
           <p class="text-sm text-gray-500 text-right mt-1">
             {{ alergia.observaciones?.length || 0 }}/300 caracteres
           </p>
+          <div v-if="erroresValidacion.observaciones" class="mt-1">
+            <p v-for="error in erroresValidacion.observaciones" :key="error" class="text-red-600 text-sm">
+              {{ error }}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -236,10 +298,43 @@
               (En modo edición el medio de envío no se puede cambiar)
             </p>
           </div>
+          <div v-if="erroresValidacion.medio_envio" class="mt-1 text-center">
+            <p v-for="error in erroresValidacion.medio_envio" :key="error" class="text-red-600 text-sm">
+              {{ error }}
+            </p>
+          </div>
         </div>
         
         <div v-else class="text-center py-4">
           <p class="text-gray-500">Cargando información del dueño...</p>
+        </div>
+      </div>
+
+      <!-- Sección de errores de validación generales -->
+      <div v-if="mostrarErrores && Object.keys(erroresValidacion).length > 0" 
+          class="mt-6 p-4 bg-red-50 border-l-4 border-red-500">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800">
+              Problemas de validación
+            </h3>
+            <div class="mt-2 text-sm text-red-700">
+              <ul class="list-disc pl-5 space-y-1">
+                <li v-for="(erroresCampo, campo) in erroresValidacion" :key="campo">
+                  <template v-if="campo !== '_debug'">
+                    <span v-for="error in erroresCampo" :key="error" class="block">
+                      {{ error }}
+                    </span>
+                  </template>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -354,6 +449,10 @@ const errorCargandoMascota = ref(null)
 const hoy = new Date().toISOString().split('T')[0]
 const mostrarModal = ref(false)
 
+// Agrega estas variables reactivas para manejar errores
+const erroresValidacion = ref({})
+const mostrarErrores = ref(false)
+
 // Determinar si es edición o registro
 const esEdicion = computed(() => {
   return route.name === 'editarAlergia' || !!route.params.alergiaId
@@ -387,6 +486,57 @@ const alergia = reactive({
   observaciones: '',
   medio_envio: '',
 })
+
+// Función mejorada para mostrar errores de validación
+const mostrarErrorValidacion = (error) => {
+  console.log('🚨 Mostrando error de validación:', error)
+  mostrarErrores.value = true
+  
+  // Limpiar errores previos
+  erroresValidacion.value = {}
+  
+  // Verificar si es un error del servidor con estructura de validación Laravel (422)
+  if (error.response?.status === 422 && error.response.data?.errors) {
+    erroresValidacion.value = error.response.data.errors
+    
+    // Construir mensaje amigable para alerta
+    const erroresArray = []
+    for (const campo in error.response.data.errors) {
+      if (campo !== '_debug') {
+        const mensajes = error.response.data.errors[campo]
+        mensajes.forEach(mensaje => {
+          erroresArray.push(`• ${mensaje}`)
+        })
+      }
+    }
+    
+    // Mostrar alerta con mejor formato
+    const mensajeFinal = erroresArray.join('\n')
+    alert(`❌ Error de validación para alergia:\n\n${mensajeFinal}`)
+  } else if (error.message) {
+    // Si es un error genérico
+    erroresValidacion.value._general = [error.message]
+    alert(`❌ Error:\n\n• ${error.message}`)
+  } else {
+    // Error desconocido
+    erroresValidacion.value._general = ['Ocurrió un error desconocido']
+    alert('❌ Ocurrió un error desconocido')
+  }
+  
+  // Hacer scroll a la sección de errores
+  setTimeout(() => {
+    const errorSection = document.querySelector('.bg-red-50')
+    if (errorSection) {
+      errorSection.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, 100)
+}
+
+// Función para limpiar errores
+const limpiarErrores = () => {
+  erroresValidacion.value = {}
+  mostrarErrores.value = false
+}
 
 // Computed para validación del formulario
 const formularioValido = computed(() => {
@@ -634,6 +784,13 @@ const onTipoAlergiaChange = () => {
   const tipoSeleccionado = tiposAlergia.value.find(t => t.id == alergia.tipo_alergia_id)
   if (tipoSeleccionado) {
     console.log('Tipo de alergia seleccionado:', tipoSeleccionado)
+    // Limpiar errores del tipo de alergia cuando el usuario cambia la selección
+    if (erroresValidacion.value.tipo_alergia_id) {
+      delete erroresValidacion.value.tipo_alergia_id
+      if (Object.keys(erroresValidacion.value).length === 0) {
+        mostrarErrores.value = false
+      }
+    }
   }
 }
 
@@ -698,6 +855,9 @@ const registrarAlergia = async () => {
     procesando.value = true
     cerrarModal()
 
+    // Limpiar errores previos
+    limpiarErrores()
+
     console.log('📤 Enviando datos a servidor para registro:', alergia)
     console.log('📤 Mascota ID:', mascotaId.value)
 
@@ -732,12 +892,27 @@ const registrarAlergia = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejar específicamente el error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
 
     if (result.success) {
-      alert('✅ Alergia registrada exitosamente')
+      // Mostrar mensaje de éxito incluyendo información del envío si existe
+      let mensajeExito = '✅ Alergia registrada exitosamente'
+      if (result.data?.envio_exitoso === true) {
+        mensajeExito += ' y documento enviado'
+      } else if (result.data?.envio_exitoso === false) {
+        mensajeExito += ' (pero hubo un problema al enviar el documento)'
+      }
+      
+      alert(mensajeExito)
+      
       router.push({
         name: 'veterinario-alergias',
         params: { id: mascotaId.value },
@@ -748,11 +923,11 @@ const registrarAlergia = async () => {
         }
       })
     } else {
-      alert('Error al registrar la alergia: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al registrar la alergia' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al registrar la alergia: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
@@ -765,6 +940,9 @@ const actualizarAlergia = async () => {
   try {
     procesando.value = true
     cerrarModal()
+
+    // Limpiar errores previos
+    limpiarErrores()
 
     console.log('📤 Actualizando alergia con ID:', alergiaId.value)
     console.log('📤 Mascota ID:', mascotaId.value)
@@ -801,6 +979,12 @@ const actualizarAlergia = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejar específicamente el error 422 (Validación en actualización)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
@@ -818,11 +1002,11 @@ const actualizarAlergia = async () => {
         }
       })
     } else {
-      alert('Error al actualizar la alergia: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al actualizar la alergia' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al actualizar la alergia: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }

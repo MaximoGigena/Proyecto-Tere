@@ -10,7 +10,9 @@
     <h1 class="text-4xl font-bold mb-4">Registrar Usuario</h1>
 
     <!-- Modal de Confirmación -->
-    <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div v-if="showModal" 
+          data-testid="modal-confirmacion"
+          class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
         <h3 class="text-xl font-bold mb-4">Confirmar Registro</h3>
         <p class="mb-6">¿Estás seguro de que deseas registrar este usuario?</p>
@@ -74,6 +76,7 @@
             <label class="block font-medium">Nombre</label>
             <input
               v-model="usuario.nombre"
+              placeholder="Nombre del usuario" 
               type="text"
               required
               class="w-full border rounded p-2 focus:outline-none focus:ring"
@@ -85,6 +88,7 @@
             <input
               v-model="usuario.email"
               type="text"
+              placeholder="Email"
               required
               class="w-full border rounded p-2 focus:outline-none focus:ring"
             />

@@ -9,6 +9,58 @@
     <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Procedimiento Paliativo' : 'Registrar Procedimiento Paliativo' }}</h1>
 
     <form @submit.prevent="mostrarModalConfirmacion" class="space-y-4">
+      <!-- Sección de errores de validación -->
+      <div v-if="mostrarErrores && Object.keys(erroresValidacion).length > 0" 
+           class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <div class="ml-3 flex-1">
+            <h3 class="text-sm font-medium text-red-800">
+              Problemas de validación encontrados
+            </h3>
+            <div class="mt-2 text-sm text-red-700">
+              <ul class="list-disc pl-5 space-y-1">
+                <li v-for="(erroresCampo, campo) in erroresValidacion" :key="campo">
+                  <template v-if="campo !== '_debug'">
+                    <span v-for="error in erroresCampo" :key="error" class="block">
+                      {{ error }}
+                    </span>
+                  </template>
+                </li>
+              </ul>
+            </div>
+            
+            <!-- Advertencias (no son errores pero son importantes) -->
+            <div v-if="advertenciasValidacion.length > 0" class="mt-4 pt-4 border-t border-red-200">
+              <h4 class="text-sm font-medium text-amber-800 mb-2">Advertencias:</h4>
+              <ul class="list-disc pl-5 space-y-1">
+                <li v-for="advertencia in advertenciasValidacion" :key="advertencia" class="text-amber-700 text-sm">
+                  {{ advertencia }}
+                </li>
+              </ul>
+              <p class="text-xs text-amber-600 mt-2 italic">
+                Las advertencias no impiden el registro, pero es importante considerarlas.
+              </p>
+            </div>
+          </div>
+          
+          <!-- Botón para cerrar errores -->
+          <button 
+            @click="limpiarErrores"
+            class="ml-4 flex-shrink-0 text-red-500 hover:text-red-700"
+            type="button"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -28,15 +80,16 @@
                 required
                 class="w-full border rounded p-2"
                 @change="onTipoPaliativoChange"
+                :class="{ 'border-red-500': tieneError('tipo_procedimiento_id') }"
               >
                 <option value="">Seleccione un tipo de procedimiento</option>
-                  <option
-                    v-for="tipo in tiposProcedimiento || []"
-                    :key="tipo.id"
-                    :value="tipo.id"
-                  >
-                    {{ tipo.nombre }}
-                  </option>
+                <option
+                  v-for="tipo in tiposProcedimiento || []"
+                  :key="tipo.id"
+                  :value="tipo.id"
+                >
+                  {{ tipo.nombre }}
+                </option>
               </select>
 
               <!-- Botón de + Tipo -->
@@ -48,11 +101,23 @@
                 + Tipo
               </button>
             </div>
+            <p v-if="tieneError('tipo_procedimiento_id')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('tipo_procedimiento_id') }}
+            </p>
           </div>
 
           <div>
             <label class="block font-medium">Fecha de aplicación/inicio</label>
-            <input v-model="paliativo.fecha_inicio" type="datetime-local" required class="w-full border rounded p-2" />
+            <input 
+              v-model="paliativo.fecha_inicio" 
+              type="datetime-local" 
+              required 
+              class="w-full border rounded p-2"
+              :class="{ 'border-red-500': tieneError('fecha_inicio') }"
+            />
+            <p v-if="tieneError('fecha_inicio')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('fecha_inicio') }}
+            </p>
           </div>
 
           <!-- Centro Veterinario -->
@@ -64,6 +129,7 @@
               <div 
                 v-if="paliativo.centro_veterinario_id"
                 class="w-full border rounded p-2 bg-gray-50"
+                :class="{ 'border-red-500': tieneError('centro_veterinario_id') }"
               >
                 <div class="font-semibold">
                   {{ obtenerNombreCentroSeleccionado() }}
@@ -76,6 +142,7 @@
               <div 
                 v-else
                 class="w-full border rounded p-2 text-gray-400 italic"
+                :class="{ 'border-red-500': tieneError('centro_veterinario_id') }"
               >
                 Ningún centro veterinario seleccionado
               </div>
@@ -88,6 +155,9 @@
                 + Centro
               </button>
             </div>
+            <p v-if="tieneError('centro_veterinario_id')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('centro_veterinario_id') }}
+            </p>
           </div>
         </div>
 
@@ -95,7 +165,12 @@
         <div class="space-y-4">
           <div>
             <label class="block font-medium">Resultado/efecto observado</label>
-            <select v-model="paliativo.resultado" required class="w-full border rounded p-2">
+            <select 
+              v-model="paliativo.resultado" 
+              required 
+              class="w-full border rounded p-2"
+              :class="{ 'border-red-500': tieneError('resultado') }"
+            >
               <option value="">Seleccione una opción</option>
               <option value="mejoria">Mejoría evidente</option>
               <option value="alivio">Alivio parcial</option>
@@ -103,11 +178,19 @@
               <option value="sin_cambio">Sin cambios</option>
               <option value="empeoramiento">Empeoramiento</option>
             </select>
+            <p v-if="tieneError('resultado')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('resultado') }}
+            </p>
           </div>
 
           <div>
             <label class="block font-medium">Estado de la mascota</label>
-            <select v-model="paliativo.estado" required class="w-full border rounded p-2">
+            <select 
+              v-model="paliativo.estado_mascota" 
+              required 
+              class="w-full border rounded p-2"
+              :class="{ 'border-red-500': tieneError('estado') }"
+            >
               <option value="">Seleccione una opción</option>
               <option value="estable">Estable</option>
               <option value="dolor_controlado">Con dolor controlado</option>
@@ -115,6 +198,9 @@
               <option value="deterioro">En deterioro</option>
               <option value="critico">Crítico</option>
             </select>
+            <p v-if="tieneError('estado')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('estado') }}
+            </p>
           </div>
 
           <!-- Diagnóstico base -->
@@ -157,6 +243,9 @@
                 </div>
               </div>
             </div>
+            <p v-if="tieneError('diagnosticos')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('diagnosticos') }}
+            </p>
           </div>
         </div>
       </div>
@@ -196,6 +285,12 @@
               placeholder="Fecha de control"
             />
           </div>
+          <p v-if="tieneError('frecuencia_valor')" class="text-red-500 text-sm mt-1">
+            {{ obtenerErrorCampo('frecuencia_valor') }}
+          </p>
+          <p v-if="tieneError('frecuencia_unidad')" class="text-red-500 text-sm mt-1">
+            {{ obtenerErrorCampo('frecuencia_unidad') }}
+          </p>
         </div>
 
         <!-- Medicación complementaria con fármacos -->
@@ -350,6 +445,9 @@
               {{ obtenerNombreMedio(paliativo.medio_envio) }}
             </span>
           </div>
+          <p v-if="tieneError('medio_envio')" class="text-red-500 text-sm mt-1 text-center">
+            {{ obtenerErrorCampo('medio_envio') }}
+          </p>
         </div>
 
         <!-- Archivos adjuntos -->
@@ -402,6 +500,9 @@
             </div>
           </div>
           <p class="text-xs text-gray-500 mt-1">Puede adjuntar recetas, imágenes del medicamento, informes, etc.</p>
+          <p v-if="tieneError('archivos')" class="text-red-500 text-sm mt-1">
+            {{ obtenerErrorCampo('archivos') }}
+          </p>
         </div>
       </div>
 
@@ -458,6 +559,16 @@
         <h3 class="text-2xl font-bold mb-6 text-center text-gray-800">
           {{ esEdicion ? 'Confirmar Actualización' : 'Confirmar Registro' }} de Procedimiento Paliativo
         </h3>
+        
+        <!-- Advertencias en el modal -->
+        <div v-if="advertenciasValidacion.length > 0" class="mb-4 p-3 bg-amber-50 border-l-4 border-amber-500 rounded-r">
+          <h4 class="text-sm font-medium text-amber-800 mb-2">⚠️ Advertencias importantes:</h4>
+          <ul class="list-disc pl-5 space-y-1">
+            <li v-for="advertencia in advertenciasValidacion" :key="advertencia" class="text-amber-700 text-sm">
+              {{ advertencia }}
+            </li>
+          </ul>
+        </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <!-- Columna izquierda -->
@@ -617,9 +728,15 @@ const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
 const mostrarModal = ref(false) // NUEVO: estado para controlar el modal
 
+// Estados para manejo de errores (igual que en vacunas)
+const erroresValidacion = ref({})
+const mostrarErrores = ref(false)
+const advertenciasValidacion = ref([])
+
 // Diagnósticos seleccionados
 const diagnosticosSeleccionados = ref([])
 
+// Datos del formulario
 // Datos del formulario
 const paliativo = reactive({
   tipo_procedimiento_id: '',
@@ -627,7 +744,7 @@ const paliativo = reactive({
   centro_veterinario_id: '',
   diagnostico: '',
   resultado: '',
-  estado: '',
+  estado_mascota: '', // ← CAMBIA AQUÍ: 'estado' → 'estado_mascota'
   frecuencia_valor: '',
   frecuencia_unidad: 'dias',
   fecha_control: '',
@@ -646,7 +763,7 @@ const formularioValido = computed(() => {
   const camposObligatorios = paliativo.tipo_procedimiento_id && 
     paliativo.fecha_inicio && 
     paliativo.resultado && 
-    paliativo.estado
+    paliativo.estado_mascota
     
   // Para registro, el medio de envío es obligatorio
   if (!esEdicion.value) {
@@ -677,6 +794,60 @@ const diagnosticosSeleccionadosTexto = computed(() => {
 const usuarioId = computed(() => {
   return mascotaData.value?.usuario_id || null
 })
+
+// Métodos para manejo de errores (igual que en vacunas)
+const mostrarErrorValidacion = (error) => {
+  mostrarErrores.value = true
+  const erroresArray = []
+  
+  // Verificar si es un error del servidor con estructura de validación
+  if (error.response?.status === 422 && error.response.data?.errors) {
+    erroresValidacion.value = error.response.data.errors
+    
+    // Construir mensaje amigable
+    for (const campo in error.response.data.errors) {
+      const mensajes = error.response.data.errors[campo]
+      mensajes.forEach(mensaje => {
+        erroresArray.push(`• ${mensaje}`)
+      })
+    }
+    
+    // Extraer advertencias si existen (nuevo para paliativos)
+    if (error.response.data.warnings) {
+      advertenciasValidacion.value = error.response.data.warnings
+    }
+  } else if (error.message) {
+    // Si es un error genérico
+    erroresArray.push(`• ${error.message}`)
+  } else {
+    erroresArray.push('• Ocurrió un error desconocido')
+  }
+  
+  // Mostrar alerta con mejor formato
+  const mensajeFinal = erroresArray.join('\n')
+  
+  // Solo mostrar alerta si hay errores reales (no advertencias)
+  if (erroresArray.length > 0) {
+    alert(`❌ Error de validación:\n\n${mensajeFinal}`)
+  }
+}
+
+// Función para limpiar errores
+const limpiarErrores = () => {
+  erroresValidacion.value = {}
+  mostrarErrores.value = false
+  advertenciasValidacion.value = []
+}
+
+// Función para verificar si un campo tiene error
+const tieneError = (campo) => {
+  return mostrarErrores.value && erroresValidacion.value[campo]
+}
+
+// Función para obtener el primer error de un campo
+const obtenerErrorCampo = (campo) => {
+  return erroresValidacion.value[campo]?.[0] || ''
+}
 
 // Métodos para manejar fármacos
 const agregarFarmaco = (farmacoData) => {
@@ -747,7 +918,6 @@ const obtenerNombreCentroSeleccionado = () => {
   })
   return centro ? centro.nombre : 'Centro no encontrado'
 }
-
 
 // Obtener texto del resultado
 const obtenerTextoResultado = () => {
@@ -824,8 +994,6 @@ const cargarDatosMascota = async () => {
     errorCargandoMascota.value = error.message
   }
 }
-
-
 
 // Cargar tipos de procedimiento paliativo
 const cargarTiposProcedimiento = async () => {
@@ -921,11 +1089,6 @@ const cargarPaliativoExistente = async () => {
   try {
     console.log('🔄 Cargando datos de procedimiento paliativo con ID:', paliativoId.value)
     console.log('📌 Mascota ID:', mascotaId)
-    console.log('🔄 Cargando datos de procedimiento paliativo con ID:', paliativoId.value)
-    console.log('📌 Mascota ID:', mascotaId)
-    console.log('🔗 URL completa:', `/api/mascotas/${mascotaId}/paliativos/${paliativoId.value}`)
-    console.log('🔐 Token disponible:', !!accessToken.value)
-    
     
     const response = await fetch(`/api/mascotas/${mascotaId}/paliativos/${paliativoId.value}`, {
       headers: {
@@ -944,26 +1107,15 @@ const cargarPaliativoExistente = async () => {
     if (result.success && result.data) {
       const datosPaliativo = result.data
       
-      // VERIFICAR la estructura de los datos recibidos
-      console.log('🔍 Estructura de datos recibidos:', {
-        datosPaliativo,
-        tieneTipoPaliativo: datosPaliativo.tipo_paliativo,
-        tieneProcesoMedico: datosPaliativo.proceso_medico,
-        tieneCentroVeterinario: datosPaliativo.proceso_medico?.centro_veterinario,
-        tieneDiagnosticos: datosPaliativo.diagnosticos_asociados,
-        tieneEstado: datosPaliativo.estado_mascota
-      })
-      
       // Actualizar el objeto paliativo con los datos existentes
       // IMPORTANTE: Usar los nombres correctos de campos
       Object.assign(paliativo, {
         tipo_procedimiento_id: datosPaliativo.tipo_paliativo_id || datosPaliativo.tipo_procedimiento_id,
         fecha_inicio: datosPaliativo.fecha_inicio ? 
           datosPaliativo.fecha_inicio.replace('T', ' ').substring(0, 16) : '',
-        // El centro veterinario está en proceso_medico, no directamente en paliativo
         centro_veterinario_id: datosPaliativo.proceso_medico?.centro_veterinario_id || datosPaliativo.centro_veterinario_id,
         resultado: datosPaliativo.resultado,
-        estado: datosPaliativo.estado_mascota || datosPaliativo.estado, // ❗ Importante: usar estado_mascota
+        estado: datosPaliativo.estado_mascota || datosPaliativo.estado,
         frecuencia_valor: datosPaliativo.frecuencia_valor || '',
         frecuencia_unidad: datosPaliativo.frecuencia_unidad || 'dias',
         fecha_control: datosPaliativo.fecha_control?.split('T')[0] || '',
@@ -977,15 +1129,12 @@ const cargarPaliativoExistente = async () => {
       
       // Cargar diagnósticos asociados
       if (datosPaliativo.diagnosticos_asociados && Array.isArray(datosPaliativo.diagnosticos_asociados)) {
-        // Transformar la estructura si es necesario
         diagnosticosSeleccionados.value = datosPaliativo.diagnosticos_asociados.map(d => ({
           id: d.diagnostico_id || d.id,
           nombre: d.nombre || d.diagnostico_nombre,
-          type: d.diagnostico_type || 'tipo' // Ajustar según tu estructura
+          type: d.diagnostico_type || 'tipo'
         }))
         console.log('✅ Diagnosticos cargados:', diagnosticosSeleccionados.value)
-      } else {
-        console.log('⚠️ No hay diagnósticos asociados en la respuesta')
       }
       
       // Cargar fármacos asociados
@@ -1016,7 +1165,6 @@ const onTipoPaliativoChange = () => {
 const abrirOverlayCentros = () => {
   mostrarOverlayCentros.value = true
 }
-
 
 // Seleccionar centro desde overlay
 const seleccionarCentro = (centro) => {
@@ -1078,10 +1226,13 @@ const registrarPaliativo = async () => {
   try {
     procesando.value = true
     cerrarModal()
+    
+    // Limpiar errores previos
+    limpiarErrores()
 
     // Validar que se seleccionó un medio de envío
     if (!paliativo.medio_envio) {
-      alert('Por favor seleccione un medio de envío para el informe')
+      mostrarErrorValidacion({ message: 'Por favor seleccione un medio de envío para el informe' })
       procesando.value = false
       return
     }
@@ -1089,6 +1240,7 @@ const registrarPaliativo = async () => {
     // Preparar datos para enviar
     const datosPaliativo = {
       ...paliativo,
+      estado: paliativo.estado_mascota,
       diagnosticos: diagnosticosSeleccionados.value.map(d => ({
         id: d.id,
         type: d.type === 'pet' 
@@ -1137,11 +1289,28 @@ const registrarPaliativo = async () => {
       throw new Error('El servidor no devolvió JSON válido. Respuesta: ' + responseText.substring(0, 100))
     }
 
+    // Manejar específicamente el error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      procesando.value = false
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
 
     if (result.success) {
+      // Mostrar mensaje de éxito incluyendo información del envío si existe
+      let mensajeExito = '✅ Procedimiento paliativo registrado exitosamente'
+      if (result.data?.envio_exitoso === true) {
+        mensajeExito += ' y certificado enviado'
+      } else if (result.data?.envio_exitoso === false) {
+        mensajeExito += ' (pero hubo un problema al enviar el certificado)'
+      }
+      
+      alert(mensajeExito)
+      
       router.push({
         name: 'veterinario-paliativos',
         params: { id: mascotaId },
@@ -1152,11 +1321,11 @@ const registrarPaliativo = async () => {
         }
       })
     } else {
-      alert('Error al registrar el procedimiento paliativo: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al registrar el procedimiento paliativo' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al registrar el procedimiento paliativo: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
@@ -1223,6 +1392,13 @@ const actualizarPaliativo = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejar específicamente el error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      procesando.value = false
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
@@ -1245,11 +1421,11 @@ const actualizarPaliativo = async () => {
         router.push({ name: 'veterinario-paliativos', params: { id: '0' } })
       }
     } else {
-      alert('Error al actualizar el procedimiento: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al actualizar el procedimiento' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al actualizar el procedimiento: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }

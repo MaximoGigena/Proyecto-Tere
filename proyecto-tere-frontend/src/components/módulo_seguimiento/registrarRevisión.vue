@@ -1,4 +1,4 @@
-<!-- RegistrarRevision.vue - Versión final con modal de confirmación EXACTO como vacunas -->
+<!-- RegistrarRevision.vue - Versión final con manejo de errores como vacunas -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -7,7 +7,7 @@
   </div>
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <!-- TÍTULO DINÁMICO EXACTO COMO EN VACUNAS -->
+    <!-- TÍTULO DINÁMICO -->
     <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Revisión Médica' : 'Registrar Revisión Médica' }}</h1>
 
     <form @submit.prevent="procesarFormulario" class="space-y-4">
@@ -30,6 +30,7 @@
                 required
                 class="w-full border rounded p-2"
                 @change="onTipoRevisionChange"
+                :class="{ 'border-red-500': erroresValidacion.tipo_revision_id }"
               >
                 <option value="">Seleccione un tipo de revisión</option>
                 <option
@@ -50,6 +51,12 @@
                 + Tipo 
               </button>
             </div>
+            <!-- Mostrar error específico para tipo_revision_id -->
+            <div v-if="erroresValidacion.tipo_revision_id" class="text-red-600 text-sm mt-1">
+              <span v-for="error in erroresValidacion.tipo_revision_id" :key="error" class="block">
+                {{ error }}
+              </span>
+            </div>
           </div>
 
           <!-- Centro Veterinario -->
@@ -61,6 +68,7 @@
               <div 
                 v-if="revision.centro_veterinario_id"
                 class="w-full border rounded p-2 bg-gray-50"
+                :class="{ 'border-red-500': erroresValidacion.centro_veterinario_id }"
               >
                 <div class="font-semibold">
                   {{ obtenerNombreCentroSeleccionado() }}
@@ -73,6 +81,7 @@
               <div 
                 v-else
                 class="w-full border rounded p-2 text-gray-400 italic"
+                :class="{ 'border-red-500': erroresValidacion.centro_veterinario_id }"
               >
                 Ningún centro veterinario seleccionado
               </div>
@@ -85,6 +94,12 @@
                 + Centro
               </button>
             </div>
+            <!-- Mostrar error específico para centro_veterinario_id -->
+            <div v-if="erroresValidacion.centro_veterinario_id" class="text-red-600 text-sm mt-1">
+              <span v-for="error in erroresValidacion.centro_veterinario_id" :key="error" class="block">
+                {{ error }}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -96,8 +111,15 @@
               v-model="revision.fecha_revision" 
               type="datetime-local" 
               required 
-              class="w-full border rounded p-2" 
+              class="w-full border rounded p-2"
+              :class="{ 'border-red-500': erroresValidacion.fecha_revision }"
             />
+            <!-- Mostrar error específico para fecha_revision -->
+            <div v-if="erroresValidacion.fecha_revision" class="text-red-600 text-sm mt-1">
+              <span v-for="error in erroresValidacion.fecha_revision" :key="error" class="block">
+                {{ error }}
+              </span>
+            </div>
           </div>
 
           <div>
@@ -106,12 +128,19 @@
               v-model="revision.nivel_urgencia" 
               required 
               class="w-full border rounded p-2"
+              :class="{ 'border-red-500': erroresValidacion.nivel_urgencia }"
             >
               <option value="rutinaria">Rutinaria</option>
               <option value="preventiva">Preventiva</option>
               <option value="urgencia">Urgencia</option>
               <option value="emergencia">Emergencia</option>
             </select>
+            <!-- Mostrar error específico para nivel_urgencia -->
+            <div v-if="erroresValidacion.nivel_urgencia" class="text-red-600 text-sm mt-1">
+              <span v-for="error in erroresValidacion.nivel_urgencia" :key="error" class="block">
+                {{ error }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -129,8 +158,15 @@
           <input 
             v-model="revision.motivo_consulta" 
             type="text" 
-            class="w-full border rounded p-2" 
+            class="w-full border rounded p-2"
+            :class="{ 'border-red-500': erroresValidacion.motivo_consulta }"
           />
+          <!-- Mostrar error específico para motivo_consulta -->
+          <div v-if="erroresValidacion.motivo_consulta" class="text-red-600 text-sm mt-1">
+            <span v-for="error in erroresValidacion.motivo_consulta" :key="error" class="block">
+              {{ error }}
+            </span>
+          </div>
         </div>
 
         <div>
@@ -141,7 +177,8 @@
               <input 
                 v-model="revision.diagnostico" 
                 type="text" 
-                class="w-full border rounded p-2" 
+                class="w-full border rounded p-2"
+                :class="{ 'border-red-500': erroresValidacion.diagnostico }"
                 placeholder="Diagnóstico identificado (texto libre)" 
               />
               <button 
@@ -151,6 +188,12 @@
               >
                 + Asociar Diagnóstico
               </button>
+            </div>
+            <!-- Mostrar error específico para diagnostico -->
+            <div v-if="erroresValidacion.diagnostico" class="text-red-600 text-sm mt-1">
+              <span v-for="error in erroresValidacion.diagnostico" :key="error" class="block">
+                {{ error }}
+              </span>
             </div>
             
             <!-- Mostrar diagnósticos seleccionados -->
@@ -206,8 +249,15 @@
           <input 
             v-model="revision.fecha_proxima_revision" 
             type="date" 
-            class="w-full border rounded p-2" 
+            class="w-full border rounded p-2"
+            :class="{ 'border-red-500': erroresValidacion.fecha_proxima_revision }"
           />
+          <!-- Mostrar error específico para fecha_proxima_revision -->
+          <div v-if="erroresValidacion.fecha_proxima_revision" class="text-red-600 text-sm mt-1">
+            <span v-for="error in erroresValidacion.fecha_proxima_revision" :key="error" class="block">
+              {{ error }}
+            </span>
+          </div>
         </div>
 
         <div class="col-span-full">
@@ -217,8 +267,15 @@
             rows="3" 
             maxlength="500" 
             class="w-full border rounded p-2 resize-none"
+            :class="{ 'border-red-500': erroresValidacion.indicaciones_medicas }"
           ></textarea>
           <p class="text-sm text-gray-500 text-right mt-1">{{ revision.indicaciones_medicas.length }}/500 caracteres</p>
+          <!-- Mostrar error específico para indicaciones_medicas -->
+          <div v-if="erroresValidacion.indicaciones_medicas" class="text-red-600 text-sm mt-1">
+            <span v-for="error in erroresValidacion.indicaciones_medicas" :key="error" class="block">
+              {{ error }}
+            </span>
+          </div>
         </div>
 
         <div class="col-span-full">
@@ -228,8 +285,15 @@
             rows="3" 
             maxlength="500" 
             class="w-full border rounded p-2 resize-none"
+            :class="{ 'border-red-500': erroresValidacion.recomendaciones_tutor }"
           ></textarea>
           <p class="text-sm text-gray-500 text-right mt-1">{{ revision.recomendaciones_tutor.length }}/500 caracteres</p>
+          <!-- Mostrar error específico para recomendaciones_tutor -->
+          <div v-if="erroresValidacion.recomendaciones_tutor" class="text-red-600 text-sm mt-1">
+            <span v-for="error in erroresValidacion.recomendaciones_tutor" :key="error" class="block">
+              {{ error }}
+            </span>
+          </div>
         </div>
 
         <!-- Archivos adjuntos -->
@@ -281,13 +345,19 @@
               </div>
             </div>
           </div>
+          <!-- Mostrar error específico para archivos -->
+          <div v-if="erroresValidacion.archivos" class="text-red-600 text-sm mt-1">
+            <span v-for="error in erroresValidacion.archivos" :key="error" class="block">
+              {{ error }}
+            </span>
+          </div>
           <p class="text-xs text-gray-500 mt-1">Puede adjuntar recetas, imágenes del medicamento, informes, etc.</p>
         </div>
 
         <!-- Selección del medio de envío -->
         <div class="col-span-full mt-4">
           <div v-if="usuarioId">
-            <!-- CARRUSEL CON MODO EDICIÓN EXACTO COMO EN VACUNAS -->
+            <!-- CARRUSEL CON MODO EDICIÓN -->
             <CarruselMedioEnvio 
               :usuario-id="usuarioId" 
               :modo-edicion="esEdicion"
@@ -302,15 +372,49 @@
               <span class="ml-1 text-blue-600 font-medium">
                 {{ obtenerNombreMedio(revision.medio_envio) }}
               </span>
-              <!-- TEXTO DE MODO EDICIÓN EXACTO COMO EN VACUNAS -->
+              <!-- TEXTO DE MODO EDICIÓN -->
               <p v-if="esEdicion" class="text-sm text-gray-500 mt-1">
                 (En modo edición el medio de envío no se puede cambiar)
               </p>
+            </div>
+            <!-- Mostrar error específico para medio_envio -->
+            <div v-if="erroresValidacion.medio_envio" class="text-red-600 text-sm mt-1 text-center">
+              <span v-for="error in erroresValidacion.medio_envio" :key="error" class="block">
+                {{ error }}
+              </span>
             </div>
           </div>
           
           <div v-else class="text-center py-4">
             <p class="text-gray-500">Cargando información del dueño...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección de errores de validación (COMO EN VACUNAS) -->
+      <div v-if="mostrarErrores && Object.keys(erroresValidacion).length > 0" 
+          class="mt-6 p-4 bg-red-50 border-l-4 border-red-500">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800">
+              Problemas de validación
+            </h3>
+            <div class="mt-2 text-sm text-red-700">
+              <ul class="list-disc pl-5 space-y-1">
+                <li v-for="(erroresCampo, campo) in erroresValidacion" :key="campo">
+                  <template v-if="campo !== '_debug'">
+                    <span v-for="error in erroresCampo" :key="error" class="block">
+                      {{ error }}
+                    </span>
+                  </template>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -329,7 +433,7 @@
           :disabled="procesando || !formularioValido"
           class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300"
         >
-          <!-- TEXTO DINÁMICO DEL BOTÓN EXACTO COMO EN VACUNAS -->
+          <!-- TEXTO DINÁMICO DEL BOTÓN -->
           {{ procesando ? 'Procesando...' : (esEdicion ? 'Actualizar Revisión' : 'Registrar Revisión') }}
         </button>
       </div>
@@ -355,10 +459,10 @@
       @guardar="guardarDiagnosticosSeleccionados"
     />
 
-    <!-- Modal de confirmación EXACTO COMO EN VACUNAS -->
+    <!-- Modal de confirmación -->
     <div v-if="mostrarModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <!-- TÍTULO DINÁMICO DEL MODAL EXACTO COMO EN VACUNAS -->
+        <!-- TÍTULO DINÁMICO DEL MODAL -->
         <h3 class="text-xl font-bold mb-4">
           {{ esEdicion ? 'Confirmar Actualización' : 'Confirmar Registro' }}
         </h3>
@@ -397,7 +501,7 @@
           >
             Cancelar
           </button>
-          <!-- BOTÓN DINÁMICO DEL MODAL EXACTO COMO EN VACUNAS -->
+          <!-- BOTÓN DINÁMICO DEL MODAL -->
           <button
             @click="confirmarAccion"
             :disabled="procesando"
@@ -419,7 +523,7 @@ import CarruselMedioEnvio from '@/components/ElementosGraficos/CarruselMedioEnvi
 import SeleccionarDiagnostico from '@/components/ElementosGraficos/SeleccionarDiagnostico.vue'
 import { useAuth } from '@/composables/useAuth'
 
-// PROPS EXACTO COMO EN VACUNAS
+// PROPS
 const props = defineProps({
   revisionId: {
     type: [String, Number],
@@ -431,7 +535,7 @@ const router = useRouter()
 const route = useRoute()
 const { accessToken, isAuthenticated, checkAuth } = useAuth()
 
-// Estados reactivos - EXACTO como en vacunas
+// Estados reactivos - AGREGAMOS MANEJO DE ERRORES
 const tiposRevision = ref([])
 const centrosVeterinarios = ref([])
 const mostrarOverlayCentros = ref(false)
@@ -442,12 +546,16 @@ const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
 const mostrarModal = ref(false)
 
-// DETERMINAR SI ES EDICIÓN O REGISTRO EXACTO COMO EN VACUNAS
+// AÑADIMOS ESTOS ESTADOS PARA MANEJO DE ERRORES (IGUAL QUE VACUNAS)
+const erroresValidacion = ref({})
+const mostrarErrores = ref(false)
+
+// DETERMINAR SI ES EDICIÓN O REGISTRO
 const esEdicion = computed(() => {
   return route.name === 'editarRevision' || !!route.params.revisionId || !!props.revisionId
 })
 
-// OBTENER IDS EXACTO COMO EN VACUNAS
+// OBTENER IDS
 const revisionId = computed(() => {
   return props.revisionId || route.params.revisionId || null
 })
@@ -456,14 +564,7 @@ const mascotaId = computed(() => {
   return route.query.mascotaId || route.params.mascotaId || null
 })
 
-console.log('🔍 Route params:', route.params)
-console.log('🔍 Route query:', route.query)
-console.log('🔍 Es edición:', esEdicion.value)
-console.log('🔍 Revisión ID:', revisionId.value)
-console.log('🔍 Mascota ID:', mascotaId.value)
-
-
-// Datos del formulario - AGREGA observaciones
+// Datos del formulario
 const revision = reactive({
   tipo_revision_id: '',
   fecha_revision: '',
@@ -476,7 +577,8 @@ const revision = reactive({
   centro_veterinario_id: '',
   medio_envio: '',
   diagnosticos_ids: [],
-  observaciones: '',  // ← AÑADE ESTO
+  observaciones: '',
+  costo: null,
 })
 
 const archivos = ref(Array.from({ length: 6 }, () => ({
@@ -486,32 +588,67 @@ const archivos = ref(Array.from({ length: 6 }, () => ({
 
 const inputsArchivo = ref([])
 
-// Computed para validación del formulario - EXACTO como en vacunas
+// Computed para validación del formulario
 const formularioValido = computed(() => {
   const camposObligatorios = revision.tipo_revision_id && 
     revision.fecha_revision && 
     revision.nivel_urgencia
     
-  // Para registro, el medio de envío es obligatorio
-  // Para edición, solo los campos básicos son obligatorios EXACTO COMO EN VACUNAS
   if (!esEdicion.value) {
     return camposObligatorios && revision.medio_envio
   }
   
-  // Para edición, solo los campos básicos son obligatorios
   return camposObligatorios
 })
 
-// Obtener ID del usuario dueño de la mascota - EXACTO como en vacunas
+// Obtener ID del usuario dueño de la mascota
 const usuarioId = computed(() => {
   return mascotaData.value?.usuario_id || null
 })
 
-// Funciones auxiliares - EXACTO como en vacunas
-const guardarDiagnosticosSeleccionados = (diagnosticos) => {
-  console.log('💾 Guardando diagnósticos seleccionados:', diagnosticos)
+// ==================== FUNCIONES PARA MANEJO DE ERRORES (IGUAL QUE VACUNAS) ====================
+const mostrarErrorValidacion = (error) => {
+  mostrarErrores.value = true
+  const erroresArray = []
   
-  // Normalizar los datos para asegurar consistencia
+  // Limpiar errores previos
+  erroresValidacion.value = {}
+  
+  // Verificar si es un error del servidor con estructura de validación
+  if (error.response?.status === 422 && error.response.data?.errors) {
+    erroresValidacion.value = error.response.data.errors
+    
+    // Construir mensaje amigable
+    for (const campo in error.response.data.errors) {
+      const mensajes = error.response.data.errors[campo]
+      mensajes.forEach(mensaje => {
+        erroresArray.push(`• ${mensaje}`)
+      })
+    }
+  } else if (error.message) {
+    // Si es un error genérico
+    erroresArray.push(`• ${error.message}`)
+  } else {
+    erroresArray.push('• Ocurrió un error desconocido')
+  }
+  
+  // Mostrar alerta con mejor formato
+  const mensajeFinal = erroresArray.join('\n')
+  alert(`❌ Error de validación:\n\n${mensajeFinal}`)
+}
+
+const limpiarErrores = () => {
+  erroresValidacion.value = {}
+  mostrarErrores.value = false
+}
+
+// Función para obtener mensajes de error de un campo específico
+const obtenerErroresCampo = (campo) => {
+  return erroresValidacion.value[campo] || []
+}
+
+// ==================== FUNCIONES AUXILIARES ====================
+const guardarDiagnosticosSeleccionados = (diagnosticos) => {
   diagnosticosSeleccionados.value = diagnosticos.map(d => ({
     id: d.id,
     nombre: d.nombre || d.diagnostico_nombre || 'Diagnóstico sin nombre',
@@ -528,14 +665,9 @@ const guardarDiagnosticosSeleccionados = (diagnosticos) => {
   }
   
   mostrarSeleccionDiagnostico.value = false
-  
-  console.log('✅ Diagnósticos guardados:', diagnosticosSeleccionados.value)
-  console.log('📋 IDs asignados:', revision.diagnosticos_ids)
 }
 
 const eliminarDiagnostico = (index) => {
-  console.log('🗑️ Eliminando diagnóstico en índice:', index)
-  
   diagnosticosSeleccionados.value.splice(index, 1)
   revision.diagnosticos_ids = diagnosticosSeleccionados.value.map(d => d.id)
   
@@ -544,9 +676,6 @@ const eliminarDiagnostico = (index) => {
   } else {
     revision.diagnostico = ''
   }
-  
-  console.log('✅ Diagnósticos actuales:', diagnosticosSeleccionados.value)
-  console.log('📋 IDs actualizados:', revision.diagnosticos_ids)
 }
 
 const getEvolutionLabel = (evolution) => {
@@ -607,17 +736,14 @@ const formatFecha = (fecha) => {
   return new Date(fecha).toLocaleDateString('es-ES')
 }
 
-// Cargar datos de la mascota - EXACTO como en vacunas
+// ==================== FUNCIONES DE CARGA DE DATOS ====================
 const cargarDatosMascota = async () => {
   try {
-    console.log('🔄 Cargando datos de mascota con ID:', mascotaId.value)
-    
     if (!mascotaId.value) {
       console.warn('⚠️ No hay mascotaId para cargar datos')
       return
     }
     
-    // ✅ CORRECCIÓN: Usa la ruta correcta para obtener mascota
     const response = await fetch(`/api/mascotas/${mascotaId.value}`, {
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
@@ -630,15 +756,11 @@ const cargarDatosMascota = async () => {
     }
 
     const result = await response.json()
-    console.log('📦 Respuesta completa de mascota:', result)
     
     if (result.success && result.data) {
       mascotaData.value = result.data
-      console.log('✅ Datos de mascota cargados:', mascotaData.value)
-      console.log('👤 Usuario ID encontrado:', mascotaData.value.usuario_id)
       errorCargandoMascota.value = null
     } else {
-      console.warn('❌ No se encontraron datos de mascota:', result)
       mascotaData.value = null
       errorCargandoMascota.value = result.message || 'Error al cargar datos de la mascota'
     }
@@ -649,7 +771,6 @@ const cargarDatosMascota = async () => {
   }
 }
 
-// Cargar tipos de revisión - EXACTO como en vacunas
 const cargarTiposRevision = async () => {
   try {
     const response = await fetch('/api/tipos-revision', {
@@ -667,9 +788,7 @@ const cargarTiposRevision = async () => {
     
     if (result.success && result.data) {
       tiposRevision.value = result.data
-      console.log('🩺 Tipos de revisión cargados:', tiposRevision.value.length)
     } else {
-      console.warn('No se encontraron tipos de revisión:', result)
       tiposRevision.value = []
     }
   } catch (error) {
@@ -678,7 +797,6 @@ const cargarTiposRevision = async () => {
   }
 }
 
-// Cargar centros veterinarios - EXACTO como en vacunas
 const cargarCentrosVeterinarios = async () => {
   try {
     const response = await fetch('/api/centros-veterinarios', {
@@ -694,24 +812,18 @@ const cargarCentrosVeterinarios = async () => {
 
     const result = await response.json()
     centrosVeterinarios.value = result.data || []
-    console.log('🏥 Centros veterinarios cargados:', centrosVeterinarios.value.length)
   } catch (error) {
     console.error('Error cargando centros veterinarios:', error)
     alert('Error al cargar los centros veterinarios')
   }
 }
 
-// Agrega esta función para cargar detalles de diagnósticos por sus IDs
 const cargarDetallesDiagnosticos = async (diagnosticosIds) => {
   if (!diagnosticosIds || diagnosticosIds.length === 0) {
-    console.log('ℹ️ No hay IDs de diagnósticos para cargar')
     return
   }
   
   try {
-    console.log('🔍 Cargando detalles de diagnósticos con IDs:', diagnosticosIds)
-    
-    // Hacer una petición para obtener detalles de estos diagnósticos
     const response = await fetch(`/api/diagnosticos?ids=${diagnosticosIds.join(',')}`, {
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
@@ -722,9 +834,6 @@ const cargarDetallesDiagnosticos = async (diagnosticosIds) => {
     if (response.ok) {
       const result = await response.json()
       if (result.success && result.data && Array.isArray(result.data)) {
-        console.log('📦 Datos de diagnósticos recibidos:', result.data)
-        
-        // Mapear los diagnósticos al formato esperado
         diagnosticosSeleccionados.value = result.data.map(d => ({
           id: d.id,
           nombre: d.nombre || 'Diagnóstico',
@@ -732,16 +841,10 @@ const cargarDetallesDiagnosticos = async (diagnosticosIds) => {
           evolucion: d.evolucion || 'aguda'
         }))
         
-        console.log('✅ Detalles de diagnósticos cargados:', diagnosticosSeleccionados.value)
-        
-        // Actualizar el campo de texto con los nombres concatenados
         if (diagnosticosSeleccionados.value.length > 0) {
           revision.diagnostico = diagnosticosSeleccionados.value.map(d => d.nombre).join(', ')
         }
       } else {
-        console.warn('⚠️ No se pudieron cargar detalles de diagnósticos:', result)
-        
-        // Si no podemos cargar los detalles, al menos mostrar los IDs como placeholder
         diagnosticosSeleccionados.value = diagnosticosIds.map(id => ({
           id: id,
           nombre: `Diagnóstico #${id}`,
@@ -750,9 +853,6 @@ const cargarDetallesDiagnosticos = async (diagnosticosIds) => {
         }))
       }
     } else {
-      console.warn('⚠️ Error al cargar detalles de diagnósticos:', response.status)
-      
-      // Crear placeholders con los IDs
       diagnosticosSeleccionados.value = diagnosticosIds.map(id => ({
         id: id,
         nombre: `Diagnóstico #${id}`,
@@ -762,8 +862,6 @@ const cargarDetallesDiagnosticos = async (diagnosticosIds) => {
     }
   } catch (error) {
     console.error('❌ Error cargando detalles de diagnósticos:', error)
-    
-    // Crear placeholders con los IDs
     diagnosticosSeleccionados.value = diagnosticosIds.map(id => ({
       id: id,
       nombre: `Diagnóstico #${id}`,
@@ -773,151 +871,7 @@ const cargarDetallesDiagnosticos = async (diagnosticosIds) => {
   }
 }
 
-// CARGAR REVISIÓN EXISTENTE CORREGIDA
-const cargarRevisionExistente = async () => {
-  if (!revisionId.value || !mascotaId.value) {
-    console.error('❌ No hay revisionId o mascotaId para cargar datos')
-    return
-  }
-  
-  try {
-    console.log('🔄 Cargando datos de revisión con ID:', revisionId.value)
-    console.log('🔄 Mascota ID:', mascotaId.value)
-    
-    const response = await fetch(`/api/mascotas/${mascotaId.value}/revisiones/${revisionId.value}`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken.value}`,
-        'Accept': 'application/json'
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`)
-    }
-
-    const result = await response.json()
-    console.log('📦 Respuesta COMPLETA de revisión:', result)
-    
-    if (result.success && result.data) {
-      const datosRevision = result.data
-      
-      console.log('🔍 DEBUG - Estructura DETALLADA de datosRevision:', JSON.stringify(datosRevision, null, 2))
-      
-      // ✅ ASIGNAR TODOS LOS CAMPOS CORRECTAMENTE
-      Object.assign(revision, {
-        tipo_revision_id: datosRevision.tipo_revision_id || '',
-        fecha_revision: datosRevision.fecha_revision ? formatDateTimeForInput(datosRevision.fecha_revision) : '',
-        nivel_urgencia: datosRevision.nivel_urgencia || 'rutinaria',
-        motivo_consulta: datosRevision.motivo_consulta || '',
-        diagnostico: datosRevision.diagnostico || '',
-        fecha_proxima_revision: datosRevision.fecha_proxima_revision ? datosRevision.fecha_proxima_revision.split('T')[0] : '',
-        indicaciones_medicas: datosRevision.indicaciones_medicas || '',
-        recomendaciones_tutor: datosRevision.recomendaciones_tutor || '',
-        centro_veterinario_id: datosRevision.centro_veterinario_id || '',
-        observaciones: datosRevision.observaciones || '',
-        costo: datosRevision.costo || null,
-        medio_envio: datosRevision.medio_envio || '',
-        diagnosticos_ids: datosRevision.diagnosticos_ids || []
-      })
-      
-      console.log('📝 Datos básicos asignados a formulario:', revision)
-      
-      // ✅ IMPORTANTE: Siempre limpiar el array de diagnósticos seleccionados
-      diagnosticosSeleccionados.value = []
-      
-      // ✅ ESTRATEGIA 1: Verificar si hay diagnósticos en diferentes propiedades
-      let diagnosticosEncontrados = null
-      
-      // Buscar en diferentes propiedades posibles
-      if (datosRevision.diagnosticos && Array.isArray(datosRevision.diagnosticos)) {
-        diagnosticosEncontrados = datosRevision.diagnosticos
-      } else if (datosRevision.diagnosticos_relacionados) {
-        diagnosticosEncontrados = datosRevision.diagnosticos_relacionados
-      } else if (datosRevision.diagnosticos_associados) {
-        diagnosticosEncontrados = datosRevision.diagnosticos_associados
-      } else if (datosRevision.diagnosticos_data) {
-        diagnosticosEncontrados = datosRevision.diagnosticos_data
-      }
-      
-      if (diagnosticosEncontrados && Array.isArray(diagnosticosEncontrados) && diagnosticosEncontrados.length > 0) {
-        console.log('🩺 Diagnosticos encontrados en propiedad:', diagnosticosEncontrados)
-        
-        // Mapear los diagnósticos al formato que espera el componente
-        diagnosticosSeleccionados.value = diagnosticosEncontrados.map(d => ({
-          id: d.id || d.diagnostico_id || null,
-          nombre: d.nombre || d.diagnostico_nombre || 'Diagnóstico sin nombre',
-          tipo: d.tipo || d.diagnostico_tipo || d.type || 'general',
-          evolucion: d.evolucion || d.diagnostico_evolucion || 'aguda'
-        }))
-        
-        console.log('✅ Diagnósticos mapeados:', diagnosticosSeleccionados.value)
-        
-        // Actualizar diagnosticos_ids
-        revision.diagnosticos_ids = diagnosticosSeleccionados.value
-          .filter(d => d.id)
-          .map(d => d.id)
-          
-      } else if (datosRevision.diagnosticos_ids && Array.isArray(datosRevision.diagnosticos_ids) && datosRevision.diagnosticos_ids.length > 0) {
-        // ✅ ESTRATEGIA 2: Si hay IDs pero no datos completos, cargar los detalles
-        console.log('🆔 IDs de diagnósticos encontrados:', datosRevision.diagnosticos_ids)
-        revision.diagnosticos_ids = datosRevision.diagnosticos_ids
-        
-        // Cargar detalles de los diagnósticos por sus IDs
-        await cargarDetallesDiagnosticos(datosRevision.diagnosticos_ids)
-        
-      } else if (datosRevision.diagnostico && datosRevision.diagnostico.trim() !== '') {
-        // ✅ ESTRATEGIA 3: Si hay texto en el campo diagnóstico, crear un diagnóstico "manual"
-        console.log('📝 Texto de diagnóstico encontrado:', datosRevision.diagnostico)
-        
-        // Si el texto contiene comas, son múltiples diagnósticos
-        const diagnosticosTexto = datosRevision.diagnostico.split(',').map(d => d.trim()).filter(d => d)
-        
-        diagnosticosSeleccionados.value = diagnosticosTexto.map((nombre, index) => ({
-          id: null, // No tiene ID porque es texto libre
-          nombre: nombre,
-          tipo: 'manual',
-          evolucion: 'aguda'
-        }))
-        
-        console.log('✅ Diagnósticos creados desde texto:', diagnosticosSeleccionados.value)
-        
-        // No hay IDs reales para estos diagnósticos manuales
-        revision.diagnosticos_ids = []
-      }
-      
-      console.log('✅ Revisión cargada completamente')
-      console.log('🩺 Diagnósticos seleccionados:', diagnosticosSeleccionados.value)
-      console.log('📋 IDs de diagnósticos:', revision.diagnosticos_ids)
-      console.log('📝 Texto de diagnóstico:', revision.diagnostico)
-      
-    } else {
-      console.warn('❌ No se encontraron datos de revisión:', result)
-      alert('No se pudo cargar la revisión a editar: ' + (result.message || 'Error desconocido'))
-      
-      // Redirigir a la página anterior
-      if (mascotaId.value) {
-        router.push({
-          name: 'veterinario-revisiones',
-          params: { id: mascotaId.value }
-        })
-      }
-    }
-  } catch (error) {
-    console.error('❌ Error cargando datos de revisión:', error)
-    alert('Error al cargar la revisión: ' + error.message)
-    
-    // Redirigir a la página anterior
-    if (mascotaId.value) {
-      router.push({
-        name: 'veterinario-revisiones',
-        params: { id: mascotaId.value }
-      })
-    }
-  }
-}
-
-
-
+// ==================== FUNCIONES DEL FORMULARIO ====================
 const onTipoRevisionChange = () => {
   const tipoSeleccionado = tiposRevision.value.find(t => t.id == revision.tipo_revision_id)
   if (tipoSeleccionado) {
@@ -925,18 +879,15 @@ const onTipoRevisionChange = () => {
   }
 }
 
-// Abrir overlay externo - EXACTO como en vacunas
 const abrirOverlayCentros = () => {
   mostrarOverlayCentros.value = true
 }
 
-// Seleccionar centro desde overlay - EXACTO como en vacunas
 const seleccionarCentro = (centro) => {
   revision.centro_veterinario_id = centro.id
   mostrarOverlayCentros.value = false
 }
 
-// Navegar al registro de nuevo tipo - EXACTO como en vacunas
 const abrirRegistroTipoRevision = () => {
   const query = {
     from: esEdicion.value ? `/editar/revision/${revisionId.value}` : `/registro/revision/${mascotaId.value}`,
@@ -949,7 +900,6 @@ const abrirRegistroTipoRevision = () => {
   })
 }
 
-// Funciones para manejar archivos - EXACTO como en vacunas
 const esImagen = (archivo) => {
   if (!archivo) return false
   return archivo.type.startsWith('image/')
@@ -972,7 +922,6 @@ const quitarArchivo = (index) => {
   archivos.value[index].preview = null
 }
 
-// Mostrar modal de confirmación - EXACTO como en vacunas
 const mostrarModalConfirmacion = () => {
   if (!formularioValido.value) {
     alert('Por favor complete todos los campos obligatorios')
@@ -982,12 +931,10 @@ const mostrarModalConfirmacion = () => {
   mostrarModal.value = true
 }
 
-// Cerrar modal - EXACTO como en vacunas
 const cerrarModal = () => {
   mostrarModal.value = false
 }
 
-// Confirmar acción (registrar o actualizar) EXACTO COMO EN VACUNAS
 const confirmarAccion = () => {
   if (esEdicion.value) {
     actualizarRevision()
@@ -996,21 +943,20 @@ const confirmarAccion = () => {
   }
 }
 
-// Procesar formulario (ahora solo muestra el modal) - EXACTO como en vacunas
 const procesarFormulario = () => {
   mostrarModalConfirmacion()
 }
 
-// Registrar revisión - EXACTO estructura como vacunas
+// ==================== FUNCIONES DE REGISTRO/ACTUALIZACIÓN CON MANEJO DE ERRORES ====================
 const registrarRevision = async () => {
   if (procesando.value) return
 
   try {
     procesando.value = true
     cerrarModal()
-
-    console.log('📤 Enviando datos a servidor para registro:', revision)
-    console.log('📤 Mascota ID:', mascotaId.value)
+    
+    // Limpiar errores previos
+    limpiarErrores()
 
     if (!mascotaId.value) {
       throw new Error('No se encontró el ID de la mascota')
@@ -1046,8 +992,6 @@ const registrarRevision = async () => {
       ))
     }
 
-    console.log('📤 Enviando FormData a servidor')
-
     const response = await fetch(`/api/mascotas/${mascotaId.value}/revisiones`, {
       method: 'POST',
       headers: {
@@ -1056,11 +1000,8 @@ const registrarRevision = async () => {
       },
       body: formData
     })
-
-    console.log('📨 Status:', response.status)
     
     const responseText = await response.text()
-    console.log('📄 Respuesta cruda:', responseText)
 
     if (!responseText.trim()) {
       throw new Error('El servidor devolvió una respuesta vacía')
@@ -1074,12 +1015,28 @@ const registrarRevision = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejar específicamente el error 422 (Validación) - IGUAL QUE EN VACUNAS
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
 
     if (result.success) {
-      alert('✅ Revisión registrada exitosamente')
+      // Mostrar mensaje de éxito incluyendo información del envío si existe
+      let mensajeExito = '✅ Revisión registrada exitosamente'
+      if (result.data?.envio_exitoso === true) {
+        mensajeExito += ' e informe enviado'
+      } else if (result.data?.envio_exitoso === false) {
+        mensajeExito += ' (pero hubo un problema al enviar el informe)'
+      }
+      
+      alert(mensajeExito)
+      
+      // Redirigir a la lista de revisiones
       router.push({
         name: 'veterinario-revisiones',
         params: { id: mascotaId.value },
@@ -1090,42 +1047,38 @@ const registrarRevision = async () => {
         }
       })
     } else {
-      alert('Error al registrar la revisión: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al registrar la revisión' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al registrar la revisión: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
 }
 
-// ACTUALIZAR REVISIÓN - USANDO POST CON _method
 const actualizarRevision = async () => {
   if (procesando.value) return
 
   try {
     procesando.value = true
     cerrarModal()
-
-    console.log('🔄 Actualizando revisión con ID:', revisionId.value)
+    
+    // Limpiar errores previos
+    limpiarErrores()
 
     if (!mascotaId.value || !revisionId.value) {
       throw new Error('No se encontró el ID de la mascota o de la revisión')
     }
 
-    // ✅ CREAR FORMDATA CON MÉTODO SPOOFING
     const formData = new FormData()
-    
-    // Agregar el método spoofing para Laravel
     formData.append('_method', 'PUT')
     
-    // ✅ AGREGAR TODOS LOS CAMPOS OBLIGATORIOS
+    // Agregar todos los campos
     formData.append('tipo_revision_id', revision.tipo_revision_id)
     formData.append('fecha_revision', revision.fecha_revision)
     formData.append('nivel_urgencia', revision.nivel_urgencia)
     
-    // ✅ AGREGAR CAMPOS OPCIONALES
     if (revision.motivo_consulta) formData.append('motivo_consulta', revision.motivo_consulta)
     if (revision.diagnostico) formData.append('diagnostico', revision.diagnostico)
     if (revision.fecha_proxima_revision) formData.append('fecha_proxima_revision', revision.fecha_proxima_revision)
@@ -1136,42 +1089,28 @@ const actualizarRevision = async () => {
     if (revision.costo) formData.append('costo', revision.costo)
     if (revision.medio_envio) formData.append('medio_envio', revision.medio_envio)
     
-    // ✅ AGREGAR diagnosticos_ids
     if (revision.diagnosticos_ids && revision.diagnosticos_ids.length > 0) {
       formData.append('diagnosticos_ids', JSON.stringify(revision.diagnosticos_ids))
     } else {
       formData.append('diagnosticos_ids', '[]')
     }
 
-    // ✅ AGREGAR ARCHIVOS
     archivos.value.forEach((archivo, i) => {
       if (archivo.archivo) {
         formData.append(`archivos_nuevos[]`, archivo.archivo)
       }
     })
 
-    // ✅ DEPURACIÓN
-    console.log('📦 FormData creado:')
-    for (let [key, value] of formData.entries()) {
-      console.log(`${key}:`, value)
-    }
-
-    console.log('📤 Enviando POST (con _method=PUT) a:', `/api/mascotas/${mascotaId.value}/revisiones/${revisionId.value}`)
-
-    // ✅ USAR POST EN VEZ DE PUT
     const response = await fetch(`/api/mascotas/${mascotaId.value}/revisiones/${revisionId.value}`, {
-      method: 'POST', // ← CAMBIADO A POST
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
         'Accept': 'application/json'
       },
       body: formData
     })
-
-    console.log('📨 Status:', response.status)
     
     const responseText = await response.text()
-    console.log('📄 Respuesta cruda:', responseText)
 
     let result
     try {
@@ -1181,8 +1120,13 @@ const actualizarRevision = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejar específicamente el error 422 (Validación) - IGUAL QUE EN VACUNAS
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
-      console.error('❌ Error del servidor:', result)
       throw new Error(result.message || `Error ${response.status}: ${response.statusText}`)
     }
 
@@ -1198,15 +1142,16 @@ const actualizarRevision = async () => {
         }
       })
     } else {
-      alert('Error al actualizar la revisión: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al actualizar la revisión' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al actualizar la revisión: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
 }
+
 const cancelar = () => {
   const mascotaIdParaRedireccion = mascotaId.value
   
@@ -1228,22 +1173,17 @@ const cancelar = () => {
 const formatDateTimeForInput = (dateTimeString) => {
   if (!dateTimeString) return ''
   
-  // Si ya tiene el formato correcto, devolverlo
   if (dateTimeString.includes('T')) {
-    // Asegurarse de que tenga segundos si es necesario
     const date = new Date(dateTimeString)
-    return date.toISOString().slice(0, 16) // Formato YYYY-MM-DDThh:mm
+    return date.toISOString().slice(0, 16)
   }
   
-  // Si es solo fecha, agregar tiempo
   const date = new Date(dateTimeString)
   return date.toISOString().slice(0, 16)
 }
 
-// Verificar autenticación y cargar datos - EXACTO como en vacunas
+// ==================== CARGA INICIAL ====================
 onMounted(async () => {
-  console.log('🚀 Iniciando componente RegistrarRevision')
-  
   if (!isAuthenticated.value) {
     const isAuth = await checkAuth()
     if (!isAuth) {
@@ -1255,7 +1195,6 @@ onMounted(async () => {
 
   // Si es edición, cargar datos de la revisión primero
   if (esEdicion.value) {
-    console.log('✏️ Modo edición activado, cargando datos...')
     await cargarRevisionExistente()
   }
 
@@ -1280,11 +1219,88 @@ onMounted(async () => {
     const hoy = new Date().toISOString().slice(0, 16)
     revision.fecha_revision = hoy
   }
-  
-  console.log('✅ Componente completamente cargado')
-  console.log('👤 Usuario ID final:', usuarioId.value)
-  console.log('🩺 Diagnósticos seleccionados:', diagnosticosSeleccionados.value)
-  console.log('📋 IDs de diagnósticos:', revision.diagnosticos_ids)
-  console.log('📝 Texto de diagnóstico:', revision.diagnostico)
 })
+
+// Función para cargar revisión existente (mantén tu función original aquí)
+const cargarRevisionExistente = async () => {
+  if (!revisionId.value || !mascotaId.value) {
+    console.error('❌ No hay revisionId o mascotaId para cargar datos')
+    return
+  }
+  
+  try {
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/revisiones/${revisionId.value}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    
+    if (result.success && result.data) {
+      const datosRevision = result.data
+      
+      Object.assign(revision, {
+        tipo_revision_id: datosRevision.tipo_revision_id || '',
+        fecha_revision: datosRevision.fecha_revision ? formatDateTimeForInput(datosRevision.fecha_revision) : '',
+        nivel_urgencia: datosRevision.nivel_urgencia || 'rutinaria',
+        motivo_consulta: datosRevision.motivo_consulta || '',
+        diagnostico: datosRevision.diagnostico || '',
+        fecha_proxima_revision: datosRevision.fecha_proxima_revision ? datosRevision.fecha_proxima_revision.split('T')[0] : '',
+        indicaciones_medicas: datosRevision.indicaciones_medicas || '',
+        recomendaciones_tutor: datosRevision.recomendaciones_tutor || '',
+        centro_veterinario_id: datosRevision.centro_veterinario_id || '',
+        observaciones: datosRevision.observaciones || '',
+        costo: datosRevision.costo || null,
+        medio_envio: datosRevision.medio_envio || '',
+        diagnosticos_ids: datosRevision.diagnosticos_ids || []
+      })
+      
+      diagnosticosSeleccionados.value = []
+      
+      // Cargar diagnósticos si existen
+      if (datosRevision.diagnosticos_ids && Array.isArray(datosRevision.diagnosticos_ids) && datosRevision.diagnosticos_ids.length > 0) {
+        revision.diagnosticos_ids = datosRevision.diagnosticos_ids
+        await cargarDetallesDiagnosticos(datosRevision.diagnosticos_ids)
+      } else if (datosRevision.diagnostico && datosRevision.diagnostico.trim() !== '') {
+        const diagnosticosTexto = datosRevision.diagnostico.split(',').map(d => d.trim()).filter(d => d)
+        
+        diagnosticosSeleccionados.value = diagnosticosTexto.map((nombre, index) => ({
+          id: null,
+          nombre: nombre,
+          tipo: 'manual',
+          evolucion: 'aguda'
+        }))
+        
+        revision.diagnosticos_ids = []
+      }
+      
+    } else {
+      console.warn('❌ No se encontraron datos de revisión:', result)
+      alert('No se pudo cargar la revisión a editar: ' + (result.message || 'Error desconocido'))
+      
+      if (mascotaId.value) {
+        router.push({
+          name: 'veterinario-revisiones',
+          params: { id: mascotaId.value }
+        })
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error cargando datos de revisión:', error)
+    alert('Error al cargar la revisión: ' + error.message)
+    
+    if (mascotaId.value) {
+      router.push({
+        name: 'veterinario-revisiones',
+        params: { id: mascotaId.value }
+      })
+    }
+  }
+}
 </script>

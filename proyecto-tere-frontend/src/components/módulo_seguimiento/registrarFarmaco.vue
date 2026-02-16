@@ -1,4 +1,4 @@
-<!-- registrarFarmaco.vue - Versión con modal y modo edición -->
+<!-- registrarFarmaco.vue - Versión con manejo de errores mejorado -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -8,6 +8,34 @@
 
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
     <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Administración de Fármaco' : 'Registrar Administración de Fármaco' }}</h1>
+
+    <!-- Sección de errores de validación -->
+    <div v-if="mostrarErrores && Object.keys(erroresValidacion).length > 0" 
+        class="mt-4 mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">
+            Problemas de validación
+          </h3>
+          <div class="mt-2 text-sm text-red-700">
+            <ul class="list-disc pl-5 space-y-1">
+              <li v-for="(erroresCampo, campo) in erroresValidacion" :key="campo">
+                <template v-if="campo !== '_debug'">
+                  <span v-for="error in erroresCampo" :key="error" class="block">
+                    {{ error }}
+                  </span>
+                </template>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <form @submit.prevent="procesarFormulario" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
@@ -29,6 +57,7 @@
                 required
                 class="w-full border rounded p-2"
                 @change="onTipoFarmacoChange"
+                :class="{ 'border-red-500': tieneError('tipo_farmaco_id') }"
               >
                 <option value="">Seleccione un tipo de fármaco</option>
                 <option
@@ -49,11 +78,23 @@
                 + Tipo 
               </button>
             </div>
+            <div v-if="tieneError('tipo_farmaco_id')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('tipo_farmaco_id') }}
+            </div>
           </div>
 
           <div>
             <label class="block font-medium">Fecha de administración</label>
-            <input v-model="farmaco.fecha_administracion" type="datetime-local" required class="w-full border rounded p-2" />
+            <input 
+              v-model="farmaco.fecha_administracion" 
+              type="datetime-local" 
+              required 
+              class="w-full border rounded p-2"
+              :class="{ 'border-red-500': tieneError('fecha_administracion') }"
+            />
+            <div v-if="tieneError('fecha_administracion')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('fecha_administracion') }}
+            </div>
           </div>
 
           <!-- Centro Veterinario -->
@@ -65,6 +106,7 @@
               <div 
                 v-if="farmaco.centro_veterinario_id"
                 class="w-full border rounded p-2 bg-gray-50"
+                :class="{ 'border-red-500': tieneError('centro_veterinario_id') }"
               >
                 <div class="font-semibold">
                   {{ obtenerNombreCentroSeleccionado() }}
@@ -77,6 +119,7 @@
               <div 
                 v-else
                 class="w-full border rounded p-2 text-gray-400 italic"
+                :class="{ 'border-red-500': tieneError('centro_veterinario_id') }"
               >
                 Ningún centro veterinario seleccionado
               </div>
@@ -89,6 +132,9 @@
                 + Centro
               </button>
             </div>
+            <div v-if="tieneError('centro_veterinario_id')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('centro_veterinario_id') }}
+            </div>
           </div>
         </div>
 
@@ -96,25 +142,60 @@
         <div class="space-y-4">
           <div>
             <label class="block font-medium">Frecuencia de administración</label>
-            <input v-model="farmaco.frecuencia" type="text" required class="w-full border rounded p-2" placeholder="Ej: Cada 8 h, 1 vez al día, etc." />
+            <input 
+              v-model="farmaco.frecuencia" 
+              type="text" 
+              required 
+              class="w-full border rounded p-2"
+              :class="{ 'border-red-500': tieneError('frecuencia') }"
+              placeholder="Ej: Cada 8 h, 1 vez al día, etc." 
+            />
+            <div v-if="tieneError('frecuencia')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('frecuencia') }}
+            </div>
           </div>
 
           <div>
             <label class="block font-medium">Duración del tratamiento</label>
-            <input v-model="farmaco.duracion" type="text" required class="w-full border rounded p-2" placeholder="Ej: 7 días, 2 semanas, etc." />
+            <input 
+              v-model="farmaco.duracion" 
+              type="text" 
+              required 
+              class="w-full border rounded p-2"
+              :class="{ 'border-red-500': tieneError('duracion') }"
+              placeholder="Ej: 7 días, 2 semanas, etc." 
+            />
+            <div v-if="tieneError('duracion')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('duracion') }}
+            </div>
           </div>
 
           <div>
             <label class="block font-medium">Dosis administrada</label>
             <div class="flex">
-              <input v-model="farmaco.dosis" type="text" required class="w-3/4 border rounded-l p-2" placeholder="Cantidad" />
-              <select v-model="farmaco.unidad" required class="w-1/4 border rounded-r p-2">
+              <input 
+                v-model="farmaco.dosis" 
+                type="text" 
+                required 
+                class="w-3/4 border rounded-l p-2"
+                :class="{ 'border-red-500': tieneError('dosis') }"
+                placeholder="Cantidad" 
+              />
+              <select 
+                v-model="farmaco.unidad" 
+                required 
+                class="w-1/4 border rounded-r p-2"
+                :class="{ 'border-red-500': tieneError('unidad') }"
+              >
                 <option value="mg">mg</option>
                 <option value="ml">ml</option>
                 <option value="UI">UI</option>
                 <option value="comp">comp.</option>
                 <option value="gotas">gotas</option>
               </select>
+            </div>
+            <div v-if="tieneError('dosis') || tieneError('unidad')" class="text-red-500 text-sm mt-1">
+              {{ obtenerErrorCampo('dosis') || obtenerErrorCampo('unidad') }}
             </div>
           </div>
         </div>
@@ -130,17 +211,42 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
         <div>
           <label class="block font-medium">Fecha próxima dosis (si aplica)</label>
-          <input v-model="farmaco.proxima_dosis" type="datetime-local" class="w-full border rounded p-2" />
+          <input 
+            v-model="farmaco.proxima_dosis" 
+            type="datetime-local" 
+            class="w-full border rounded p-2"
+            :class="{ 'border-red-500': tieneError('proxima_dosis') }"
+          />
+          <div v-if="tieneError('proxima_dosis')" class="text-red-500 text-sm mt-1">
+            {{ obtenerErrorCampo('proxima_dosis') }}
+          </div>
         </div>
 
         <div class="col-span-full">
           <label class="block font-medium mb-1">Reacciones adversas observadas</label>
-          <textarea v-model="farmaco.reacciones" rows="3" class="w-full border rounded p-2 resize-none" placeholder="Describa cualquier efecto no deseado"></textarea>
+          <textarea 
+            v-model="farmaco.reacciones" 
+            rows="3" 
+            class="w-full border rounded p-2 resize-none"
+            :class="{ 'border-red-500': tieneError('reacciones') }"
+            placeholder="Describa cualquier efecto no deseado"
+          ></textarea>
+          <div v-if="tieneError('reacciones')" class="text-red-500 text-sm mt-1">
+            {{ obtenerErrorCampo('reacciones') }}
+          </div>
         </div>
 
         <div class="col-span-full">
           <label class="block font-medium mb-1">Recomendaciones para el tutor</label>
-          <textarea v-model="farmaco.recomendaciones" rows="3" class="w-full border rounded p-2 resize-none"></textarea>
+          <textarea 
+            v-model="farmaco.recomendaciones" 
+            rows="3" 
+            class="w-full border rounded p-2 resize-none"
+            :class="{ 'border-red-500': tieneError('recomendaciones') }"
+          ></textarea>
+          <div v-if="tieneError('recomendaciones')" class="text-red-500 text-sm mt-1">
+            {{ obtenerErrorCampo('recomendaciones') }}
+          </div>
         </div>
 
        <!-- Archivos adjuntos -->
@@ -152,7 +258,10 @@
               :key="index"
               class="relative border-2 border-dashed border-gray-600 rounded-md text-center cursor-pointer h-20 w-20"
               @click="!archivo.preview && !esEdicion && activarInput(index)"
-              :class="{ 'opacity-50 cursor-not-allowed': esEdicion }"
+              :class="{ 
+                'opacity-50 cursor-not-allowed': esEdicion,
+                'border-red-500': tieneError('archivos')
+              }"
             >
               <!-- Botón eliminar -->
               <button
@@ -206,6 +315,9 @@
               </div>
             </div>
           </div>
+          <p v-if="tieneError('archivos')" class="text-red-500 text-sm mt-1">
+            {{ obtenerErrorCampo('archivos') }}
+          </p>
           <p class="text-xs text-gray-500 mt-1">Puede adjuntar recetas, imágenes del medicamento, informes, etc.</p>
           <p v-if="esEdicion" class="text-sm text-gray-500 mt-1 italic">
             Nota: En modo edición no se pueden modificar los archivos adjuntos existentes.
@@ -222,7 +334,12 @@
             :modo-edicion="esEdicion"
             :medio-seleccionado-inicial="farmaco.medio_envio"
             @update:medio="farmaco.medio_envio = $event"
+            :class="{ 'border-red-500': tieneError('medio_envio') }"
           />
+          
+          <div v-if="tieneError('medio_envio')" class="text-red-500 text-sm mt-1">
+            {{ obtenerErrorCampo('medio_envio') }}
+          </div>
           
           <div v-if="farmaco.medio_envio" class="mt-4 text-center text-gray-700">
             <span class="font-semibold">
@@ -361,6 +478,10 @@ const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
 const mostrarModal = ref(false)
 
+// Agrega estas variables para manejo de errores
+const erroresValidacion = ref({})
+const mostrarErrores = ref(false)
+
 // Determinar si es edición o registro
 const esEdicion = computed(() => {
   return route.name === 'editarFarmaco' || !!route.params.farmacoId || !!props.farmacoId
@@ -400,6 +521,66 @@ const archivos = ref(Array.from({ length: 6 }, () => ({
 })))
 
 const inputsArchivo = ref([])
+
+// Helper functions para manejo de errores
+const tieneError = (campo) => {
+  return erroresValidacion.value[campo] && erroresValidacion.value[campo].length > 0
+}
+
+const obtenerErrorCampo = (campo) => {
+  return erroresValidacion.value[campo] ? erroresValidacion.value[campo][0] : ''
+}
+
+// Función mejorada para mostrar errores
+const mostrarErrorValidacion = (error) => {
+  mostrarErrores.value = true
+  // Crear un array temporal para los errores
+  const erroresArray = []
+  
+  // Verificar si es un error del servidor con estructura de validación
+  if (error.response?.status === 422 && error.response.data?.errors) {
+    erroresValidacion.value = error.response.data.errors
+    
+    // Construir mensaje amigable
+    for (const campo in error.response.data.errors) {
+      const mensajes = error.response.data.errors[campo]
+      mensajes.forEach(mensaje => {
+        erroresArray.push(`• ${mensaje}`)
+      })
+    }
+  } else if (error.response?.data?.errors) {
+    // Alternativa: si los errores vienen en data.errors directamente
+    erroresValidacion.value = error.response.data.errors
+    
+    for (const campo in error.response.data.errors) {
+      const mensajes = error.response.data.errors[campo]
+      mensajes.forEach(mensaje => {
+        erroresArray.push(`• ${mensaje}`)
+      })
+    }
+  } else if (error.message) {
+    // Si es un error genérico
+    erroresArray.push(`• ${error.message}`)
+    erroresValidacion.value = {
+      _general: [error.message]
+    }
+  } else {
+    erroresArray.push('• Ocurrió un error desconocido')
+    erroresValidacion.value = {
+      _general: ['Ocurrió un error desconocido']
+    }
+  }
+  
+  // Mostrar alerta con mejor formato
+  const mensajeFinal = erroresArray.join('\n')
+  alert(`❌ Error de validación:\n\n${mensajeFinal}`)
+}
+
+// Limpiar errores cuando se cambia un campo
+const limpiarErrores = () => {
+  erroresValidacion.value = {}
+  mostrarErrores.value = false
+}
 
 // Computed para validación del formulario
 const formularioValido = computed(() => {
@@ -545,7 +726,7 @@ const cargarTiposFarmaco = async () => {
     }
   } catch (error) {
     console.error('❌ Error cargando tipos de fármaco:', error);
-    alert('Error al cargar los tipos de fármaco: ' + error.message);
+    mostrarErrorValidacion(error);
   }
 }
 
@@ -568,7 +749,7 @@ const cargarCentrosVeterinarios = async () => {
     console.log('🏥 Centros veterinarios cargados:', centrosVeterinarios.value.length)
   } catch (error) {
     console.error('Error cargando centros veterinarios:', error)
-    alert('Error al cargar los centros veterinarios')
+    mostrarErrorValidacion(error)
   }
 }
 
@@ -630,7 +811,9 @@ const cargarFarmacoExistente = async () => {
       console.log('✅ Datos de fármaco cargados:', farmaco)
     } else {
       console.warn('❌ No se encontraron datos de fármaco:', result)
-      alert('No se pudo cargar el fármaco a editar: ' + (result.message || 'Error desconocido'))
+      mostrarErrorValidacion({ 
+        message: 'No se pudo cargar el fármaco a editar: ' + (result.message || 'Error desconocido')
+      })
       
       // Redirigir a la página anterior
       if (mascotaId.value) {
@@ -642,7 +825,7 @@ const cargarFarmacoExistente = async () => {
     }
   } catch (error) {
     console.error('❌ Error cargando datos de fármaco:', error)
-    alert('Error al cargar el fármaco: ' + error.message)
+    mostrarErrorValidacion(error)
     
     // Redirigir a la página anterior
     if (mascotaId.value) {
@@ -655,6 +838,7 @@ const cargarFarmacoExistente = async () => {
 }
 
 const onTipoFarmacoChange = () => {
+  limpiarErrores()
   const tipoSeleccionado = tiposFarmaco.value.find(t => t.id == farmaco.tipo_farmaco_id)
   if (tipoSeleccionado) {
     console.log('Tipo de fármaco seleccionado:', tipoSeleccionado)
@@ -670,6 +854,7 @@ const abrirOverlayCentros = () => {
 const seleccionarCentro = (centro) => {
   farmaco.centro_veterinario_id = centro.id
   mostrarOverlayCentros.value = false
+  limpiarErrores()
 }
 
 // Navegar al registro de nuevo tipo
@@ -693,6 +878,7 @@ const esImagen = (archivo) => {
 const handleArchivo = (event, index) => {
   if (esEdicion.value) return // No permitir cambios en modo edición
   
+  limpiarErrores()
   const file = event.target.files[0]
   if (file) {
     archivos.value[index].archivo = file
@@ -716,12 +902,17 @@ const quitarArchivo = (index) => {
   archivos.value[index].archivo = null
   archivos.value[index].preview = null
   archivos.value[index].esExistente = false
+  limpiarErrores()
 }
 
 // Mostrar modal de confirmación
 const mostrarModalConfirmacion = () => {
+  limpiarErrores()
+  
   if (!formularioValido.value) {
-    alert('Por favor complete todos los campos obligatorios')
+    mostrarErrorValidacion({ 
+      message: 'Por favor complete todos los campos obligatorios' 
+    })
     return
   }
   
@@ -754,6 +945,9 @@ const registrarFarmaco = async () => {
   try {
     procesando.value = true
     cerrarModal()
+    
+    // Limpiar errores previos
+    limpiarErrores()
 
     // Preparar FormData para enviar archivos
     const formData = new FormData()
@@ -773,6 +967,11 @@ const registrarFarmaco = async () => {
     })
 
     console.log('📤 Enviando datos a servidor para registro:', Object.fromEntries(formData))
+    console.log('📤 Mascota ID:', mascotaId.value)
+
+    if (!mascotaId.value) {
+      throw new Error('No se encontró el ID de la mascota')
+    }
 
     const response = await fetch(`/api/mascotas/${mascotaId.value}/farmacos`, {
       method: 'POST',
@@ -800,12 +999,28 @@ const registrarFarmaco = async () => {
       throw new Error('El servidor no devolvió JSON válido')
     }
 
+    // Manejar específicamente el error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
 
     if (result.success) {
-      alert('✅ Fármaco registrado exitosamente')
+      // Mostrar mensaje de éxito incluyendo información del envío si existe
+      let mensajeExito = '✅ Fármaco registrado exitosamente'
+      if (result.data?.envio_exitoso === true) {
+        mensajeExito += ' y receta enviada'
+      } else if (result.data?.envio_exitoso === false) {
+        mensajeExito += ' (pero hubo un problema al enviar la receta)'
+      }
+      
+      alert(mensajeExito)
+      
+      // Redirigir a la lista de fármacos
       router.push({
         name: 'veterinario-farmacos',
         params: { id: mascotaId.value },
@@ -816,11 +1031,11 @@ const registrarFarmaco = async () => {
         }
       })
     } else {
-      alert('Error al registrar el fármaco: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al registrar el fármaco' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al registrar el fármaco: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
@@ -833,9 +1048,16 @@ const actualizarFarmaco = async () => {
   try {
     procesando.value = true
     cerrarModal()
+    
+    // Limpiar errores previos
+    limpiarErrores()
 
     console.log('📤 Actualizando fármaco con ID:', farmacoId.value, 'para mascota:', mascotaId.value)
     console.log('📤 Datos a enviar:', farmaco)
+
+    if (!mascotaId.value) {
+      throw new Error('No se encontró el ID de la mascota')
+    }
 
     // CORRECCIÓN: Usar la ruta correcta con mascotaId
     const response = await fetch(`/api/mascotas/${mascotaId.value}/farmacos/${farmacoId.value}`, {
@@ -865,6 +1087,12 @@ const actualizarFarmaco = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejar específicamente el error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
@@ -888,11 +1116,11 @@ const actualizarFarmaco = async () => {
         router.push({ name: 'veterinario-farmacos', params: { id: '0' } })
       }
     } else {
-      alert('Error al actualizar el fármaco: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al actualizar el fármaco' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al actualizar el fármaco: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
@@ -940,7 +1168,9 @@ onMounted(async () => {
     
     if (errorCargandoMascota.value) {
       console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
-      alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
+      mostrarErrorValidacion({ 
+        message: 'Error al cargar datos de la mascota: ' + errorCargandoMascota.value
+      })
       return
     }
   }

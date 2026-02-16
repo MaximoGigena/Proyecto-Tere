@@ -573,6 +573,9 @@ function resetSwipeAnimation() {
 
 // Verificar autenticación 
 onMounted(async () => {
+  console.log('Componente contenidoMascota montado')
+  console.log('advertenciaRef inicial:', advertenciaRef.value)
+
   if (!isAuthenticated.value) {
     const isAuth = await checkAuth()
     if (!isAuth) {
@@ -590,7 +593,7 @@ function abrirAdvertencia() {
   console.log('Ruta actual:', route.path)
   console.log('Mascota computada:', mascotaComputed.value)
 
-   // Guardar posición actual de scroll
+  // Guardar posición actual de scroll
   if (scrollContainer.value) {
     scrollContainer.value.scrollTop = 0 // Ir al inicio
   }
@@ -598,65 +601,39 @@ function abrirAdvertencia() {
   // Mostrar la advertencia con animación
   mostrarAdvertencia.value = true
   
-  if (advertenciaRef.value) {
-    // Verificar si estamos en la vista de swipe (encuentros)
-    if (route.path.startsWith('/explorar/encuentros')) {
-      console.log('Contexto: Vista de encuentros (swipe)')
-      
-      // Si tenemos una oferta actual
-      if (props.ofertaActual?.id_oferta) {
-        console.log('ID de oferta:', props.ofertaActual.id_oferta)
-        advertenciaRef.value.open(props.ofertaActual.id_oferta, null)
-      }
-      // Si tenemos ID de mascota
-      else if (mascotaComputed.value?.id && mascotaComputed.value.id !== 'demo-burro') {
-        console.log('ID de mascota:', mascotaComputed.value.id)
-        advertenciaRef.value.open(null, mascotaComputed.value.id)
-      }
-      // Si hay parámetro de ruta
-      else if (route.params.id) {
-        console.log('ID de ruta:', route.params.id)
-        // Determinar si es oferta o mascota basado en la ruta
-        const esOferta = route.path.includes('oferta') || route.path.includes('cerca')
-        if (esOferta) {
-          advertenciaRef.value.open(route.params.id, null)
-        } else {
-          advertenciaRef.value.open(null, route.params.id)
-        }
-      }
-    }
-    // Para la vista "cerca"
-    else if (route.path.startsWith('/explorar/cerca/') && route.params.id) {
+  // ESPERAR a que Vue actualice el DOM y monte el componente
+  setTimeout(() => {
+    console.log('advertenciaRef después de mostrar:', advertenciaRef.value)
+    
+    if (advertenciaRef.value && typeof advertenciaRef.value.open === 'function') {
       console.log('Contexto: Vista cerca de ti')
       console.log('ID de oferta:', route.params.id)
-      advertenciaRef.value.open(route.params.id, null)
-    } 
-    // Otros casos
-    else {
-      console.log('Contexto: Otro caso')
-      // Lógica existente...
-      if (mascotaComputed.value?.id && mascotaComputed.value.id !== 'demo-burro') {
-        advertenciaRef.value.open(null, mascotaComputed.value.id)
-      } else if (route.query.mascota_id) {
-        advertenciaRef.value.open(null, route.query.mascota_id)
-      } else if (route.query.oferta_id) {
-        advertenciaRef.value.open(route.query.oferta_id, null)
-      } else {
-        console.error('No se pudo determinar el contexto')
-        mostrarNotificacion('No se pudo identificar la mascota para adopción', 'error')
-      }
+      console.log('Query params:', route.query)
+      console.log('Mascota ID del query:', route.query.mascota_id)
+      
+      // OBTENER AMBOS IDs
+      const ofertaId = route.params.id
+      const mascotaId = route.query.mascota_id
+      
+      console.log('Pasando IDs al modal:', { ofertaId, mascotaId })
+      
+      // Pasar AMBOS IDs al modal
+      advertenciaRef.value.open(ofertaId, mascotaId)
+      
+      // Desplazar al usuario hacia el modal
+      setTimeout(() => {
+        const modalElement = document.querySelector('.advertencia-container')
+        if (modalElement) {
+          modalElement.scrollIntoView({ behavior: 'smooth', block: 'end' })
+        }
+      }, 100)
+    } else {
+      console.error('advertenciaRef no disponible o método open no encontrado')
+      console.error('advertenciaRef:', advertenciaRef.value)
+      mostrarNotificacion('Error al abrir formulario de adopción', 'error')
+      mostrarAdvertencia.value = false
     }
-   // Desplazar al usuario hacia el modal
-    setTimeout(() => {
-      const modalElement = document.querySelector('.advertencia-container')
-      if (modalElement) {
-        modalElement.scrollIntoView({ behavior: 'smooth', block: 'end' })
-      }
-    }, 100)
-  } else {
-    console.error('advertenciaRef no disponible')
-    mostrarNotificacion('Error al abrir formulario', 'error')
-  }
+  }, 100) // Esperar 100ms para que Vue monte el componente
 }
 
 watch(mostrarAdvertencia, (newVal) => {
@@ -1091,5 +1068,18 @@ const initObserver = () => {
   
   observer.observe(botonesAnimados.value)
 }
+
+// Agregar este watch después de las funciones
+watch(mostrarAdvertencia, async (newVal) => {
+  if (newVal) {
+    // Esperar a que el componente se monte
+    await nextTick()
+    console.log('Componente AdvertenciaAdopcion montado:', !!advertenciaRef.value)
+    
+    if (!advertenciaRef.value) {
+      console.error('ERROR: advertenciaRef sigue siendo null después de montar')
+    }
+  }
+})
 
 </script>

@@ -191,6 +191,47 @@
       </div>
     </form>
 
+    <!-- Agrega esto justo después del título principal y antes del formulario -->
+    <div 
+      v-if="Object.keys(erroresValidacion).length > 0" 
+      class="mb-6 rounded-md bg-red-50 p-4 border border-red-200"
+    >
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">
+            Problemas de validación
+          </h3>
+          <div class="mt-2 text-sm text-red-700">
+            <ul class="list-disc pl-5 space-y-1">
+              <li v-for="(erroresCampo, campo) in erroresValidacion" :key="campo">
+                <template v-if="campo !== '_debug'">
+                  <span v-for="error in erroresCampo" :key="error" class="block">
+                    {{ error }}
+                  </span>
+                </template>
+              </li>
+            </ul>
+          </div>
+          <div class="mt-4">
+            <div class="-mx-2 -my-1.5 flex">
+              <button
+                type="button"
+                @click="limpiarErrores"
+                class="ml-3 bg-red-50 px-2 py-1.5 rounded-md text-sm font-medium text-red-800 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-red-50 focus:ring-red-600"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Componente externo del overlay -->
     <SeleccionCentroVeterinario
       v-if="mostrarOverlayCentros"
@@ -262,7 +303,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import SeleccionCentroVeterinario from '@/components/ElementosGraficos/SeleccionCentroVeterinario.vue'
 import CarruselMedioEnvio from '@/components/ElementosGraficos/CarruselMedioEnvio.vue'
@@ -280,6 +321,9 @@ const procesando = ref(false)
 const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
 const mostrarModal = ref(false)
+
+// En la sección de estados reactivos, agrega:
+const erroresValidacion = ref({})
 
 const props = defineProps({
   desparasitacionId: {
@@ -552,13 +596,6 @@ const cargarDesparasitacionExistente = async () => {
   }
 }
 
-const onTipoDesparasitacionChange = () => {
-  const tipoSeleccionado = tiposDesparasitacion.value.find(t => t.id == desparasitacion.tipo_desparasitacion_id)
-  if (tipoSeleccionado) {
-    console.log('Tipo seleccionado:', tipoSeleccionado)
-  }
-}
-
 // Abrir overlay externo
 const abrirOverlayCentros = () => {
   mostrarOverlayCentros.value = true
@@ -660,12 +697,17 @@ const registrarDesparasitacion = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejo específico de error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErroresValidacion(result.errors)
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
 
     if (result.success) {
-      alert('✅ Desparasitación registrada exitosamente')
       router.push({
         name: 'veterinario-desparasitaciones',
         params: { id: mascotaId.value },
@@ -676,15 +718,72 @@ const registrarDesparasitacion = async () => {
         }
       })
     } else {
-      alert('Error al registrar la desparasitación: ' + result.message)
+      mostrarMensajeError('Error al registrar la desparasitación: ' + result.message)
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al registrar la desparasitación: ' + error.message)
+    mostrarMensajeError('Error al registrar la desparasitación: ' + error.message)
   } finally {
     procesando.value = false
   }
 }
+
+// Función para mostrar errores de validación de forma amigable
+// Función para mostrar errores de validación de forma amigable
+const mostrarErroresValidacion = (errors) => {
+  console.log('📝 Errores de validación recibidos:', errors)
+  
+  // Almacenar los errores en la variable reactiva
+  erroresValidacion.value = errors
+  
+  // También puedes hacer scroll al primer campo con error
+  const primerCampoConError = Object.keys(errors)[0]
+  if (primerCampoConError) {
+    const elementoError = document.querySelector(`[name="${primerCampoConError}"]`) || 
+                          document.querySelector(`[v-model*="${primerCampoConError}"]`)
+    if (elementoError) {
+      // Scroll suave a la posición del formulario
+      const formulario = document.querySelector('form')
+      if (formulario) {
+        formulario.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+      
+      setTimeout(() => {
+        elementoError.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        elementoError.focus()
+        
+        // Agregar clase de error al elemento
+        elementoError.classList.add('border-red-500', 'ring-2', 'ring-red-200')
+        
+        // Remover la clase después de 3 segundos
+        setTimeout(() => {
+          elementoError.classList.remove('border-red-500', 'ring-2', 'ring-red-200')
+        }, 3000)
+      }, 300)
+    }
+  }
+}
+
+// También agrega una función para limpiar los errores cuando el usuario cambia algo
+const limpiarErrores = () => {
+  erroresValidacion.value = {}
+}
+
+// Modifica onTipoDesparasitacionChange para limpiar errores cuando cambia el tipo
+const onTipoDesparasitacionChange = () => {
+  limpiarErrores()
+  const tipoSeleccionado = tiposDesparasitacion.value.find(t => t.id == desparasitacion.tipo_desparasitacion_id)
+  if (tipoSeleccionado) {
+    console.log('Tipo seleccionado:', tipoSeleccionado)
+  }
+}
+
+// También agrega watchers para limpiar errores cuando cambian otros campos
+// Puedes agregar esto al final del script
+watch(() => desparasitacion.tipo_desparasitacion_id, limpiarErrores)
+watch(() => desparasitacion.nombre_producto, limpiarErrores)
+watch(() => desparasitacion.dosis, limpiarErrores)
+// Agrega más watchers para otros campos si es necesario
 
 // Actualizar desparasitación existente
 const actualizarDesparasitacion = async () => {

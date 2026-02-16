@@ -237,8 +237,10 @@ const cargarUsuario = async () => {
       isUsuario: isUsuario()
     })
 
-    const userId = user.value?.userable_id || user.value?.id
-    console.log('🔍 ID del usuario a buscar:', userId)
+     const userId = user.value?.id  // ← Usar id, NO userable_id
+    
+     console.log('🔍 ID DEL USER para buscar:', userId)
+     console.log('🔍 ID DEL USERABLE (no usar):', user.value?.userable_id)
     
     if (!userId) {
       throw new Error('No se pudo determinar el ID del usuario')

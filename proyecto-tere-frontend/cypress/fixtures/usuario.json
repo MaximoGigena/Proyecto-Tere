@@ -1,0 +1,27 @@
+{
+  "usuarioValido": {
+    "nombre": "Juan Pérez",
+    "email": "juan@test.com",
+    "password": "Password123",
+    "confirmPassword": "Password123",
+    "fechaNacimiento": {
+      "dia": "15",
+      "mes": "5",
+      "anio": "1990"
+    }
+  },
+  "datosOpcionales": {
+    "ocupacion": "Desarrollador",
+    "tipoVivienda": "departamento",
+    "experienciaMascotas": "nueva",
+    "conviveConNiños": "si",
+    "conviveConMascotas": "si",
+    "descripcion": "Me encantan los animales"
+  },
+  "datosContacto": {
+    "telefono": "123456789",
+    "dni": "Call 123",
+    "nombreCompleto": "pepeito pepa",
+    "correoElectronico": "ddsfdfds@gmail.com"
+  }
+}

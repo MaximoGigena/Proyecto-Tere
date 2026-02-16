@@ -1,4 +1,4 @@
-<!-- registrarCirugía.vue - Versión unificada con registro y edición -->
+<!-- registrarCirugía.vue - Versión unificada con manejo de errores -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -10,6 +10,38 @@
     <h1 class="text-4xl font-bold mb-4">{{ esEdicion ? 'Editar Cirugía' : 'Registrar Cirugía' }}</h1>
 
     <form @submit.prevent="procesarFormulario" class="space-y-4">
+      <!-- Sección de errores de validación -->
+      <div v-if="mostrarErrores && Object.keys(erroresValidacion).length > 0" 
+          class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800">
+              Problemas de validación encontrados
+            </h3>
+            <div class="mt-2 text-sm text-red-700">
+              <ul class="list-disc pl-5 space-y-1">
+                <li v-for="(erroresCampo, campo) in erroresValidacion" :key="campo">
+                  <template v-if="campo !== '_debug' && campo !== 'success' && campo !== 'message'">
+                    <span v-for="error in erroresCampo" :key="error" class="block">
+                      {{ error }}
+                    </span>
+                  </template>
+                </li>
+                <!-- Mostrar errores generales -->
+                <li v-if="erroresValidacion.message">
+                  <span class="block">{{ erroresValidacion.message }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -26,6 +58,7 @@
             <div class="flex gap-2">
               <select
                 v-model="cirugia.tipo_cirugia_id"
+                :class="{'border-red-500': erroresCampo('tipo_cirugia_id')}"
                 required
                 class="w-full border rounded p-2"
                 @change="onTipoCirugiaChange"
@@ -49,11 +82,23 @@
                 + Tipo
               </button>
             </div>
+            <p v-if="erroresCampo('tipo_cirugia_id')" class="text-red-500 text-sm mt-1">
+              {{ erroresCampo('tipo_cirugia_id')[0] }}
+            </p>
           </div>
 
           <div>
             <label class="block font-medium">Fecha de la cirugía</label>
-            <input v-model="cirugia.fecha" type="datetime-local" required class="w-full border rounded p-2" />
+            <input 
+              v-model="cirugia.fecha" 
+              type="datetime-local" 
+              required 
+              :class="{'border-red-500': erroresCampo('fecha')}"
+              class="w-full border rounded p-2" 
+            />
+            <p v-if="erroresCampo('fecha')" class="text-red-500 text-sm mt-1">
+              {{ erroresCampo('fecha')[0] }}
+            </p>
           </div>
 
           <!-- Centro Veterinario -->
@@ -89,6 +134,9 @@
                 + Centro
               </button>
             </div>
+            <p v-if="erroresCampo('centro_veterinario_id')" class="text-red-500 text-sm mt-1">
+              {{ erroresCampo('centro_veterinario_id')[0] }}
+            </p>
           </div>
         </div>
 
@@ -96,24 +144,40 @@
         <div class="space-y-4">
           <div>
             <label class="block font-medium">Resultado inmediato</label>
-            <select v-model="cirugia.resultado" required class="w-full border rounded p-2">
+            <select 
+              v-model="cirugia.resultado" 
+              required 
+              :class="{'border-red-500': erroresCampo('resultado')}"
+              class="w-full border rounded p-2"
+            >
               <option value="">Seleccione una opción</option>
               <option value="satisfactorio">Satisfactorio</option>
               <option value="complicaciones">Complicaciones</option>
               <option value="estable">Estable</option>
               <option value="critico">Crítico</option>
             </select>
+            <p v-if="erroresCampo('resultado')" class="text-red-500 text-sm mt-1">
+              {{ erroresCampo('resultado')[0] }}
+            </p>
           </div>
 
           <div>
             <label class="block font-medium">Estado actual</label>
-            <select v-model="cirugia.estado" required class="w-full border rounded p-2">
+            <select 
+              v-model="cirugia.estado" 
+              required 
+              :class="{'border-red-500': erroresCampo('estado')}"
+              class="w-full border rounded p-2"
+            >
               <option value="">Seleccione una opción</option>
               <option value="recuperacion">En recuperación</option>
               <option value="alta">Alta postoperatoria</option>
               <option value="seguimiento">Bajo seguimiento</option>
               <option value="hospitalizado">Hospitalizado</option>
             </select>
+            <p v-if="erroresCampo('estado')" class="text-red-500 text-sm mt-1">
+              {{ erroresCampo('estado')[0] }}
+            </p>
           </div>
 
           <div>
@@ -187,7 +251,18 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
         <div>
           <label class="block font-medium">Fecha estimada de control</label>
-          <input v-model="cirugia.fecha_control" type="date" class="w-full border rounded p-2" />
+          <input 
+            v-model="cirugia.fecha_control" 
+            type="date" 
+            :class="{'border-red-500': erroresCampo('fecha_control_estimada') || erroresCampo('fecha_control')}"
+            class="w-full border rounded p-2" 
+          />
+          <p v-if="erroresCampo('fecha_control_estimada')" class="text-red-500 text-sm mt-1">
+            {{ erroresCampo('fecha_control_estimada')[0] }}
+          </p>
+          <p v-if="erroresCampo('fecha_control')" class="text-red-500 text-sm mt-1">
+            {{ erroresCampo('fecha_control')[0] }}
+          </p>
         </div>
 
         <div class="col-span-full">
@@ -349,14 +424,38 @@
 
         <div class="col-span-full">
           <label class="block font-medium mb-1">Descripción del procedimiento</label>
-          <textarea v-model="cirugia.descripcion" rows="4" maxlength="1000" class="w-full border rounded p-2 resize-none"></textarea>
+          <textarea 
+            v-model="cirugia.descripcion" 
+            rows="4" 
+            maxlength="1000" 
+            :class="{'border-red-500': erroresCampo('descripcion_procedimiento') || erroresCampo('descripcion')}"
+            class="w-full border rounded p-2 resize-none"
+          ></textarea>
           <p class="text-sm text-gray-500 text-right mt-1">{{ cirugia.descripcion?.length || 0 }}/1000 caracteres</p>
+          <p v-if="erroresCampo('descripcion_procedimiento')" class="text-red-500 text-sm mt-1">
+            {{ erroresCampo('descripcion_procedimiento')[0] }}
+          </p>
+          <p v-if="erroresCampo('descripcion')" class="text-red-500 text-sm mt-1">
+            {{ erroresCampo('descripcion')[0] }}
+          </p>
         </div>
 
         <div class="col-span-full">
           <label class="block font-medium mb-1">Recomendaciones al tutor</label>
-          <textarea v-model="cirugia.recomendaciones" rows="3" maxlength="500" class="w-full border rounded p-2 resize-none"></textarea>
+          <textarea 
+            v-model="cirugia.recomendaciones" 
+            rows="3" 
+            maxlength="500" 
+            :class="{'border-red-500': erroresCampo('recomendaciones_tutor') || erroresCampo('recomendaciones')}"
+            class="w-full border rounded p-2 resize-none"
+          ></textarea>
           <p class="text-sm text-gray-500 text-right mt-1">{{ cirugia.recomendaciones?.length || 0 }}/500 caracteres</p>
+          <p v-if="erroresCampo('recomendaciones_tutor')" class="text-red-500 text-sm mt-1">
+            {{ erroresCampo('recomendaciones_tutor')[0] }}
+          </p>
+          <p v-if="erroresCampo('recomendaciones')" class="text-red-500 text-sm mt-1">
+            {{ erroresCampo('recomendaciones')[0] }}
+          </p>
         </div>
 
         <!-- Selección del medio de envío -->
@@ -384,6 +483,9 @@
               (En modo edición el medio de envío no se puede cambiar)
             </p>
           </div>
+          <p v-if="erroresCampo('medio_envio')" class="text-red-500 text-sm mt-1">
+            {{ erroresCampo('medio_envio')[0] }}
+          </p>
         </div>
 
         <!-- Archivos adjuntos -->
@@ -436,6 +538,9 @@
             </div>
           </div>
           <p class="text-xs text-gray-500 mt-1">Puede adjuntar recetas, imágenes del medicamento, informes, etc.</p>
+          <p v-if="erroresCampo('archivos')" class="text-red-500 text-sm mt-1">
+            {{ erroresCampo('archivos')[0] }}
+          </p>
         </div>
       </div>
 
@@ -575,6 +680,15 @@ const mascotaData = ref(null)
 const errorCargandoMascota = ref(null)
 const mostrarModal = ref(false)
 
+// Agregar estas variables para manejo de errores
+const erroresValidacion = ref({})
+const mostrarErrores = ref(false)
+
+// Función para obtener errores de un campo específico
+const erroresCampo = (campo) => {
+  return erroresValidacion.value[campo] || null
+}
+
 // Determinar si es edición o registro
 const esEdicion = computed(() => {
   return route.name === 'editarCirugia' || !!route.params.cirugiaId
@@ -625,7 +739,7 @@ const cirugia = reactive({
   medicacion: '',
   recomendaciones: '',
   medio_envio: '',
-  diagnosticos_ids: [] // ← AÑADE ESTO
+  diagnosticos_ids: []
 })
 
 // Estados reactivos
@@ -732,6 +846,62 @@ const obtenerEtapaAbreviada = (etapa) => {
   return abreviaciones[etapa] || etapa
 }
 
+// Función mejorada para mostrar errores de validación
+const mostrarErrorValidacion = (error) => {
+  mostrarErrores.value = true
+  
+  // Crear un array temporal para los errores
+  const erroresArray = []
+  
+  // Verificar si es un error del servidor con estructura de validación
+  if (error.response?.status === 422 && error.response.data?.errors) {
+    erroresValidacion.value = error.response.data.errors
+    
+    // Construir mensaje amigable para alerta
+    for (const campo in error.response.data.errors) {
+      const mensajes = error.response.data.errors[campo]
+      mensajes.forEach(mensaje => {
+        erroresArray.push(`• ${mensaje}`)
+      })
+    }
+  } else if (error.message) {
+    // Si es un error genérico
+    erroresValidacion.value = {
+      _general: [error.message]
+    }
+    erroresArray.push(`• ${error.message}`)
+  } else if (typeof error === 'string') {
+    erroresValidacion.value = {
+      _general: [error]
+    }
+    erroresArray.push(`• ${error}`)
+  } else {
+    erroresValidacion.value = {
+      _general: ['Ocurrió un error desconocido']
+    }
+    erroresArray.push('• Ocurrió un error desconocido')
+  }
+  
+  // Mostrar alerta con mejor formato si hay errores críticos
+  if (erroresArray.length > 0) {
+    const mensajeFinal = erroresArray.join('\n')
+    console.error('❌ Errores de validación:', mensajeFinal)
+    
+    // Solo mostrar alerta para errores que no sean de campos específicos
+    if (erroresValidacion.value._general) {
+      setTimeout(() => {
+        alert(`❌ Error de validación:\n\n${mensajeFinal}`)
+      }, 100)
+    }
+  }
+}
+
+// Limpiar errores de validación
+const limpiarErroresValidacion = () => {
+  erroresValidacion.value = {}
+  mostrarErrores.value = false
+}
+
 // Cargar datos de la mascota para obtener el usuario_id
 const cargarDatosMascota = async () => {
   try {
@@ -826,7 +996,6 @@ const cargarCentrosVeterinarios = async () => {
 }
 
 // Cargar datos de cirugía existente para edición
-// Cargar datos de cirugía existente para edición
 const cargarCirugiaExistente = async () => {
   if (!cirugiaId.value) return
   
@@ -879,8 +1048,6 @@ const cargarCirugiaExistente = async () => {
       console.log('✅ Datos mapeados:', cirugia)
       
       // Cargar diagnósticos asociados
-      // ✅ DIAGNÓSTICOS - ESTRATEGIA MEJORADA COMO EN REVISIONES
-      // Limpiar array primero
       diagnosticosSeleccionados.value = []
 
       // ESTRATEGIA 1: Verificar si hay diagnósticos en diferentes propiedades
@@ -982,7 +1149,7 @@ const cargarCirugiaExistente = async () => {
       
     } else {
       console.warn('❌ No se encontraron datos de cirugía:', result)
-      alert('No se pudo cargar la cirugía a editar: ' + (result.message || 'Error desconocido'))
+      mostrarErrorValidacion('No se pudo cargar la cirugía a editar: ' + (result.message || 'Error desconocido'))
       
       // Redirigir a la página anterior
       if (mascotaId.value) {
@@ -994,7 +1161,7 @@ const cargarCirugiaExistente = async () => {
     }
   } catch (error) {
     console.error('❌ Error cargando datos de cirugía:', error)
-    alert('Error al cargar la cirugía: ' + error.message)
+    mostrarErrorValidacion('Error al cargar la cirugía: ' + error.message)
     
     // Redirigir a la página anterior
     if (mascotaId.value) {
@@ -1138,14 +1305,14 @@ const validarFarmacos = () => {
 // Mostrar modal de confirmación
 const mostrarModalConfirmacion = () => {
   if (!formularioValido.value) {
-    alert('Por favor complete todos los campos obligatorios')
+    mostrarErrorValidacion('Por favor complete todos los campos obligatorios')
     return
   }
   
   // Validar fármacos
   const validacionFarmacos = validarFarmacos()
   if (!validacionFarmacos.valido) {
-    alert(validacionFarmacos.mensaje)
+    mostrarErrorValidacion(validacionFarmacos.mensaje)
     return
   }
   
@@ -1171,39 +1338,55 @@ const procesarFormulario = () => {
   mostrarModalConfirmacion()
 }
 
-// Registrar cirugía
+// Registrar cirugía - VERSIÓN MEJORADA CON MANEJO DE ERRORES
 const registrarCirugia = async () => {
   if (procesando.value) return
 
   try {
     procesando.value = true
     cerrarModal()
+    
+    // Limpiar errores previos
+    limpiarErroresValidacion()
 
     // Validar que se seleccionó un medio de envío
     if (!cirugia.medio_envio) {
-      alert('Por favor seleccione un medio de envío para el informe')
+      mostrarErrorValidacion('Por favor seleccione un medio de envío para el informe')
       return
     }
 
     // Validar campos obligatorios
     if (!cirugia.tipo_cirugia_id || !cirugia.fecha || !cirugia.resultado || !cirugia.estado) {
-      alert('Por favor complete todos los campos obligatorios')
+      mostrarErrorValidacion('Por favor complete todos los campos obligatorios')
       return
     }
 
     // Preparar datos para enviar
     const datosCirugia = {
-      ...cirugia,
-      diagnosticos: diagnosticosSeleccionados.value.map(d => d.id),
+      tipo_cirugia_id: cirugia.tipo_cirugia_id,
+      fecha_cirugia: cirugia.fecha, // Cambiar 'fecha' a 'fecha_cirugia'
+      diagnostico_causa: diagnosticosSeleccionados.value.length > 0 
+        ? diagnosticosSeleccionados.value.map(d => d.nombre).join(', ')
+        : 'Sin diagnóstico específico', // Campo requerido
+      resultado: cirugia.resultado,
+      estado_actual: cirugia.estado,
+      centro_veterinario_id: cirugia.centro_veterinario_id,
+      fecha_control_estimada: cirugia.fecha_control,
+      descripcion_procedimiento: cirugia.descripcion,
+      medicacion_postquirurgica: cirugia.medicacion,
+      recomendaciones_tutor: cirugia.recomendaciones,
+      // Incluir otros campos que necesita el backend
+      diagnosticos: diagnosticosSeleccionados.value.map(d => d.id), // Para la relación
       farmacos_asociados: farmacosAsociados.value.map(f => ({
         farmaco_id: f.drug.id,
         dosis: f.dose,
         frecuencia: f.frequency,
         duracion: f.duracion,
         observaciones: f.notes,
-        etapa_aplicacion: f.etapa_aplicacion // Incluir la etapa de aplicación
+        etapa_aplicacion: f.etapa_aplicacion
       })),
-      mascota_id: mascotaId.value
+      mascota_id: mascotaId.value,
+      medio_envio: cirugia.medio_envio // Asegúrate de incluir esto
     }
 
     console.log('📤 Enviando datos a servidor:', datosCirugia)
@@ -1235,12 +1418,31 @@ const registrarCirugia = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejar específicamente el error 422 (Validación del backend)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ 
+        response: { 
+          status: 422, 
+          data: result 
+        } 
+      })
+      return
+    }
+
     if (!response.ok) {
-      throw new Error(result.message || 'Error en la operación')
+      throw new Error(result.message || `Error ${response.status} en la operación`)
     }
 
     if (result.success) {
-      alert('✅ Cirugía registrada exitosamente')
+      // Mostrar mensaje de éxito incluyendo información del envío si existe
+      let mensajeExito = '✅ Cirugía registrada exitosamente'
+      if (result.data?.envio_exitoso === true) {
+        mensajeExito += ' y certificado enviado'
+      } else if (result.data?.envio_exitoso === false) {
+        mensajeExito += ' (pero hubo un problema al enviar el certificado)'
+      }
+      
+      alert(mensajeExito)
       router.push({
         name: 'veterinario-cirugias',
         params: { id: mascotaId.value },
@@ -1251,23 +1453,26 @@ const registrarCirugia = async () => {
         }
       })
     } else {
-      alert('Error al registrar la cirugía: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al registrar la cirugía' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al registrar la cirugía: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
 }
 
-// Actualizar cirugía existente
+// Actualizar cirugía existente - VERSIÓN MEJORADA CON MANEJO DE ERRORES
 const actualizarCirugia = async () => {
   if (procesando.value) return
 
   try {
     procesando.value = true
     cerrarModal()
+    
+    // Limpiar errores previos
+    limpiarErroresValidacion()
 
     console.log('📤 Actualizando cirugía con ID:', cirugiaId.value)
     console.log('📤 Mascota ID:', mascotaId.value)
@@ -1316,8 +1521,19 @@ const actualizarCirugia = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejar específicamente el error 422 (Validación del backend)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ 
+        response: { 
+          status: 422, 
+          data: result 
+        } 
+      })
+      return
+    }
+
     if (!response.ok) {
-      throw new Error(result.message || 'Error en la operación')
+      throw new Error(result.message || `Error ${response.status} en la operación`)
     }
 
     if (result.success) {
@@ -1339,11 +1555,11 @@ const actualizarCirugia = async () => {
         router.push({ name: 'veterinario-cirugias', params: { id: '0' } })
       }
     } else {
-      alert('Error al actualizar la cirugía: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al actualizar la cirugía' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al actualizar la cirugía: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
@@ -1498,7 +1714,7 @@ onMounted(async () => {
     
     if (errorCargandoMascota.value) {
       console.error('❌ Error al cargar mascota:', errorCargandoMascota.value)
-      alert('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
+      mostrarErrorValidacion('Error al cargar datos de la mascota: ' + errorCargandoMascota.value)
       return
     }
   }

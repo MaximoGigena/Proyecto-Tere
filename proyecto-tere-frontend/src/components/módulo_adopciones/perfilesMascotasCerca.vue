@@ -123,8 +123,10 @@
             </div>
             <!-- Componente de filtros -->
             <FiltrosComponente 
-              @cerrar="mostrarOverlay = false" 
+              v-if="mostrarOverlay"  
+              @cerrar="cerrarOverlaySuave" 
               @filtrar="aplicarFiltros"
+              :key="overlayKey"  
             />
           </div>
         </div>
@@ -156,6 +158,29 @@ const ubicacionCargada = ref(false)
 const filtrosActivos = computed(() => {
   return Object.keys(filtrosActuales.value).length > 0
 })
+
+// Computed para determinar qué endpoint usar
+const endpointAAUsar = computed(() => {
+  const filtros = filtrosActuales.value;
+  
+  console.log('📍 Determinando endpoint basado en filtros:', filtros);
+  
+  // Si hay latitud y longitud en los filtros, usar jerarquía de ubicación
+  if (filtros.latitud && filtros.longitud) {
+    console.log('📍 Usando JERARQUÍA DE UBICACIÓN (hay ubicación específica)');
+    return '/api/adopciones/jerarquia-ubicacion';
+  }
+  
+  // Si no hay ubicación específica pero el usuario tiene ubicación, usar proximidad
+  if (ubicacionCargada.value) {
+    console.log('📍 Usando PROXIMIDAD (ubicación del usuario)');
+    return '/api/adopciones/proximidad';
+  }
+  
+  // Si no hay ubicación del usuario, usar ofertas normales
+  console.log('📍 Usando OFERTAS NORMALES (sin ubicación)');
+  return '/api/adopciones/ofertas-disponibles';
+});
 
 // Función para obtener la ubicación del usuario
 const obtenerUbicacionUsuario = async () => {
@@ -358,100 +383,135 @@ const cargarOfertas = async () => {
       throw new Error('No hay token de autenticación')
     }
     
-    console.log('📍 Cargando TODAS las ofertas por proximidad...')
+    console.log('📍 Cargando ofertas...')
     console.log('📍 Filtros actuales:', filtrosActuales.value)
     
-    // ✅ CORRECCIÓN: NO enviar distancia_maxima por defecto
-    // Solo enviar si el usuario explícitamente seleccionó un filtro
-    const params = { ...filtrosActuales.value };
+    // Determinar el endpoint basado en los filtros
+    const endpoint = endpointAAUsar.value;
+    console.log('📍 Endpoint seleccionado:', endpoint)
     
-    // Si no hay filtro de distancia, NO enviar el parámetro
-    if (!params.distancia_maxima) {
-      delete params.distancia_maxima;
+    // Preparar parámetros según el endpoint
+    let params = { ...filtrosActuales.value };
+    
+    if (endpoint === '/api/adopciones/proximidad') {
+      // Para proximidad: eliminar parámetros de ubicación específica
+      delete params.latitud;
+      delete params.longitud;
+      delete params.ubicacion;
+      delete params.ciudad;
+      delete params.provincia;
+      delete params.radio_km;
+      
+      // Solo enviar distancia máxima si está especificada
+      if (!params.distancia_maxima) {
+        delete params.distancia_maxima;
+      }
+      
+      console.log('📍 Parámetros para proximidad:', params)
+      
+    } else if (endpoint === '/api/adopciones/jerarquia-ubicacion') {
+      // Para jerarquía de ubicación: incluir parámetro para mostrar ofertas cerca del usuario
+      params.incluir_cerca_usuario = true;
+      
+      console.log('📍 Parámetros para jerarquía:', params)
+      
+    } else {
+      // Para ofertas normales: limpiar parámetros innecesarios
+      console.log('📍 Parámetros para ofertas normales:', params)
     }
     
-    console.log('📍 Parámetros enviados:', params)
-    
-    // Usar la ruta de proximidad
-    const response = await axios.get(`/api/adopciones/proximidad`, {
+    // Hacer la petición
+    const response = await axios.get(endpoint, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json'
       },
-      params: params // ✅ Enviar solo los parámetros necesarios
+      params: params
     })
     
-    console.log('📍 RESPUESTA API PROXIMIDAD:', response.data)
+    console.log('📍 RESPUESTA API:', response.data)
     
     if (response.data.success) {
       ofertas.value = response.data.data || []
-      console.log(`✅ CARGADAS ${ofertas.value.length} OFERTAS (TODAS)`)
+      console.log(`✅ CARGADAS ${ofertas.value.length} OFERTAS`)
       
-      // Mostrar estadísticas
-      if (response.data.estadisticas) {
+      // Mostrar información de jerarquía si existe
+      if (response.data.jerarquia) {
+        console.log('📊 Jerarquía de ubicación:', response.data.jerarquia)
+        
+        // Mostrar información detallada de cada oferta
+        ofertas.value.forEach((oferta, index) => {
+          console.log(`📍 Oferta ${index}:`, {
+            nombre: oferta.mascota?.nombre,
+            distancia: oferta.distancia,
+            distancia_km: oferta.distancia_km,
+            ubicacion: oferta.mascota?.ubicacion_texto,
+            jerarquia: oferta.jerarquia?.label,
+            nivel: oferta.jerarquia?.nivel,
+            distancia_desde_seleccionada: oferta.jerarquia?.distancia_desde_seleccionada
+          })
+        })
+      } else if (response.data.estadisticas) {
         console.log('📊 Estadísticas:', response.data.estadisticas)
       }
       
-      // Mostrar información de distancia en consola
-      ofertas.value.forEach((oferta, index) => {
-        console.log(`📍 Oferta ${index}:`, {
-          nombre: oferta.mascota?.nombre,
-          distancia: oferta.distancia,
-          distancia_km: oferta.distancia_km,
-          ubicacion: oferta.mascota?.ubicacion_texto,
-          nivel_proximidad: oferta.nivel_proximidad,
-          tiene_distancia: oferta.tiene_distancia
-        })
-      })
-      
       // Si no hay ofertas
       if (ofertas.value.length === 0) {
-        error.value = 'No hay mascotas disponibles para adopción en este momento.'
+        let mensaje = 'No hay mascotas disponibles para adopción ';
+        
+        if (filtrosActuales.value.ubicacion) {
+          mensaje += `en ${filtrosActuales.value.ubicacion}`;
+        } else if (ubicacionCargada.value) {
+          mensaje += 'cerca de ti';
+        }
+        
+        mensaje += ' con los filtros actuales.';
+        error.value = mensaje;
       }
     } else {
       throw new Error(response.data.message || 'Error al cargar ofertas')
     }
   } catch (err) {
-    console.error('❌ Error al cargar ofertas por proximidad:', err)
+    console.error('❌ Error al cargar ofertas:', err)
     console.error('Detalles:', err.response?.data)
     
-    if (err.response?.status === 404) {
-      // Si la ruta no existe, intentar con la ruta normal
-      console.log('📍 Ruta de proximidad no encontrada, usando ruta normal...')
-      await cargarOfertasNormales()
+    // Si la ruta de jerarquía no existe, intentar con proximidad
+    if (err.response?.status === 404 && endpointAAUsar.value === '/api/adopciones/jerarquia-ubicacion') {
+      console.log('📍 Ruta de jerarquía no encontrada, intentando con proximidad...')
+      // Intentar con proximidad como fallback
+      try {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+        const params = { ...filtrosActuales.value };
+        delete params.latitud;
+        delete params.longitud;
+        delete params.ubicacion;
+        delete params.ciudad;
+        delete params.provincia;
+        delete params.radio_km;
+        
+        const response = await axios.get('/api/adopciones/proximidad', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          },
+          params: params
+        })
+        
+        if (response.data.success) {
+          ofertas.value = response.data.data || []
+          console.log(`✅ CARGADAS ${ofertas.value.length} OFERTAS (fallback a proximidad)`)
+          error.value = null
+        }
+      } catch (fallbackErr) {
+        error.value = fallbackErr.response?.data?.message || fallbackErr.message || 'Error al cargar las ofertas'
+      }
+    } else if (err.response?.status === 401) {
+      error.value = 'Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.'
     } else {
       error.value = err.response?.data?.message || err.message || 'Error al cargar las ofertas'
-      
-      if (err.response?.status === 401) {
-        error.value = 'Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.'
-      }
     }
   } finally {
     cargando.value = false
-  }
-}
-
-// Función de respaldo para cargar ofertas normales
-const cargarOfertasNormales = async () => {
-  try {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-    
-    const response = await axios.get(`/api/adopciones/ofertas-disponibles`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
-      },
-      params: filtrosActuales.value
-    })
-    
-    console.log('📍 RESPUESTA API NORMAL:', response.data)
-    
-    if (response.data.success) {
-      ofertas.value = response.data.data || []
-      console.log(`✅ CARGADAS ${ofertas.value.length} OFERTAS NORMALES`)
-    }
-  } catch (err) {
-    console.error('❌ Error cargando ofertas normales:', err)
   }
 }
 
@@ -480,32 +540,62 @@ const aplicarFiltros = (nuevosFiltros) => {
   // Actualizar filtros actuales con valores REALES, no proxies
   filtrosActuales.value = { ...filtrosReales }
   
+  // Guardar filtros en localStorage para persistencia
+  localStorage.setItem('ultimos_filtros', JSON.stringify(filtrosActuales.value));
+  
   // Recargar ofertas
   cargarOfertas()
   mostrarOverlay.value = false
 }
 
 const removerFiltro = (filtro) => {
+  console.log('🗑️ Eliminando filtro:', filtro)
+  
   // Eliminar el filtro específico
   const { [filtro]: _, ...restoFiltros } = filtrosActuales.value
   filtrosActuales.value = restoFiltros
+  
+  // Actualizar localStorage
+  localStorage.setItem('ultimos_filtros', JSON.stringify(filtrosActuales.value));
+  
+  console.log('📍 Filtros después de eliminar:', filtrosActuales.value)
   
   // Recargar ofertas
   cargarOfertas()
 }
 
 const limpiarTodosFiltros = () => {
+  console.log('🗑️ Limpiando todos los filtros')
+  
   filtrosActuales.value = {}
+  localStorage.removeItem('ultimos_filtros');
+  
   cargarOfertas()
+}
+
+// Cargar filtros guardados al inicio
+const cargarFiltrosGuardados = () => {
+  try {
+    const filtrosGuardados = localStorage.getItem('ultimos_filtros');
+    if (filtrosGuardados) {
+      filtrosActuales.value = JSON.parse(filtrosGuardados);
+      console.log('📋 Filtros cargados desde localStorage:', filtrosActuales.value);
+    }
+  } catch (e) {
+    console.warn('⚠️ Error cargando filtros guardados:', e);
+  }
 }
 
 onMounted(async () => {
   console.log('📍 Componente montado, iniciando carga...')
   
+  // Cargar filtros guardados
+  cargarFiltrosGuardados();
+  
   // Primero intentar obtener ubicación existente
   const tieneUbicacion = await obtenerUbicacionUsuario()
   
-  if (!tieneUbicacion) {
+  if (!tieneUbicacion && !filtrosActuales.value.latitud) {
     console.log('📍 No se obtuvo ubicación, preguntando al usuario...')
     
     // Esperar un momento antes de preguntar
@@ -520,8 +610,8 @@ onMounted(async () => {
       }
     }, 1000)
   } else {
-    console.log('📍 Ubicación obtenida, cargando ofertas...')
-    // Si ya tiene ubicación, cargar ofertas normalmente
+    console.log('📍 Ubicación obtenida o filtros existentes, cargando ofertas...')
+    // Si ya tiene ubicación o filtros, cargar ofertas
     await cargarOfertas()
   }
 })
@@ -533,4 +623,12 @@ const cerrarOverlay = () => {
     router.push('/explorar/cerca')
   }
 }
+
+// Función para cerrar overlay suavemente
+const cerrarOverlaySuave = () => {
+  mostrarOverlay.value = false
+}
+
+// Key para forzar recarga del componente de filtros
+const overlayKey = ref(0)
 </script>

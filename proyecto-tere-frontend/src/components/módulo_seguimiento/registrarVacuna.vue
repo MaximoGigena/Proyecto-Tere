@@ -203,6 +203,34 @@
       </div>
     </form>
 
+    <!-- Sección de errores de validación -->
+    <div v-if="mostrarErrores && Object.keys(erroresValidacion).length > 0" 
+        class="mt-6 p-4 bg-red-50 border-l-4 border-red-500">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">
+            Problemas de validación
+          </h3>
+          <div class="mt-2 text-sm text-red-700">
+            <ul class="list-disc pl-5 space-y-1">
+              <li v-for="(erroresCampo, campo) in erroresValidacion" :key="campo">
+                <template v-if="campo !== '_debug'">
+                  <span v-for="error in erroresCampo" :key="error" class="block">
+                    {{ error }}
+                  </span>
+                </template>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Componente externo del overlay -->
     <SeleccionCentroVeterinario
       v-if="mostrarOverlayCentros"
@@ -278,6 +306,8 @@ const props = defineProps({
   }
 })
 
+
+
 const router = useRouter()
 const route = useRoute()
 const { accessToken, isAuthenticated, checkAuth } = useAuth()
@@ -320,6 +350,39 @@ const vacuna = reactive({
   fecha_proxima_dosis: '',
   medio_envio: '',
 })
+
+// Agrega esta variable reactiva para manejar errores
+const erroresValidacion = ref({})
+const mostrarErrores = ref(false)
+
+// Función mejorada para mostrar errores
+const mostrarErrorValidacion = (error) => {
+  mostrarErrores.value = true
+  // Crear un array temporal para los errores
+  const erroresArray = []
+  
+  // Verificar si es un error del servidor con estructura de validación
+  if (error.response?.status === 422 && error.response.data?.errors) {
+    erroresValidacion.value = error.response.data.errors
+    
+    // Construir mensaje amigable
+    for (const campo in error.response.data.errors) {
+      const mensajes = error.response.data.errors[campo]
+      mensajes.forEach(mensaje => {
+        erroresArray.push(`• ${mensaje}`)
+      })
+    }
+  } else if (error.message) {
+    // Si es un error genérico
+    erroresArray.push(`• ${error.message}`)
+  } else {
+    erroresArray.push('• Ocurrió un error desconocido')
+  }
+  
+  // Mostrar alerta con mejor formato
+  const mensajeFinal = erroresArray.join('\n')
+  alert(`❌ Error de validación:\n\n${mensajeFinal}`)
+}
 
 // Computed para validación del formulario
 const formularioValido = computed(() => {
@@ -598,6 +661,10 @@ const registrarVacunacion = async () => {
   try {
     procesando.value = true
     cerrarModal()
+    
+    // Limpiar errores previos
+    erroresValidacion.value = {}
+    mostrarErrores.value = false
 
     console.log('📤 Enviando datos a servidor para registro:', vacuna)
     console.log('📤 Mascota ID:', mascotaId.value)
@@ -633,12 +700,28 @@ const registrarVacunacion = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejar específicamente el error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
 
     if (result.success) {
-      alert('✅ Vacuna registrada exitosamente')
+      // Mostrar mensaje de éxito incluyendo información del envío si existe
+      let mensajeExito = '✅ Vacuna registrada exitosamente'
+      if (result.data?.envio_exitoso === true) {
+        mensajeExito += ' y certificado enviado'
+      } else if (result.data?.envio_exitoso === false) {
+        mensajeExito += ' (pero hubo un problema al enviar el certificado)'
+      }
+      
+      alert(mensajeExito)
+      
+      // Redirigir a la lista de vacunas
       router.push({
         name: 'veterinario-vacunas',
         params: { id: mascotaId.value },
@@ -649,11 +732,11 @@ const registrarVacunacion = async () => {
         }
       })
     } else {
-      alert('Error al registrar la vacuna: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al registrar la vacuna' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al registrar la vacuna: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
@@ -728,6 +811,47 @@ const actualizarVacuna = async () => {
   } finally {
     procesando.value = false
   }
+}
+
+// Ejemplo de validación antes de mostrar el formulario
+async function validarTipoVacuna(mascotaId, tipoVacunaId) {
+    try {
+        const response = await axios.get(
+            `/api/mascotas/${mascotaId}/validar-vacuna/${tipoVacunaId}`
+        );
+        
+        if (response.data.valido) {
+            // Mostrar formulario
+            mostrarFormularioVacuna();
+        } else {
+            // Mostrar errores
+            alert(response.data.errors.join('\n'));
+        }
+    } catch (error) {
+        console.error('Error en validación:', error);
+    }
+}
+
+// Obtener lista de vacunas válidas para un select
+async function cargarVacunasValidas(mascotaId) {
+    try {
+        const response = await axios.get(
+            `/api/mascotas/${mascotaId}/tipos-vacuna-validos`
+        );
+        
+        // Mostrar solo las válidas en el select
+        const select = document.getElementById('tipo_vacuna_id');
+        select.innerHTML = '';
+        
+        response.data.data.validos.forEach(vacuna => {
+            const option = document.createElement('option');
+            option.value = vacuna.id;
+            option.textContent = vacuna.nombre;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error cargando vacunas válidas:', error);
+    }
 }
 
 const cancelar = () => {

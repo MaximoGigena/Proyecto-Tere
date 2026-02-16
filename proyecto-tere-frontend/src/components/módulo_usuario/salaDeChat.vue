@@ -24,11 +24,32 @@
               <span class="text-xs text-gray-500">{{ currentChat.online ? 'En línea' : 'Desconectado' }}</span>
             </div>
           </div>
+          
+          <!-- 🔥 NUEVO: Indicador de progreso de interacciones -->
+          <div v-if="mostrarIndicadorInteracciones" class="w-full max-w-md mt-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-gray-600 font-medium">
+                Progreso para aprobación: 
+                <span :class="{
+                  'text-green-600 font-bold': interacciones.progreso >= 100,
+                  'text-blue-600': interacciones.progreso < 100
+                }">
+                  {{ interacciones.actual }}/{{ interacciones.requerido }} interacciones
+                </span>
+              </span>
+              
+            </div>
+            <!-- Mensaje informativo -->
+            <p v-if="interacciones.faltan > 0" class="text-xs text-gray-500 mt-1">
+              ⚠️ Faltan {{ interacciones.faltan }} mensajes intercambiados para habilitar la aprobación
+            </p>
+            <p v-else-if="interacciones.actual >= interacciones.requerido" class="text-xs text-green-600 font-medium mt-1">
+              ✅ ¡Chat listo para proceder con la adopción!
+            </p>
+            
+            
+          </div>
         </div>
-        
-        <button class="text-gray-700 hover:text-black transition p-2">
-          <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" class="text-xl"/>
-        </button>
       </div>
     </div>
 
@@ -74,10 +95,23 @@
         <span class="ml-2 text-gray-500">Cargando más mensajes...</span>
       </div>
 
+      <!-- 🔥 NUEVO: Mensaje informativo sobre interacciones -->
+      <div v-if="interacciones.actual === 1 && !interaccionesCargadas" class="mb-4">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mx-auto max-w-lg">
+          <div class="flex items-center">
+            <font-awesome-icon :icon="['fas', 'info-circle']" class="text-blue-500 mr-2"/>
+            <p class="text-sm text-blue-700">
+              <strong>Importante:</strong> Necesitas intercambiar al menos <strong>5 mensajes</strong> 
+              con el {{ esDueñoMascota ? 'solicitante' : 'dueño de la mascota' }} 
+              para habilitar la aprobación de adopción.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- Mensajes -->
       <div v-for="(message, index) in messages" :key="message.id" 
           :class="['flex mb-4', message.sender === 'me' ? 'justify-start' : 'justify-end']">
-        <!-- 🔥 CAMBIO: 'justify-start' para 'me' y 'justify-end' para otros -->
         
         <div :class="[
           'max-w-xs lg:max-w-md px-4 py-2 rounded-lg shadow-sm',
@@ -99,6 +133,13 @@
               ✓
             </span>
           </div>
+          
+          <!-- 🔥 NUEVO: Indicador de mensaje que cuenta para interacciones -->
+          <div v-if="message.tipo === 'texto' && message.sender !== 'me'" 
+               class="text-xs text-gray-400 mt-1">
+            <font-awesome-icon :icon="['fas', 'comment']" class="mr-1"/>
+            Cuenta para interacción
+          </div>
         </div>
       </div>
 
@@ -109,11 +150,36 @@
         </svg>
         <p class="text-gray-500">No hay mensajes todavía</p>
         <p class="text-gray-400 text-sm">Envía un mensaje para iniciar la conversación</p>
+        
+        <!-- 🔥 NUEVO: Información sobre interacciones -->
+        <div v-if="mostrarIndicadorInteracciones" class="mt-6 bg-blue-50 p-4 rounded-lg max-w-md">
+          <h3 class="font-semibold text-blue-800 mb-2">📝 Importante para la adopción</h3>
+          <ul class="text-sm text-blue-700 space-y-1">
+            <li class="flex items-start">
+              <font-awesome-icon :icon="['fas', 'message']" class="mt-0.5 mr-2 text-blue-600"/>
+              <span>Debes intercambiar <strong>al menos 5 mensajes</strong> con el {{ esDueñoMascota ? 'solicitante' : 'dueño' }}</span>
+            </li>
+            <li class="flex items-start">
+              <font-awesome-icon :icon="['fas', 'handshake']" class="mt-0.5 mr-2 text-blue-600"/>
+              <span>Ambos deben enviar mensajes (no solo uno)</span>
+            </li>
+            <li class="flex items-start">
+              <font-awesome-icon :icon="['fas', 'check-circle']" class="mt-0.5 mr-2 text-blue-600"/>
+              <span>Al alcanzar 5 interacciones, se habilitará la opción de aprobar la adopción</span>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
-    <!-- 🔥 INPUT CORREGIDO - SIN MULTIPLES ENVIOS 🔥 -->
+    <!-- 🔥 INPUT CON INFORMACIÓN DE INTERACCIONES -->
     <div id="chat-input-container" class="sticky bottom-0 bg-white border-t border-gray-200 p-3 z-40">
+      <!-- Contador de interacciones mini -->
+      <div v-if="mostrarIndicadorInteracciones" class="flex items-center justify-between mb-2 px-1">
+        <div class="flex items-center text-xs">
+        </div>
+      </div>
+      
       <div class="flex items-center gap-2">
         <button @click="abrirAdjuntos" 
                 :disabled="isInputDisabled()"
@@ -169,6 +235,12 @@ onBeforeMount(() => {
   detenerPolling();
 });
 
+const loadingStates = ref({
+  chat: false,
+  mensajes: false,
+  error: null
+});
+
 const route = useRoute();
 const router = useRouter();
 
@@ -187,14 +259,41 @@ const isInitialLoading = ref(true);
 const cargandoNuevosMensajes = ref(false);
 const isEnterPressed = ref(false);
 const pollingActive = ref(false);
+const interaccionesCargadas = ref(false);
+const mostrarModalEstadisticas = ref(false);
+
+// 🔥 NUEVO: Variables para interacciones
+const interacciones = ref({
+  actual: 0,
+  requerido: 5,
+  progreso: 0,
+  faltan: 5,
+  detalle: {
+    usuario_actual: 0,
+    otro_usuario: 0
+  }
+});
+
+// 🔥 NUEVO: Estado de estadísticas
+const estadisticasChat = ref({
+  total_mensajes: 0,
+  listo_para_adopcion: false,
+  puede_aprobar: false,
+  fecha_habilitado_adopcion: null
+});
 
 let pollingInterval = null;
 
-// Estado para ver qué está cargando
-const loadingStates = ref({
-  chat: false,
-  mensajes: false,
-  error: null
+// Computed properties actualizadas
+const mostrarIndicadorInteracciones = computed(() => {
+  // Mostrar solo si hay una solicitud de adopción asociada
+  return currentChat.value.solicitud_id && interaccionesCargadas.value;
+});
+
+const esDueñoMascota = computed(() => {
+  // Asumimos que el usuario actual es el dueño si creó el chat
+  // En tu implementación, podrías necesitar lógica específica
+  return chatInfo.value?.solicitud_id && currentChat.value.solicitud_id;
 });
 
 // Función para detener el polling
@@ -206,9 +305,107 @@ function detenerPolling() {
   }
 }
 
+// 🔥 NUEVO: Función para cargar estadísticas de interacciones
+async function cargarEstadisticasInteracciones() {
+  try {
+    const chatId = route.params.id;
+    const token = localStorage.getItem('token');
+    
+    if (!token || !chatId) return;
+    
+    const response = await axios.get(`/api/chats/${chatId}/interacciones`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      const data = response.data.data;
+      const stats = data.estadisticas || data;
+      
+      // Actualizar interacciones
+      const interaccionesUsuario = stats.interacciones_usuario || stats.mensajes_usuario_actual || 0;
+      const interaccionesOtro = stats.interacciones_otro_usuario || stats.mensajes_otro_usuario || 0;
+      
+      // Calcular interacciones mínimas (ping-pong)
+      const minInteracciones = Math.min(interaccionesUsuario, interaccionesOtro);
+      
+      interacciones.value = {
+        actual: minInteracciones,
+        requerido: 5,
+        progreso: Math.min(100, (minInteracciones / 5) * 100),
+        faltan: Math.max(0, 5 - minInteracciones),
+        detalle: {
+          usuario_actual: interaccionesUsuario,
+          otro_usuario: interaccionesOtro
+        }
+      };
+      
+      // Guardar estadísticas generales
+      estadisticasChat.value = {
+        total_mensajes: stats.total_interacciones || 0,
+        listo_para_adopcion: stats.alcanzo_interaccion_minima || false,
+        puede_aprobar: stats.puede_aprobar || (minInteracciones >= 5),
+        fecha_habilitado_adopcion: stats.fecha_habilitacion || null
+      };
+      
+      interaccionesCargadas.value = true;
+      
+      console.log('Estadísticas cargadas:', {
+        interacciones: interacciones.value,
+        estadisticas: estadisticasChat.value
+      });
+    }
+  } catch (err) {
+    console.error('Error cargando estadísticas de interacciones:', err);
+    // Si falla, intentamos con el endpoint alternativo
+    await cargarEstadisticasAlternativo();
+  }
+}
+
+// 🔥 NUEVO: Función alternativa para cargar estadísticas
+async function cargarEstadisticasAlternativo() {
+  try {
+    const chatId = route.params.id;
+    const token = localStorage.getItem('token');
+    
+    if (!token) return;
+    
+    const response = await axios.get(`/api/chats/${chatId}/estadisticas-interaccion`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      const data = response.data.data;
+      if (data.estadisticas) {
+        const stats = data.estadisticas;
+        
+        const minInteracciones = Math.min(stats.mensajes_usuario_cedente || 0, stats.mensajes_usuario_solicitante || 0);
+        
+        // Determinar qué conteo corresponde al usuario actual
+        const userActual = stats.detalle?.usuario_actual;
+        const interaccionesUsuario = userActual?.mensajes || stats.interacciones_usuario || 0;
+        const interaccionesOtro = stats.detalle?.otro_usuario?.mensajes || stats.interacciones_otro_usuario || 0;
+        
+        interacciones.value = {
+          actual: minInteracciones,
+          requerido: 5,
+          progreso: Math.min(100, (minInteracciones / 5) * 100),
+          faltan: Math.max(0, 5 - minInteracciones),
+          detalle: {
+            usuario_actual: interaccionesUsuario,
+            otro_usuario: interaccionesOtro
+          }
+        };
+        
+        interaccionesCargadas.value = true;
+      }
+    }
+  } catch (err) {
+    console.error('Error cargando estadísticas alternativas:', err);
+  }
+}
+
 // Cargar nuevos mensajes (CON REF LOCAL)
 async function cargarNuevosMensajes() {
-  // Usar la variable local directamente para evitar problemas de referencia
   const yaEstaCargando = cargandoNuevosMensajes.value;
   
   if (yaEstaCargando) {
@@ -251,6 +448,11 @@ async function cargarNuevosMensajes() {
       
       messages.value = [...mensajesExistentes, ...nuevosMensajes];
       
+      // 🔥 NUEVO: Actualizar estadísticas después de recibir nuevos mensajes
+      if (nuevosMensajes.some(m => m.tipo === 'texto')) {
+        await cargarEstadisticasInteracciones();
+      }
+      
       const container = messagesContainer.value;
       if (container) {
         const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
@@ -288,7 +490,6 @@ function iniciarPolling() {
   
   pollingActive.value = true;
   
-  // Usar una función nombrada para evitar problemas de contexto
   const pollFunction = async () => {
     if (pollingActive.value && 
         !isInitialLoading.value && 
@@ -300,6 +501,21 @@ function iniciarPolling() {
   };
   
   pollingInterval = setInterval(pollFunction, 5000);
+}
+
+// 🔥 NUEVO: Función para mostrar estadísticas detalladas
+function mostrarEstadisticasDetalladas() {
+  mostrarModalEstadisticas.value = true;
+}
+
+// 🔥 NUEVO: Función para ir a aprobar solicitud
+function irAAprobarSolicitud() {
+  if (currentChat.value.solicitud_id) {
+    router.push({
+      name: 'adoption-request',
+      params: { solicitudId: currentChat.value.solicitud_id }
+    });
+  }
 }
 
 // Función auxiliares de UI
@@ -365,7 +581,7 @@ const currentChat = computed(() => {
   };
 });
 
-// Funciones principales
+// Funciones principales actualizadas
 async function cargarChat() {
   try {
     loadingStates.value.chat = true;
@@ -383,6 +599,11 @@ async function cargarChat() {
 
     if (response.data.success) {
       chatInfo.value = response.data.data.chat;
+      
+      // 🔥 NUEVO: Cargar estadísticas de interacciones
+      if (chatInfo.value.solicitud_id) {
+        await cargarEstadisticasInteracciones();
+      }
     } else {
       loadingStates.value.error = response.data.message || 'Error cargando chat';
     }
@@ -500,6 +721,33 @@ async function sendMessage() {
         messages.value.splice(index, 1, mensajeReal);
       }
       
+      // 🔥 NUEVO: Actualizar estadísticas de interacciones después de enviar
+      if (response.data.data.estadisticas_interaccion) {
+        const stats = response.data.data.estadisticas_interaccion;
+        const minInteracciones = Math.min(stats.interacciones_usuario || 0, stats.interacciones_otro_usuario || 0);
+        
+        interacciones.value = {
+          actual: minInteracciones,
+          requerido: 5,
+          progreso: Math.min(100, (minInteracciones / 5) * 100),
+          faltan: Math.max(0, 5 - minInteracciones),
+          detalle: {
+            usuario_actual: stats.interacciones_usuario || 0,
+            otro_usuario: stats.interacciones_otro_usuario || 0
+          }
+        };
+        
+        estadisticasChat.value = {
+          total_mensajes: stats.total_interacciones || 0,
+          listo_para_adopcion: stats.alcanzo_interaccion_minima || false,
+          puede_aprobar: stats.alcanzo_interaccion_minima || false,
+          fecha_habilitado_adopcion: stats.fecha_habilitacion || null
+        };
+      } else {
+        // Si no vienen en la respuesta, recargar
+        await cargarEstadisticasInteracciones();
+      }
+      
       estadoEnvio.value = { tipo: 'success', mensaje: 'Mensaje enviado ✓' };
       
       setTimeout(() => { 
@@ -592,7 +840,7 @@ const handleScroll = () => {
   }
 };
 
-// Inicialización
+// Inicialización actualizada
 async function inicializarChat() {
   // Detener polling anterior
   detenerPolling();
@@ -604,6 +852,14 @@ async function inicializarChat() {
   messages.value = [];
   page.value = 1;
   hasMore.value = true;
+  interaccionesCargadas.value = false;
+  interacciones.value = {
+    actual: 0,
+    requerido: 5,
+    progreso: 0,
+    faltan: 5,
+    detalle: { usuario_actual: 0, otro_usuario: 0 }
+  };
   
   const token = localStorage.getItem('token');
   if (!token) {
@@ -694,5 +950,29 @@ watch(() => route.params.id, async (newId, oldId) => {
   flex: 1 1 0% !important;
   min-height: 0 !important;
   overflow-y: auto !important;
+}
+
+/* 🔥 NUEVO: Estilos para la barra de progreso */
+.bg-blue-500 {
+  background-color: #3b82f6;
+}
+
+.bg-green-500 {
+  background-color: #10b981;
+}
+
+.bg-gray-200 {
+  background-color: #e5e7eb;
+}
+
+.bg-gray-400 {
+  background-color: #9ca3af;
+}
+
+/* Animación para la barra de progreso */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 500ms;
 }
 </style>

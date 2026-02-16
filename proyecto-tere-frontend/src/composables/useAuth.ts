@@ -70,6 +70,8 @@ export const useAuth = () => {
     }
   }
 
+  
+
   // Procesar token desde URL (fragment identifier)
   const processTokenFromUrl = async (): Promise<boolean> => {
     const hash = window.location.hash.substring(1)

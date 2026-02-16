@@ -5,12 +5,6 @@
       <!-- Header del Overlay -->
       <div class="flex justify-between items-center p-6 border-b">
         <h3 class="text-2xl font-bold text-gray-800">{{ titulo }}</h3>
-        <button
-          @click="cerrar"
-          class="text-gray-500 hover:text-gray-700 text-2xl transition-colors"
-        >
-          ×
-        </button>
       </div>
       
       <!-- Contenido dinámico -->
@@ -25,13 +19,6 @@
 
       <!-- Footer con acciones dinámicas -->
       <div class="flex justify-end gap-4 p-6 border-t bg-gray-50">
-        <button
-          v-if="mostrarBotonOmitir"
-          @click="omitir"
-          class="px-6 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
-        >
-          {{ textoOmitir }}
-        </button>
         <button
           v-if="mostrarBotonGuardar"
           @click="guardar"
@@ -61,10 +48,6 @@ const props = defineProps({
     type: Object,
     default: () => ({})
   },
-  mostrarBotonOmitir: {
-    type: Boolean,
-    default: true
-  },
   mostrarBotonGuardar: {
     type: Boolean,
     default: true
@@ -80,7 +63,7 @@ const props = defineProps({
 })
 
 // Emits
-const emit = defineEmits(['guardar', 'omitir', 'cerrar', 'datos-actualizados'])
+const emit = defineEmits(['guardar', 'cerrar', 'datos-actualizados'])
 
 // Refs
 const componenteRef = ref(null)

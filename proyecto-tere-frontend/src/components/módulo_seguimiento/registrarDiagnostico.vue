@@ -1,4 +1,4 @@
-<!-- registrarDiagnostico.vue con modal de confirmación y modo edición -->
+<!-- registrarDiagnostico.vue con manejo de errores mejorado -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -26,7 +26,7 @@
       <p class="text-sm mt-1">Puede continuar registrando el diagnóstico, pero algunas funciones pueden no estar disponibles.</p>
     </div>
 
-    <form v-if="mascotaId" @submit.prevent="mostrarModalConfirmacion" class="space-y-4">
+    <form @submit.prevent="procesarFormulario" class="space-y-4">
       <!-- DATOS OBLIGATORIOS -->
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
@@ -47,6 +47,7 @@
                 class="w-full border rounded p-2"
                 @change="onTipoDiagnosticoChange"
                 :disabled="cargandoDatos"
+                :class="{ 'border-red-500': erroresValidacion.tipo_diagnostico_id }"
               >
                 <option value="">Seleccione un tipo de diagnóstico</option>
                 <option
@@ -68,6 +69,9 @@
                 + Tipo 
               </button>
             </div>
+            <div v-if="erroresValidacion.tipo_diagnostico_id" class="text-red-600 text-sm mt-1">
+              {{ erroresValidacion.tipo_diagnostico_id[0] }}
+            </div>
           </div>
 
           <div>
@@ -77,9 +81,13 @@
               type="text" 
               required 
               class="w-full border rounded p-2" 
+              :class="{ 'border-red-500': erroresValidacion.nombre }"
               placeholder="Ej: Insuficiencia renal, parvovirus, etc."
               :disabled="cargandoDatos"
             />
+            <div v-if="erroresValidacion.nombre" class="text-red-600 text-sm mt-1">
+              {{ erroresValidacion.nombre[0] }}
+            </div>
           </div>
 
           <!-- Centro Veterinario -->
@@ -89,6 +97,7 @@
               <div 
                 v-if="diagnostico.centro_veterinario_id"
                 class="w-full border rounded p-2 bg-gray-50"
+                :class="{ 'border-red-500': erroresValidacion.centro_veterinario_id }"
               >
                 <div class="font-semibold">
                   {{ obtenerNombreCentroSeleccionado() }}
@@ -114,6 +123,9 @@
                 + Centro
               </button>
             </div>
+            <div v-if="erroresValidacion.centro_veterinario_id" class="text-red-600 text-sm mt-1">
+              {{ erroresValidacion.centro_veterinario_id[0] }}
+            </div>
           </div>
         </div>
 
@@ -126,8 +138,12 @@
               type="date" 
               required 
               class="w-full border rounded p-2"
+              :class="{ 'border-red-500': erroresValidacion.fecha_diagnostico }"
               :disabled="cargandoDatos"
             />
+            <div v-if="erroresValidacion.fecha_diagnostico" class="text-red-600 text-sm mt-1">
+              {{ erroresValidacion.fecha_diagnostico[0] }}
+            </div>
           </div>
 
           <div>
@@ -136,6 +152,7 @@
               v-model="diagnostico.estado" 
               required 
               class="w-full border rounded p-2"
+              :class="{ 'border-red-500': erroresValidacion.estado }"
               :disabled="cargandoDatos"
             >
               <option value="">Seleccione una opción</option>
@@ -145,6 +162,9 @@
               <option value="seguimiento">En seguimiento</option>
               <option value="sospecha">Sospecha</option>
             </select>
+            <div v-if="erroresValidacion.estado" class="text-red-600 text-sm mt-1">
+              {{ erroresValidacion.estado[0] }}
+            </div>
           </div>
         </div>
       </div>
@@ -164,6 +184,7 @@
               v-model="diagnostico.diferenciales" 
               rows="3" 
               class="border rounded p-2 resize-none w-128" 
+              :class="{ 'border-red-500': erroresValidacion.diagnosticos_diferenciales_seleccionados }"
               placeholder="Liste otros diagnósticos considerados"
               readonly
               :disabled="cargandoDatos"
@@ -177,6 +198,9 @@
             >
               + Diagnóstico
             </button>
+          </div>
+          <div v-if="erroresValidacion.diagnosticos_diferenciales_seleccionados" class="text-red-600 text-sm mt-1">
+            {{ erroresValidacion.diagnosticos_diferenciales_seleccionados[0] }}
           </div>
           
           <!-- Etiquetas de diagnósticos seleccionados -->
@@ -210,6 +234,9 @@
             placeholder="Ej: Hemograma, radiografía, ecografía..."
             :disabled="cargandoDatos"
           ></textarea>
+          <div v-if="erroresValidacion.examenes" class="text-red-600 text-sm mt-1">
+            {{ erroresValidacion.examenes[0] }}
+          </div>
         </div>
 
         <div>
@@ -221,6 +248,9 @@
             placeholder="Indique el tratamiento recomendado"
             :disabled="cargandoDatos"
           ></textarea>
+          <div v-if="erroresValidacion.conducta" class="text-red-600 text-sm mt-1">
+            {{ erroresValidacion.conducta[0] }}
+          </div>
         </div>
 
         <!-- Archivos adjuntos -->
@@ -232,7 +262,7 @@
               :key="index"
               class="relative border-2 border-dashed border-gray-600 rounded-md text-center cursor-pointer h-20 w-20"
               @click="!archivo.preview && activarInput(index)"
-              :class="{ 'opacity-50': cargandoDatos }"
+              :class="{ 'opacity-50': cargandoDatos, 'border-red-500': erroresValidacion.archivos }"
             >
               <!-- Botón eliminar -->
               <button
@@ -276,6 +306,9 @@
             </div>
           </div>
           <p class="text-xs text-gray-500 mt-1">Puede adjuntar recetas, imágenes del medicamento, informes, etc.</p>
+          <div v-if="erroresValidacion.archivos" class="text-red-600 text-sm mt-1">
+            {{ erroresValidacion.archivos[0] }}
+          </div>
         </div>
       </div>
 
@@ -306,6 +339,37 @@
             (En modo edición el medio de envío no se puede cambiar)
           </p>
         </div>
+        <div v-if="erroresValidacion.medio_envio" class="text-red-600 text-sm mt-1 text-center">
+          {{ erroresValidacion.medio_envio[0] }}
+        </div>
+      </div>
+
+      <!-- Sección de errores de validación -->
+      <div v-if="mostrarErrores && Object.keys(erroresValidacion).length > 0" 
+          class="mt-6 p-4 bg-red-50 border-l-4 border-red-500">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800">
+              Problemas de validación
+            </h3>
+            <div class="mt-2 text-sm text-red-700">
+              <ul class="list-disc pl-5 space-y-1">
+                <li v-for="(erroresCampo, campo) in erroresValidacion" :key="campo">
+                  <template v-if="campo !== '_debug'">
+                    <span v-for="error in erroresCampo" :key="error" class="block">
+                      {{ error }}
+                    </span>
+                  </template>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="pt-4 flex items-center justify-center gap-4">
@@ -318,7 +382,8 @@
           Cancelar
         </button>
         <button
-          type="submit"
+          type="button"
+          @click="mostrarModalConfirmacion"
           :disabled="procesando || cargandoDatos || !formularioValido"
           class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 rounded-full hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
         >
@@ -510,6 +575,10 @@ const diagnosticosSeleccionados = ref([])
 // Estado para modal de confirmación
 const mostrarModal = ref(false)
 
+// Estados para manejo de errores (siguiendo el estándar de vacunas)
+const erroresValidacion = ref({})
+const mostrarErrores = ref(false)
+
 // Determinar si es edición o registro
 const esEdicion = computed(() => {
   return route.name === 'editarDiagnostico' || !!route.params.diagnosticoId || !!props.diagnosticoId
@@ -606,6 +675,40 @@ const obtenerDireccionCentroSeleccionado = () => {
 const formatFecha = (fecha) => {
   if (!fecha) return 'No especificada'
   return new Date(fecha).toLocaleDateString('es-ES')
+}
+
+// Función mejorada para mostrar errores (siguiendo el estándar de vacunas)
+const mostrarErrorValidacion = (error) => {
+  mostrarErrores.value = true
+  const erroresArray = []
+  
+  // Verificar si es un error del servidor con estructura de validación
+  if (error.response?.status === 422 && error.response.data?.errors) {
+    erroresValidacion.value = error.response.data.errors
+    
+    // Construir mensaje amigable
+    for (const campo in error.response.data.errors) {
+      const mensajes = error.response.data.errors[campo]
+      mensajes.forEach(mensaje => {
+        erroresArray.push(`• ${mensaje}`)
+      })
+    }
+  } else if (error.message) {
+    // Si es un error genérico
+    erroresArray.push(`• ${error.message}`)
+  } else {
+    erroresArray.push('• Ocurrió un error desconocido')
+  }
+  
+  // Mostrar alerta con mejor formato
+  const mensajeFinal = erroresArray.join('\n')
+  alert(`❌ Error de validación:\n\n${mensajeFinal}`)
+}
+
+// Limpiar errores
+const limpiarErrores = () => {
+  erroresValidacion.value = {}
+  mostrarErrores.value = false
 }
 
 // Volver atrás si no hay mascotaId
@@ -716,8 +819,7 @@ const cargarDiagnosticoExistente = async () => {
     console.log('🔄 Cargando datos de diagnóstico con ID:', diagnosticoId.value)
     console.log('📍 URL completa:', `/api/mascotas/${mascotaId.value}/diagnosticos/${diagnosticoId.value}`)
     
-    // En cargarDiagnosticoExistente() en tu componente
-     const response = await fetch(`/api/mascotas/${mascotaId.value}/diagnosticos/${diagnosticoId.value}`, {
+    const response = await fetch(`/api/mascotas/${mascotaId.value}/diagnosticos/${diagnosticoId.value}`, {
         headers: {
           'Authorization': `Bearer ${accessToken.value}`,
           'Accept': 'application/json'
@@ -800,7 +902,7 @@ const cargarDiagnosticoExistente = async () => {
       console.log('✅ Diagnósticos diferenciales cargados:', diagnosticosSeleccionados.value)
     } else {
       console.warn('❌ No se encontraron datos de diagnóstico:', result)
-      alert('No se pudo cargar el diagnóstico a editar: ' + (result.message || 'Error desconocido'))
+      mostrarErrorValidacion({ message: 'No se pudo cargar el diagnóstico a editar: ' + (result.message || 'Error desconocido') })
       
       if (mascotaId.value) {
         router.push({
@@ -811,12 +913,11 @@ const cargarDiagnosticoExistente = async () => {
     }
   } catch (error) {
     console.error('❌ Error cargando datos de diagnóstico:', error)
-    console.error('❌ Error cargando datos de diagnóstico:', error)
     console.error('🔍 Error details:', {
       message: error.message,
       name: error.name
     })
-    alert('Error al cargar el diagnóstico: ' + error.message)
+    mostrarErrorValidacion({ message: 'Error al cargar el diagnóstico: ' + error.message })
     
     if (mascotaId.value) {
       router.push({
@@ -832,6 +933,10 @@ const onTipoDiagnosticoChange = () => {
   if (tipoSeleccionado) {
     console.log('Tipo seleccionado:', tipoSeleccionado)
   }
+  // Limpiar error del campo cuando el usuario interactúa con él
+  if (erroresValidacion.value.tipo_diagnostico_id) {
+    delete erroresValidacion.value.tipo_diagnostico_id
+  }
 }
 
 // Abrir overlay externo para centros
@@ -843,9 +948,11 @@ const abrirOverlayCentros = () => {
 const seleccionarCentro = (centro) => {
   diagnostico.centro_veterinario_id = centro.id
   mostrarOverlayCentros.value = false
+  // Limpiar error del campo cuando se selecciona un centro
+  if (erroresValidacion.value.centro_veterinario_id) {
+    delete erroresValidacion.value.centro_veterinario_id
+  }
 }
-
-
 
 // Funciones para diagnóstico diferencial
 const abrirSelectorDiferenciales = () => {
@@ -880,6 +987,11 @@ const agregarDiagnosticoDiferencial = (diagnosticoSeleccionado) => {
     actualizarTextareaDiferenciales()
   } else {
     console.log('⚠️  Diagnóstico ya existe en la selección')
+  }
+  
+  // Limpiar error del campo cuando se agrega un diagnóstico
+  if (erroresValidacion.value.diagnosticos_diferenciales_seleccionados) {
+    delete erroresValidacion.value.diagnosticos_diferenciales_seleccionados
   }
 }
 
@@ -919,7 +1031,7 @@ const actualizarTextareaDiferenciales = () => {
 
 const abrirRegistroTipoDiagnostico = () => {
   if (!mascotaId.value) {
-    alert('No se puede registrar un nuevo tipo sin identificar la mascota')
+    mostrarErrorValidacion({ message: 'No se puede registrar un nuevo tipo sin identificar la mascota' })
     return
   }
   
@@ -953,6 +1065,10 @@ const handleArchivo = (event, index) => {
     archivos.value[index].archivo = file
     archivos.value[index].preview = esImagen(file) ? URL.createObjectURL(file) : null
   }
+  // Limpiar error del campo cuando se sube un archivo
+  if (erroresValidacion.value.archivos) {
+    delete erroresValidacion.value.archivos
+  }
 }
 
 const activarInput = (index) => {
@@ -964,10 +1080,17 @@ const quitarArchivo = (index) => {
   archivos.value[index].preview = null
 }
 
+// Procesar formulario (solo muestra el modal de confirmación)
+const procesarFormulario = () => {
+  mostrarModalConfirmacion()
+}
+
 // Modal functions
 const mostrarModalConfirmacion = () => {
+  limpiarErrores()
+  
   if (!formularioValido.value) {
-    alert('Por favor complete todos los campos obligatorios')
+    mostrarErrorValidacion({ message: 'Por favor complete todos los campos obligatorios' })
     return
   }
   
@@ -993,6 +1116,7 @@ const registrarDiagnostico = async () => {
   try {
     procesando.value = true
     cerrarModal()
+    limpiarErrores()
 
     console.log('📤 Enviando datos a servidor:', diagnostico)
 
@@ -1056,17 +1180,31 @@ const registrarDiagnostico = async () => {
       throw new Error('El servidor no devolvió JSON válido. Respuesta: ' + responseText.substring(0, 100))
     }
 
+    // Manejar específicamente el error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
 
     if (result.success) {
-      // Obtener el valor actual de mascotaId (no la computed property)
+      // Obtener el valor actual de mascotaId
       const currentMascotaId = mascotaId.value
       
       console.log('✅ Diagnóstico registrado, navegando con mascotaId:', currentMascotaId)
       
-      alert('✅ Diagnóstico registrado exitosamente')
+      // Mostrar mensaje de éxito incluyendo información del envío si existe
+      let mensajeExito = '✅ Diagnóstico registrado exitosamente'
+      if (result.data?.envio_exitoso === true) {
+        mensajeExito += ' y certificado enviado'
+      } else if (result.data?.envio_exitoso === false) {
+        mensajeExito += ' (pero hubo un problema al enviar el certificado)'
+      }
+      
+      alert(mensajeExito)
       
       // Usar .value para obtener el valor primitivo
       router.push({
@@ -1079,17 +1217,16 @@ const registrarDiagnostico = async () => {
         }
       })
     } else {
-      alert('Error al registrar el diagnóstico: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al registrar el diagnóstico' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al registrar el diagnóstico: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
 }
 
-// Actualizar diagnóstico existente
 // Actualizar diagnóstico existente
 const actualizarDiagnostico = async () => {
   if (procesando.value) return
@@ -1097,6 +1234,7 @@ const actualizarDiagnostico = async () => {
   try {
     procesando.value = true
     cerrarModal()
+    limpiarErrores()
 
     console.log('📤 Actualizando diagnóstico con ID:', diagnosticoId.value, 'para mascota:', mascotaId.value)
     console.log('📤 Datos a enviar:', diagnostico)
@@ -1147,6 +1285,12 @@ const actualizarDiagnostico = async () => {
       throw new Error('El servidor no devolvió JSON válido.')
     }
 
+    // Manejar específicamente el error 422 (Validación)
+    if (response.status === 422) {
+      mostrarErrorValidacion({ response: { status: 422, data: result } })
+      return
+    }
+
     if (!response.ok) {
       throw new Error(result.message || 'Error en la operación')
     }
@@ -1170,15 +1314,16 @@ const actualizarDiagnostico = async () => {
         router.push({ name: 'veterinario-diagnosticos', params: { id: '0' } })
       }
     } else {
-      alert('Error al actualizar el diagnóstico: ' + result.message)
+      mostrarErrorValidacion({ message: result.message || 'Error al actualizar el diagnóstico' })
     }
   } catch (error) {
     console.error('❌ Error completo:', error)
-    alert('Error al actualizar el diagnóstico: ' + error.message)
+    mostrarErrorValidacion(error)
   } finally {
     procesando.value = false
   }
 }
+
 const cancelar = () => {
   const mascotaIdParaRedireccion = mascotaId.value
   
@@ -1244,6 +1389,7 @@ onMounted(async () => {
     console.log('🏥 Centros veterinarios cargados:', centrosVeterinarios.value.length)
   } catch (error) {
     console.error('❌ Error durante la carga inicial:', error)
+    mostrarErrorValidacion(error)
   } finally {
     cargandoDatos.value = false
   }

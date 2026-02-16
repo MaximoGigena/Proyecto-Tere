@@ -39,6 +39,8 @@ import { editarMascotaRoutes } from './routes/editarMascota.js'
 import { motivosBajaMascota } from './routes/overlayMotivosMascota.js'
 import { esperaVeterinarios } from './routes/esperaVeterinaria.js'
 import { UsuarioSuspendido } from './routes/cuentaSuspendida.js'
+import { MotoresMetricas } from './routes/motoresMetricas.js'
+import { motorMetricasUsuarios } from './routes/motorMetricasUsuarios.js'
  
 const routes = [
   ...homeRoutes,
@@ -82,6 +84,8 @@ const routes = [
   ...motivosBajaMascota,
   ...esperaVeterinarios,
   ...UsuarioSuspendido,
+  ...MotoresMetricas,
+  ...motorMetricasUsuarios,
 ]
 
 const router = createRouter({
