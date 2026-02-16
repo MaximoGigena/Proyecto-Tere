@@ -9,8 +9,11 @@ use App\Models\Mascota;
 use App\Models\TiposProcedimientos\TipoCirugia;
 use App\Models\CentroVeterinario;
 use App\Models\TiposProcedimientos\TipoDiagnostico; 
+use App\Models\ArchivoCirugia;
 use App\Models\FarmacoAsociado;
+use App\Services\Validaciones\CirugiaValidationService;
 use App\Models\ProcedimientoDiagnostico;
+use App\Http\Requests\StoreCirugiaRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
@@ -24,10 +27,14 @@ use App\Services\EnvioDocumentosService;
 class CirugiaController extends Controller
 {
     protected $envioDocumentosService;
+    protected $validationService;
 
-    public function __construct(EnvioDocumentosService $envioDocumentosService)
-    {
+    public function __construct(
+        EnvioDocumentosService $envioDocumentosService,
+        CirugiaValidationService $validationService
+    ) {
         $this->envioDocumentosService = $envioDocumentosService;
+        $this->validationService = $validationService;
     }
 
     /**
@@ -45,43 +52,12 @@ class CirugiaController extends Controller
     /**
      * Almacenar nueva cirugía
      */
-    public function store(Request $request, $mascotaId): JsonResponse
+    public function store(StoreCirugiaRequest $request, $mascotaId): JsonResponse
     {
-        // Validación según los campos del formulario Vue
-        $validated = $request->validate([
-            // Campos obligatorios
-            'tipo_cirugia_id' => 'required|exists:tipos_cirugia,id',
-            'fecha' => 'required|date',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'resultado' => 'required|in:satisfactorio,complicaciones,estable,critico',
-            'estado' => 'required|in:recuperacion,alta,seguimiento,hospitalizado',
-            
-            // Campos opcionales
-            'fecha_control_estimada' => 'nullable|date',
-            'descripcion_procedimiento' => 'nullable|string|max:1000',
-            'medicacion_postquirurgica' => 'nullable|string',
-            'recomendaciones_tutor' => 'nullable|string|max:500',
-            'medio_envio' => 'required|in:email,telegram,whatsapp',
-            
-            // Diagnósticos asociados
-            'diagnosticos' => 'nullable|array',
-            'diagnosticos.*' => 'exists:tipos_diagnostico,id',
-            
-            // Fármacos asociados
-            'farmacos_asociados' => 'nullable|array',
-            'farmacos_asociados.*.farmaco_id' => 'required|exists:tipos_farmaco,id',
-            'farmacos_asociados.*.dosis' => 'required|numeric|min:0.001',
-            'farmacos_asociados.*.frecuencia' => 'nullable|string',
-            'farmacos_asociados.*.duracion' => 'nullable|string',
-            'farmacos_asociados.*.observaciones' => 'nullable|string|max:1000',
-            'farmacos_asociados.*.etapa_aplicacion' => 'required|in:prequirurgica,transquirurgica,postquirurgica_inmediata,postquirurgica_tardia',
-            'farmacos_asociados.*.es_dosis_unica' => 'boolean',
-            
-            // Archivos adjuntos
-            'archivos.*' => 'nullable|file|max:10240', // 10MB máximo
-        ]);
-
         try {
+            // Los datos ya están validados por el Request
+            $validated = $request->validated();
+            
             $cirugiaCreada = null;
             $mascotaData = null;
 
@@ -89,9 +65,9 @@ class CirugiaController extends Controller
                 // 1. Crear el registro específico de Cirugia
                 $cirugia = Cirugia::create([
                     'tipo_cirugia_id' => $validated['tipo_cirugia_id'],
-                    'fecha_cirugia' => $validated['fecha'],
+                    'fecha_cirugia' => $validated['fecha_cirugia'],
                     'resultado' => $validated['resultado'],
-                    'estado_actual' => $validated['estado'],
+                    'estado_actual' => $validated['estado_actual'],
                     'diagnostico_causa' => $this->procesarDiagnosticosCausa($validated['diagnosticos'] ?? []),
                     'fecha_control_estimada' => $validated['fecha_control_estimada'] ?? null,
                     'descripcion_procedimiento' => $validated['descripcion_procedimiento'] ?? null,
@@ -105,7 +81,7 @@ class CirugiaController extends Controller
                     'veterinario_id' => Auth::id(),
                     'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
                     'categoria' => 'clinico',
-                    'fecha_aplicacion' => $validated['fecha'],
+                    'fecha_aplicacion' => $validated['fecha_cirugia'],
                     'observaciones' => $validated['descripcion_procedimiento'] ?? null,
                     'costo' => null, // Puedes agregar campo de costo si lo necesitas
                 ]);

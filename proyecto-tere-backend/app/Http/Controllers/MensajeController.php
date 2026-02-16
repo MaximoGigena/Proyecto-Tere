@@ -89,22 +89,16 @@ class MensajeController extends Controller
             Log::info('📤 Intentando enviar mensaje', [
                 'chat_id' => $chatId,
                 'user_id' => $user->id,
-                'user_name' => $user->name,
-                'contenido' => $request->contenido,
-                'tipo' => $request->tipo,
-                'ip' => $request->ip()
+                'contenido' => $request->contenido
             ]);
 
             $validator = validator($request->all(), [
                 'contenido' => 'required|string|max:2000',
-                'tipo' => 'nullable|in:texto,imagen,documento,audio',
+                'tipo' => 'nullable|in:texto,imagen,documento,audio,sistema',
                 'url_adjunto' => 'nullable|url|max:500'
             ]);
 
             if ($validator->fails()) {
-                Log::warning('❌ Validación fallida', [
-                    'errors' => $validator->errors()->toArray()
-                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Error de validación',
@@ -113,27 +107,16 @@ class MensajeController extends Controller
             }
 
             // Verificar que el chat existe y el usuario es participante
-            $chat = Chat::find($chatId);
+            $chat = Chat::with(['user1', 'user2'])->find($chatId);
             
             if (!$chat) {
-                Log::warning('❌ Chat no encontrado', ['chat_id' => $chatId]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Chat no encontrado'
                 ], 404);
             }
             
-            Log::info('✅ Chat encontrado', [
-                'chat_id' => $chat->chat_id,
-                'user1_id' => $chat->user1_id,
-                'user2_id' => $chat->user2_id
-            ]);
-
             if (!$chat->esParticipante($user->id)) {
-                Log::warning('❌ Usuario no es participante', [
-                    'user_id' => $user->id,
-                    'chat_users' => [$chat->user1_id, $chat->user2_id]
-                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'No autorizado para enviar mensajes en este chat'
@@ -146,15 +129,17 @@ class MensajeController extends Controller
                 'user_id' => $user->id,
                 'contenido' => $request->contenido,
                 'tipo' => $request->tipo ?? 'texto',
-                'canal' => 'interno', // Agregar este campo
+                'canal' => 'interno',
                 'url_adjunto' => $request->url_adjunto,
                 'leido' => false
             ]);
 
-            Log::info('✅ Mensaje creado', [
-                'mensaje_id' => $mensaje->mensaje_id,
-                'contenido' => $mensaje->contenido
-            ]);
+            // ✅ IMPORTANTE: Actualizar conteo de interacciones
+            $estadisticasActualizadas = null;
+            if ($mensaje->tipo === 'texto') {
+                $estadisticasActualizadas = $chat->actualizarConteoInteracciones($user->id);
+                Log::info('📊 Conteo de interacciones actualizado:', $estadisticasActualizadas);
+            }
 
             // Actualizar último mensaje en el chat
             $chat->update([
@@ -164,19 +149,38 @@ class MensajeController extends Controller
 
             DB::commit();
 
-            // Formatear respuesta
-            $mensajeFormateado = $mensaje->formatearParaFrontend();
+            // Cargar relaciones para la respuesta
+            $mensaje->load('usuario');
 
-            Log::info('✅ Mensaje enviado exitosamente', [
-                'mensaje_id' => $mensaje->mensaje_id,
-                'formateado' => $mensajeFormateado
-            ]);
+            // Obtener estadísticas actualizadas del chat
+            $chat->refresh(); // Refrescar para obtener datos actualizados
+            
+            // Preparar respuesta con estadísticas de interacción
+            $mensajeFormateado = $mensaje->formatearParaFrontend();
+            
+            // Agregar estadísticas de interacción a la respuesta
+            $estadisticasInteraccion = [
+                'interacciones_usuario' => $chat->interaccionesDeUsuario($user->id),
+                'interacciones_otro_usuario' => $chat->interaccionesOtroUsuario($user->id),
+                'total_interacciones' => $chat->total_interacciones,
+                'listo_para_adopcion' => $chat->listo_para_adopcion,
+                'faltan_mensajes' => max(0, 5 - min($chat->interacciones_usuario1, $chat->interacciones_usuario2)),
+                'alcanzo_interaccion_minima' => $chat->estaListoParaAdopcion(),
+                'mensajes_usuario_cedente' => $chat->interacciones_usuario1,
+                'mensajes_usuario_solicitante' => $chat->interacciones_usuario2
+            ];
 
             return response()->json([
                 'success' => true,
                 'message' => 'Mensaje enviado exitosamente',
                 'data' => [
-                    'mensaje' => $mensajeFormateado
+                    'mensaje' => $mensajeFormateado,
+                    'estadisticas_interaccion' => $estadisticasInteraccion,
+                    'chat_actualizado' => [
+                        'total_interacciones' => $chat->total_interacciones,
+                        'listo_para_adopcion' => $chat->listo_para_adopcion,
+                        'fecha_habilitado_adopcion' => $chat->fecha_habilitado_adopcion
+                    ]
                 ]
             ]);
 
@@ -358,6 +362,81 @@ class MensajeController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al buscar mensajes',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno'
+            ], 500);
+        }
+    }
+    
+    /**
+     * Obtener estadísticas de mensajes para un chat
+     */
+    public function estadisticasMensajes($chatId)
+    {
+        try {
+            $user = Auth::user();
+            
+            $chat = Chat::findOrFail($chatId);
+            
+            if (!$chat->esParticipante($user->id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado para ver este chat'
+                ], 403);
+            }
+
+            // Contar mensajes por tipo
+            $estadisticas = Mensaje::where('chat_id', $chatId)
+                ->selectRaw('tipo, COUNT(*) as total')
+                ->groupBy('tipo')
+                ->get()
+                ->pluck('total', 'tipo');
+
+            // Obtener distribución temporal
+            $distribucionTemporal = Mensaje::where('chat_id', $chatId)
+                ->selectRaw('HOUR(created_at) as hora, COUNT(*) as total')
+                ->groupBy('hora')
+                ->orderBy('hora')
+                ->get();
+
+            // Obtener top palabras
+            $palabrasFrecuentes = [];
+            $mensajesTexto = Mensaje::where('chat_id', $chatId)
+                ->where('tipo', 'texto')
+                ->pluck('contenido');
+            
+            foreach ($mensajesTexto as $texto) {
+                $palabras = str_word_count(strtolower($texto), 1);
+                foreach ($palabras as $palabra) {
+                    if (strlen($palabra) > 3) { // Ignorar palabras muy cortas
+                        $palabrasFrecuentes[$palabra] = ($palabrasFrecuentes[$palabra] ?? 0) + 1;
+                    }
+                }
+            }
+            
+            arsort($palabrasFrecuentes);
+            $palabrasFrecuentes = array_slice($palabrasFrecuentes, 0, 10, true);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total_mensajes' => $chat->interacciones_usuario1 + $chat->interacciones_usuario2,
+                    'estadisticas_tipo' => $estadisticas,
+                    'distribucion_temporal' => $distribucionTemporal,
+                    'palabras_frecuentes' => $palabrasFrecuentes,
+                    'interacciones_chat' => $chat->obtenerEstadisticasInteracciones(),
+                    'resumen_adopcion' => $chat->obtenerResumenParaAdopcion()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al obtener estadísticas de mensajes:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener estadísticas',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno'
             ], 500);
         }

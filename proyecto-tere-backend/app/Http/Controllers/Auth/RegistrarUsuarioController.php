@@ -137,6 +137,86 @@ class RegistrarUsuarioController extends Controller
         }
     }
 
+    public function getPerfilCompleto($id)
+    {
+        try {
+            $usuario = Usuario::with([
+                'caracteristicas', 
+                'contacto', 
+                'ubicaciones',
+                'fotos'
+            ])->find($id);
+            
+            if (!$usuario) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado'
+                ], 404);
+            }
+            
+            // Obtener ubicación actual
+            $ubicacionActual = $usuario->ubicaciones()->latest('location_updated_at')->first();
+            
+            // Calcular tiempo de registro
+            $createdAt = $usuario->created_at;
+            $diasRegistrado = $createdAt->diffInDays(now());
+            
+            // Formatear tiempo de registro
+            $tiempoRegistro = $this->formatearTiempoRegistro($diasRegistrado, $createdAt);
+            
+            // Obtener foto principal
+            $fotoPrincipal = $usuario->fotos()->where('es_principal', true)->first();
+            
+            return response()->json([
+                'success' => true,
+                'usuario' => [
+                    'id' => $usuario->id,
+                    'nombre' => $usuario->nombre,
+                    'edad' => $usuario->edad,
+                    'ubicacion' => $ubicacionActual ? $ubicacionActual->location : null,
+                    'tiempo_registro' => $tiempoRegistro,
+                    'dias_registrado' => $diasRegistrado,
+                    'foto_principal' => $fotoPrincipal ? asset('storage/' . $fotoPrincipal->ruta_foto) : null,
+                    'caracteristicas' => $usuario->caracteristicas,
+                    'contacto' => $usuario->contacto,
+                    'fotos' => $usuario->fotos
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error al obtener perfil completo:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener perfil'
+            ], 500);
+        }
+    }
+
+    private function formatearTiempoRegistro($dias, $fechaCreacion)
+    {
+        if ($dias === 0) {
+            $horas = $fechaCreacion->diffInHours(now());
+            if ($horas === 0) {
+                $minutos = $fechaCreacion->diffInMinutes(now());
+                return $minutos === 0 ? 'Hace unos segundos' : "Hace {$minutos} minutos";
+            }
+            return $horas === 1 ? 'Hace 1 hora' : "Hace {$horas} horas";
+        } elseif ($dias === 1) {
+            return 'Ayer';
+        } elseif ($dias < 7) {
+            return "Hace {$dias} días";
+        } elseif ($dias < 30) {
+            $semanas = floor($dias / 7);
+            return "Hace {$semanas} semana" . ($semanas > 1 ? 's' : '');
+        } elseif ($dias < 365) {
+            $meses = floor($dias / 30);
+            return "Hace {$meses} mes" . ($meses > 1 ? 'es' : '');
+        } else {
+            $anios = floor($dias / 365);
+            return "Hace {$anios} año" . ($anios > 1 ? 's' : '');
+        }
+    }
+
     /**
      * Obtener usuario para modificación
      */
@@ -145,90 +225,89 @@ class RegistrarUsuarioController extends Controller
         try {
             Log::info('🔍 ===== INICIANDO SOLICITUD DE USUARIO =====');
             Log::info('🔍 ID recibido en show():', ['id' => $id]);
-            Log::info('🔍 Headers:', request()->headers->all());
+            Log::info('🔍 Tipo de ID esperado: User ID (no Usuario ID)');
 
-            // Cargar todas las relaciones necesarias
-            $usuario = Usuario::with([
-                'user', 
-                'caracteristicas', 
-                'contacto', 
-                'ubicaciones',
-                'fotos'
-            ])->findOrFail($id);  // ← Cambiado a findOrFail
+            $userAuth = Auth::user();
+            Log::info('🔍 Usuario autenticado actualmente:', [
+                'auth_user_id' => $userAuth ? $userAuth->id : null,
+                'auth_user_type' => $userAuth ? $userAuth->userable_type : null
+            ]);
+            
+            // ✅ CORRECCIÓN: El parámetro $id es el ID de User, no de Usuario
+            // Primero buscar el User
+            $user = User::with([
+                'userable' => function($query) {
+                    // Cargar Usuario con todas sus relaciones
+                    if ($query->getModel() instanceof \App\Models\Usuario) {
+                        $query->with(['caracteristicas', 'contacto', 'ubicaciones', 'fotos']);
+                    }
+                }
+            ])->find($id);
+
+            Log::info('🔍 User encontrado:', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'userable_type' => $user->userable_type,
+                'userable_id' => $user->userable_id
+            ]);
+            
+            if (!$user) {
+                Log::warning('❌ User no encontrado con ID:', ['user_id' => $id]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado'
+                ], 404);
+            }
+            
+            // Verificar que el userable sea un Usuario
+            if (!$user->userable || !($user->userable instanceof \App\Models\Usuario)) {
+                Log::warning('❌ El User no tiene un Usuario asociado:', [
+                    'user_id' => $user->id,
+                    'userable_type' => $user->userable_type,
+                    'userable_id' => $user->userable_id
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Perfil de usuario no encontrado'
+                ], 404);
+            }
+            
+            $usuario = $user->userable;
             
             Log::info('✅ Usuario encontrado:', [
-                'id' => $usuario->id,
+                'user_id' => $user->id,
+                'usuario_id' => $usuario->id,
                 'nombre' => $usuario->nombre,
-                'tiene_user' => $usuario->user ? 'SI' : 'NO',
                 'tiene_caracteristicas' => $usuario->caracteristicas ? 'SI' : 'NO'
             ]);
-
+            
             // Obtener ubicación actual (más reciente)
             $ubicacionActual = $usuario->ubicaciones()->latest('location_updated_at')->first();
             
-            // CALCULAR TIEMPO DE REGISTRO CON LA FECHA DEL USUARIO (NO DEL SERVER)
+            // Calcular tiempo de registro
             $createdAt = $usuario->created_at;
-            
-            // Asegurar que estamos usando la fecha en UTC
-            $now = now(); // Esto ya es UTC por defecto en Laravel
-            
-            // Usar Carbon para el cálculo correcto
+            $now = now();
             $diasRegistrado = $createdAt->diffInDays($now);
             
-            // CALCULAR CORRECTAMENTE EL TIEMPO DE REGISTRO
-            if ($diasRegistrado === 0) {
-                $horas = $createdAt->diffInHours($now);
-                if ($horas === 0) {
-                    $minutos = $createdAt->diffInMinutes($now);
-                    if ($minutos === 0) {
-                        $tiempoRegistro = 'Hace unos segundos';
-                    } else if ($minutos === 1) {
-                        $tiempoRegistro = 'Hace 1 minuto';
-                    } else {
-                        $tiempoRegistro = "Hace {$minutos} minutos";
-                    }
-                } else if ($horas === 1) {
-                    $tiempoRegistro = 'Hace 1 hora';
-                } else {
-                    $tiempoRegistro = "Hace {$horas} horas";
-                }
-            } else if ($diasRegistrado === 1) {
-                $tiempoRegistro = 'Ayer';
-            } else if ($diasRegistrado < 7) {
-                $tiempoRegistro = "Hace {$diasRegistrado} días";
-            } else if ($diasRegistrado < 30) {
-                $semanas = floor($diasRegistrado / 7);
-                $tiempoRegistro = "Hace {$semanas} semana" . ($semanas > 1 ? 's' : '');
-            } else if ($diasRegistrado < 365) {
-                $meses = floor($diasRegistrado / 30);
-                $tiempoRegistro = "Hace {$meses} mes" . ($meses > 1 ? 'es' : '');
-            } else {
-                $anios = floor($diasRegistrado / 365);
-                $tiempoRegistro = "Hace {$anios} año" . ($anios > 1 ? 's' : '');
-            }
-
-            Log::info('📅 Tiempo de registro calculado', [
-                'created_at' => $createdAt,
-                'now' => $now,
-                'dias' => $diasRegistrado,
-                'texto' => $tiempoRegistro
-            ]);
-
-            // OBTENER FOTO PRINCIPAL CORRECTAMENTE
+            // Calcular tiempo de registro
+            $tiempoRegistro = $this->formatearTiempoRegistro($diasRegistrado, $createdAt);
+            
+            // Obtener foto principal
             $fotoPrincipal = $usuario->fotos()->where('es_principal', true)->first();
             if (!$fotoPrincipal) {
                 $fotoPrincipal = $usuario->fotos()->first();
             }
-
+            
             // Estructura más clara para el frontend
             $response = [
                 'success' => true,
                 'usuario' => [
-                    'id' => $usuario->id,
+                    'id' => $usuario->id, // ID del Usuario
+                    'user_id' => $user->id, // ID del User
                     'nombre' => $usuario->nombre,
                     'edad' => $usuario->edad,
                     'ubicacion' => $ubicacionActual ? $ubicacionActual->location : null,
-                    'email' => $usuario->user ? $usuario->user->email : null,
+                    'email' => $user->email,
                     // DATOS DE TIEMPO DE REGISTRO
                     'tiempo_registro' => $tiempoRegistro,
                     'dias_registrado' => $diasRegistrado,
@@ -256,20 +335,27 @@ class RegistrarUsuarioController extends Controller
                             'es_principal' => $foto->es_principal
                         ];
                     })
+                ],
+                'debug_info' => [
+                    'input_id' => $id,
+                    'user_id_found' => $user->id,
+                    'usuario_id_found' => $usuario->id,
+                    'userable_type' => $user->userable_type,
+                    'es_usuario' => $user->userable instanceof \App\Models\Usuario
                 ]
             ];
-
+            
             Log::info('📤 Enviando respuesta JSON:', [
+                'user_id' => $response['usuario']['user_id'],
+                'usuario_id' => $response['usuario']['id'],
                 'usuario_nombre' => $response['usuario']['nombre'],
-                'tiempo_registro' => $response['usuario']['tiempo_registro'],
-                'dias_registrado' => $response['usuario']['dias_registrado'],
-                'foto_principal' => $response['usuario']['foto_principal'] ? 'SI' : 'NO'
+                'tiempo_registro' => $response['usuario']['tiempo_registro']
             ]);
-
+            
             return response()->json($response);
-
-            } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            Log::error('❌ Usuario no encontrado (ModelNotFoundException):', [
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('❌ Modelo no encontrado:', [
                 'id' => $id,
                 'error' => $e->getMessage()
             ]);
@@ -281,10 +367,10 @@ class RegistrarUsuarioController extends Controller
             Log::error('❌ Error al obtener usuario: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener usuario'
+                'message' => 'Error al obtener usuario',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : null
             ], 500);
         }
-
     }
 
     /**

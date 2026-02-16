@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\SolicitudAdopcion;
 use App\Models\OfertaAdopcion;
 use App\Models\Mascota;
+use App\Models\Chat;
+use App\Models\User;
 use App\Models\Usuario;
 use App\Models\HistorialTransferenciaMascota;
 use Illuminate\Http\Request;
@@ -226,43 +228,78 @@ class SolicitudAdopcionController extends Controller
             
             Log::info('=== INICIO solicitudesRecibidas ===');
             Log::info('Usuario: ' . $user->id);
+            Log::info('Usuario userable ID: ' . ($user->userable->id ?? 'N/A'));
             
-            // Obtener las solicitudes para las mascotas del usuario
+            // Obtener el ID del Usuario (no del User)
+            $usuarioId = $user->userable->id;
+            
+            if (!$usuarioId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no tiene perfil completo'
+                ], 400);
+            }
+            
+            // Obtener todas las mascotas del usuario
+            $mascotasIds = Mascota::where('usuario_id', $usuarioId)
+                ->pluck('id')
+                ->toArray();
+                
+            Log::info('Mascotas del usuario:', ['mascotas_ids' => $mascotasIds]);
+            
+            // Obtener ofertas activas para estas mascotas
+            $ofertasActivasIds = OfertaAdopcion::whereIn('id_mascota', $mascotasIds)
+                ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
+                ->pluck('id_mascota')
+                ->toArray();
+                
+            Log::info('Ofertas activas para mascotas:', ['mascotas_con_oferta' => $ofertasActivasIds]);
+            
+            // Obtener solicitudes para mascotas que tienen ofertas activas
             $solicitudes = SolicitudAdopcion::with([
                 'mascota' => function($query) {
                     $query->with('fotos');
                 },
-                'usuario' => function($query) {
-                    // CORREGIDO: Cargar userable sin intentar cargar fotos si no existen
-                    $query->with(['userable' => function($q) {
-                        // Verificar si el modelo tiene relación fotos
-                        $model = $q->getModel();
-                        if (method_exists($model, 'fotos')) {
+                'usuarioSolicitante.userable' => function($query) {
+                    // Solo cargar userable si existe
+                    $query->when(true, function($q) {
+                        // Si es Usuario, cargar fotos
+                        if (method_exists($q->getModel(), 'fotos')) {
                             $q->with('fotos');
                         }
-                    }]);
+                    });
                 }
             ])
-            ->whereHas('mascota', function($query) use ($user) {
-                $query->where('usuario_id', $user->id);
-            })
+            ->whereIn('idMascota', $ofertasActivasIds) // Solo mascotas con ofertas activas
             ->where('estadoSolicitud', 'pendiente')
             ->orderBy('fechaSolicitud', 'desc')
             ->get();
 
             Log::info('Solicitudes encontradas: ' . $solicitudes->count());
-
-            Log::info('DEBUG - Solicitudes encontradas:');
+            
+            if ($solicitudes->count() > 0) {
                 foreach ($solicitudes as $solicitud) {
                     Log::info('Solicitud ID: ' . $solicitud->idSolicitud . 
                             ' | Mascota ID: ' . $solicitud->idMascota . 
                             ' | Mascota Nombre: ' . $solicitud->mascota->nombre . 
-                            ' | Usuario Solicitante: ' . $solicitud->idUsuarioSolicitante);
+                            ' | Usuario Solicitante: ' . $solicitud->idUsuarioSolicitante .
+                            ' | Tiene Oferta Activa: ' . (in_array($solicitud->idMascota, $ofertasActivasIds) ? 'Sí' : 'No'));
                 }
+            } else {
+                Log::warning('No se encontraron solicitudes pendientes para las ofertas activas');
+                
+                // Depuración adicional: Verificar si hay mascotas sin solicitudes
+                $mascotasSinSolicitudes = array_diff($ofertasActivasIds, 
+                    SolicitudAdopcion::whereIn('idMascota', $ofertasActivasIds)
+                        ->pluck('idMascota')
+                        ->toArray()
+                );
+                Log::info('Mascotas con ofertas activas pero sin solicitudes:', ['mascotas' => $mascotasSinSolicitudes]);
+            }
 
             // Formatear la respuesta para el frontend
             $solicitudesFormateadas = $solicitudes->map(function($solicitud) {
-                $userSolicitante = $solicitud->usuario;
+                $userSolicitante = $solicitud->usuarioSolicitante;
                 $usuarioDetalles = $userSolicitante->userable ?? null;
                 
                 // Obtener nombre del usuario
@@ -272,7 +309,7 @@ class SolicitudAdopcionController extends Controller
                 if ($usuarioDetalles instanceof \App\Models\Usuario) {
                     $nombre = $usuarioDetalles->nombre ?? $userSolicitante->name ?? 'Usuario';
                     
-                    // Obtener foto del usuario (verificar si existe método)
+                    // Obtener foto del usuario
                     if (method_exists($usuarioDetalles, 'fotos') && 
                         $usuarioDetalles->fotos && 
                         $usuarioDetalles->fotos->isNotEmpty()) {
@@ -286,11 +323,10 @@ class SolicitudAdopcionController extends Controller
                     $nombre = $userSolicitante->name ?? 'Usuario';
                 }
                 
-                // En el método solicitudesRecibidas(), dentro del map(), cambia:
                 return [
                     'id' => $solicitud->idSolicitud,
                     'solicitud_id' => $solicitud->idSolicitud,
-                    'solicitante_id' => $userSolicitante->id, // ¡ESTA ES LA CLAVE!
+                    'solicitante_id' => $userSolicitante->id,
                     'nombre' => $nombre,
                     'img' => $fotoUrl,
                     'mascota_id' => $solicitud->mascota->id,
@@ -311,6 +347,12 @@ class SolicitudAdopcionController extends Controller
                 'data' => [
                     'solicitudes' => $solicitudesFormateadas,
                     'total' => $solicitudesFormateadas->count(),
+                    'debug' => [
+                        'mascotas_del_usuario' => $mascotasIds,
+                        'ofertas_activas' => $ofertasActivasIds,
+                        'usuario_id' => $usuarioId,
+                        'user_id' => $user->id
+                    ],
                     'estadisticas' => [
                         'pendientes' => $solicitudes->where('estadoSolicitud', 'pendiente')->count(),
                         'aprobadas' => $solicitudes->where('estadoSolicitud', 'aprobada')->count(),
@@ -476,6 +518,74 @@ class SolicitudAdopcionController extends Controller
     }
 
     /**
+     * Verificar estado de ofertas para una mascota específica
+     */
+    public function verificarOfertasMascota($mascotaId)
+    {
+        try {
+            $user = Auth::user();
+            $usuarioId = $user->userable->id;
+            
+            // Verificar que la mascota pertenece al usuario
+            $mascota = Mascota::where('id', $mascotaId)
+                ->where('usuario_id', $usuarioId)
+                ->first();
+                
+            if (!$mascota) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mascota no encontrada o no pertenece al usuario'
+                ], 404);
+            }
+            
+            // Obtener ofertas activas para esta mascota
+            $ofertasActivas = OfertaAdopcion::where('id_mascota', $mascotaId)
+                ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
+                ->get();
+                
+            // Obtener solicitudes para esta mascota
+            $solicitudes = SolicitudAdopcion::with(['usuarioSolicitante'])
+                ->where('idMascota', $mascotaId)
+                ->orderBy('fechaSolicitud', 'desc')
+                ->get();
+                
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'mascota' => [
+                        'id' => $mascota->id,
+                        'nombre' => $mascota->nombre
+                    ],
+                    'ofertas_activas' => $ofertasActivas,
+                    'solicitudes' => $solicitudes->map(function($solicitud) {
+                        return [
+                            'id' => $solicitud->idSolicitud,
+                            'estado' => $solicitud->estadoSolicitud,
+                            'fecha' => $solicitud->fechaSolicitud,
+                            'solicitante' => [
+                                'id' => $solicitud->usuarioSolicitante->id,
+                                'name' => $solicitud->usuarioSolicitante->name
+                            ]
+                        ];
+                    }),
+                    'estadisticas' => [
+                        'total_solicitudes' => $solicitudes->count(),
+                        'pendientes' => $solicitudes->where('estadoSolicitud', 'pendiente')->count(),
+                        'con_oferta_activa' => $ofertasActivas->count() > 0
+                    ]
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error al verificar ofertas de mascota:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al verificar estado'
+            ], 500);
+        }
+    }
+
+    /**
      * Obtener estadísticas de solicitudes
      */
     public function estadisticas()
@@ -521,22 +631,15 @@ class SolicitudAdopcionController extends Controller
             
             Log::info('=== INICIO show SolicitudAdopcion ===');
             Log::info('Solicitud ID: ' . $id);
-            Log::info('Usuario autenticado ID: ' . $user->id);
+            Log::info('Usuario autenticado ID (User): ' . $user->id);
+            Log::info('Usuario autenticado (userable ID): ' . ($user->userable->id ?? 'N/A'));
             
-            // Cargar la solicitud con todas las relaciones (CORREGIDO)
+            // Cargar la solicitud con las relaciones CORRECTAS
             $solicitud = SolicitudAdopcion::with([
                 'mascota' => function($query) {
                     $query->with('fotos');
                 },
-                'usuario' => function($query) {
-                    // CORREGIDO: Solo cargar userable, no fotos directamente
-                    $query->with(['userable' => function($q) {
-                        // Si userable es Usuario, y Usuario tiene relación fotos
-                        if (method_exists($q->getModel(), 'fotos')) {
-                            $q->with('fotos');
-                        }
-                    }]);
-                }
+                'usuarioSolicitante.userable' // ← Esta es la relación correcta
             ])
             ->where('idSolicitud', $id)
             ->first();
@@ -551,15 +654,24 @@ class SolicitudAdopcionController extends Controller
                 ], 404);
             }
             
-            // Verificar que la mascota pertenece al usuario autenticado
-            Log::info('Verificando propiedad de mascota...');
-            Log::info('Usuario dueño de mascota: ' . ($solicitud->mascota->usuario_id ?? 'No disponible'));
-            Log::info('Usuario autenticado: ' . $user->id);
+            // Obtener el ID del Usuario del user autenticado
+            $usuarioAutenticadoId = $user->userable->id ?? null;
             
-            if ($solicitud->mascota->usuario_id !== $user->id) {
-                Log::error('Usuario no autorizado para ver esta solicitud');
-                Log::error('Mascota pertenece a usuario: ' . $solicitud->mascota->usuario_id);
-                Log::error('Usuario autenticado: ' . $user->id);
+            if (!$usuarioAutenticadoId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no tiene perfil completo'
+                ], 403);
+            }
+            
+            // Verificar que la mascota pertenece al usuario autenticado
+            // COMPARANDO con usuario_id (que es el ID de la tabla Usuario)
+            if ($solicitud->mascota->usuario_id !== $usuarioAutenticadoId) {
+                Log::error('Usuario no autorizado para ver esta solicitud', [
+                    'mascota_usuario_id' => $solicitud->mascota->usuario_id,
+                    'usuario_autenticado_id' => $usuarioAutenticadoId,
+                    'user_id' => $user->id
+                ]);
                 
                 return response()->json([
                     'success' => false,
@@ -567,24 +679,39 @@ class SolicitudAdopcionController extends Controller
                 ], 403);
             }
             
-            // Obtener datos del solicitante
-            $userSolicitante = $solicitud->usuario;
+            // Obtener datos del solicitante - CORREGIDO
+            $userSolicitante = $solicitud->usuarioSolicitante; // ← Esto debe devolver el User
             $usuarioDetalles = $userSolicitante->userable ?? null;
             
             Log::info('Información del solicitante:');
-            Log::info('- User ID: ' . $userSolicitante->id);
-            Log::info('- Userable type: ' . get_class($usuarioDetalles ?? 'No disponible'));
+            Log::info('- User ID (tabla User): ' . $userSolicitante->id);
+            Log::info('- Userable type: ' . ($usuarioDetalles ? get_class($usuarioDetalles) : 'No disponible'));
+            Log::info('- Userable ID: ' . ($usuarioDetalles->id ?? 'N/A'));
             
             $solicitanteInfo = null;
             if ($usuarioDetalles instanceof \App\Models\Usuario) {
+                // Obtener foto principal
+                $fotoPrincipal = $usuarioDetalles->fotos()
+                    ->where('es_principal', true)
+                    ->first();
+                
+                $fotoUrl = $fotoPrincipal 
+                    ? asset('storage/' . $fotoPrincipal->ruta_foto)
+                    : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png';
+                
                 $solicitanteInfo = [
-                    'id' => $userSolicitante->id,
-                    'nombre' => $usuarioDetalles->nombre ?? $userSolicitante->name ?? 'Usuario',
-                    'foto_perfil_url' => $usuarioDetalles->foto_perfil_url ?? null,
-                    'descripcion' => $usuarioDetalles->descripcion ?? null
+                    'id' => $usuarioDetalles->id, // ← ID del Usuario, no del User
+                    'user_id' => $userSolicitante->id, // ← ID del User
+                    'nombre' => $usuarioDetalles->nombre ?? 'Usuario',
+                    'edad' => $usuarioDetalles->edad ?? null,
+                    'descripcion' => $usuarioDetalles->descripcion ?? null,
+                    'foto_perfil_url' => $fotoUrl,
+                    'experiencia' => $usuarioDetalles->caracteristicas->experiencia ?? null
                 ];
                 
-                Log::info('- Nombre: ' . $solicitanteInfo['nombre']);
+                Log::info('- Nombre del solicitante: ' . $solicitanteInfo['nombre']);
+                Log::info('- ID del solicitante (Usuario): ' . $solicitanteInfo['id']);
+                Log::info('- ID del solicitante (User): ' . $solicitanteInfo['user_id']);
             } else {
                 // Fallback si no es instancia de Usuario
                 $solicitanteInfo = [
@@ -611,13 +738,14 @@ class SolicitudAdopcionController extends Controller
                 'data' => [
                     'solicitud' => [
                         'idSolicitud' => $solicitud->idSolicitud,
-                        'idUsuarioSolicitante' => $solicitud->idUsuarioSolicitante,
+                        'idUsuarioSolicitante' => $solicitud->idUsuarioSolicitante, // ← Este es el ID del User
+                        'usuarioSolicitanteId' => $usuarioDetalles->id ?? null, // ← Este es el ID del Usuario
                         'idMascota' => $solicitud->idMascota,
                         'estadoSolicitud' => $solicitud->estadoSolicitud,
                         'aceptóTerminos' => $solicitud->aceptóTerminos,
                         'fechaSolicitud' => $solicitud->fechaSolicitud,
                     ],
-                    'solicitante' => $solicitanteInfo,
+                    'solicitante' => $solicitanteInfo, // ← Información completa del solicitante
                     'oferta' => $oferta ? [
                         'id_oferta' => $oferta->id_oferta,
                         'estado_oferta' => $oferta->estado_oferta,
@@ -629,6 +757,8 @@ class SolicitudAdopcionController extends Controller
             ];
             
             Log::info('Respuesta preparada exitosamente');
+            Log::info('ID del solicitante en respuesta: ' . ($solicitanteInfo['id'] ?? 'N/A'));
+            Log::info('Nombre del solicitante en respuesta: ' . ($solicitanteInfo['nombre'] ?? 'N/A'));
             
             return response()->json($responseData);
             
@@ -637,18 +767,11 @@ class SolicitudAdopcionController extends Controller
             Log::error('Mensaje: ' . $e->getMessage());
             Log::error('Archivo: ' . $e->getFile());
             Log::error('Línea: ' . $e->getLine());
-            Log::error('Traza completa:');
-            Log::error($e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener la solicitud',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno',
-                'debug' => env('APP_DEBUG') ? [
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString()
-                ] : null
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno'
             ], 500);
         }
     }
@@ -656,12 +779,28 @@ class SolicitudAdopcionController extends Controller
     /**
      * Aprobar una solicitud de adopción
      */
-    public function aprobar($id)
+     public function aprobar($id)
     {
         DB::beginTransaction();
         
         try {
             $user = Auth::user();
+
+            Log::info('=== APROBAR SOLICITUD ===');
+            Log::info('User ID: ' . $user->id);
+            Log::info('User type: ' . get_class($user));
+
+            $usuarioAutenticadoId = $user->userable->id ?? null;
+
+            Log::info('Usuario autenticado ID: ' . $usuarioAutenticadoId);
+            Log::info('Userable type: ' . ($user->userable ? get_class($user->userable) : 'N/A'));
+        
+            if (!$usuarioAutenticadoId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no tiene perfil completo'
+                ], 403);
+            }
             
             $solicitud = SolicitudAdopcion::with('mascota')
                 ->where('idSolicitud', $id)
@@ -678,7 +817,13 @@ class SolicitudAdopcionController extends Controller
             $tutorOriginalId = $solicitud->mascota->usuario_id;
             
             // Verificar que la mascota pertenece al usuario
-            if ($tutorOriginalId !== $user->id) {
+            if ($tutorOriginalId !== $usuarioAutenticadoId) {
+                Log::error('Usuario no autorizado para aprobar esta solicitud', [
+                    'mascota_usuario_id' => $tutorOriginalId,
+                    'usuario_autenticado_id' => $usuarioAutenticadoId,
+                    'user_id' => $user->id
+                ]);
+                
                 return response()->json([
                     'success' => false,
                     'message' => 'No autorizado para aprobar esta solicitud'
@@ -692,6 +837,23 @@ class SolicitudAdopcionController extends Controller
                     'message' => 'La solicitud no está en estado pendiente'
                 ], 400);
             }
+            
+            // ✅ ✅ ✅ NUEVA VALIDACIÓN: VERIFICAR INTERACCIONES EN EL CHAT
+            $validacionChat = $this->validarChatParaAdopcion($solicitud, $user);
+            if (!$validacionChat['valido']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $validacionChat['mensaje'],
+                    'data' => $validacionChat['detalles'] ?? [],
+                    'codigo_error' => 'INTERACCIONES_INSUFICIENTES'
+                ], 400);
+            }
+            
+            Log::info('✅ Validación de chat superada para solicitud: ' . $id, [
+                'interacciones' => $validacionChat['detalles']['interacciones'] ?? 0,
+                'requeridas' => 5,
+                'chat_id' => $validacionChat['detalles']['chat_id'] ?? null
+            ]);
             
             // ✅ 1. TRANSFERIR MASCOTA
             $transferenciaExitosa = $this->transferirMascota($solicitud);
@@ -732,7 +894,8 @@ class SolicitudAdopcionController extends Controller
                     'solicitud' => $solicitud,
                     'transferencia_realizada' => true,
                     'tutor_original_id' => $tutorOriginalId,
-                    'nuevo_tutor_id' => $solicitud->mascota->usuario_id
+                    'nuevo_tutor_id' => $solicitud->mascota->usuario_id,
+                    'validacion_chat' => $validacionChat['detalles'] ?? []
                 ]
             ]);
             
@@ -753,12 +916,101 @@ class SolicitudAdopcionController extends Controller
     }
 
     /**
+     * Método para validar si el chat asociado a la solicitud está listo para adopción
+     */
+    private function validarChatParaAdopcion(SolicitudAdopcion $solicitud, $user)
+    {
+        try {
+            // Buscar chat asociado a la solicitud
+            $chat = Chat::where('solicitud_id', $solicitud->idSolicitud)
+                ->where(function($query) use ($user) {
+                    $query->where('user1_id', $user->id)
+                          ->orWhere('user2_id', $user->id);
+                })
+                ->first();
+            
+            if (!$chat) {
+                return [
+                    'valido' => false,
+                    'mensaje' => 'No se puede aprobar la solicitud: No se ha iniciado un chat con el solicitante',
+                    'detalles' => [
+                        'error_type' => 'CHAT_NO_INICIADO',
+                        'requiere_chat' => true,
+                        'sugerencia' => 'Primero debes iniciar una conversación con el solicitante desde la solicitud'
+                    ]
+                ];
+            }
+            
+            // Verificar si el chat tiene suficientes interacciones
+            $interaccionesUsuario = $chat->interaccionesDeUsuario($user->id);
+            $interaccionesOtroUsuario = $chat->interaccionesOtroUsuario($user->id);
+            
+            // Calcular el mínimo de interacciones (ping-pong)
+            $minimoInteracciones = min($interaccionesUsuario, $interaccionesOtroUsuario);
+            
+            if ($minimoInteracciones < 5) {
+                $faltan = 5 - $minimoInteracciones;
+                
+                return [
+                    'valido' => false,
+                    'mensaje' => "Se requieren más interacciones en el chat para proceder con la adopción",
+                    'detalles' => [
+                        'error_type' => 'INTERACCIONES_INSUFICIENTES',
+                        'interacciones_actuales' => $minimoInteracciones,
+                        'interacciones_requeridas' => 5,
+                        'faltan_mensajes' => $faltan,
+                        'mensajes_usuario_actual' => $interaccionesUsuario,
+                        'mensajes_solicitante' => $interaccionesOtroUsuario,
+                        'chat_id' => $chat->chat_id,
+                        'esta_listo' => false,
+                        'progreso' => ($minimoInteracciones / 5) * 100,
+                        'recomendacion' => "Faltan {$faltan} mensajes intercambiados para habilitar la aprobación"
+                    ]
+                ];
+            }
+            
+            // Si llega aquí, el chat está listo
+            return [
+                'valido' => true,
+                'mensaje' => 'Chat validado exitosamente',
+                'detalles' => [
+                    'chat_id' => $chat->chat_id,
+                    'interacciones' => $minimoInteracciones,
+                    'mensajes_usuario_actual' => $interaccionesUsuario,
+                    'mensajes_solicitante' => $interaccionesOtroUsuario,
+                    'esta_listo' => true,
+                    'progreso' => 100,
+                    'fecha_habilitacion' => $chat->fecha_habilitado_adopcion,
+                    'validacion_exitosa' => true
+                ]
+            ];
+            
+        } catch (\Exception $e) {
+            Log::error('Error al validar chat para adopción:', [
+                'solicitud_id' => $solicitud->idSolicitud,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [
+                'valido' => false,
+                'mensaje' => 'Error al validar el chat: ' . $e->getMessage(),
+                'detalles' => [
+                    'error_type' => 'ERROR_VALIDACION',
+                    'error_message' => $e->getMessage()
+                ]
+            ];
+        }
+    }
+
+    /**
      * Método para transferir mascota al adoptante
      */
    private function transferirMascota(SolicitudAdopcion $solicitud)
     {
         try {
             $user = Auth::user();
+            $usuarioAutenticadoId = $user->userable->id ?? null;
+            
             $mascota = Mascota::find($solicitud->idMascota);
             
             if (!$mascota) {
@@ -766,28 +1018,45 @@ class SolicitudAdopcionController extends Controller
             }
             
             // Verificar que el tutor actual es quien dice ser
-            if ($mascota->usuario_id !== $user->id) {
+            if ($mascota->usuario_id !== $usuarioAutenticadoId) {
                 throw new \Exception('El usuario no es el tutor actual de la mascota');
             }
             
-            // Verificar que el adoptante existe
-            $adoptante = Usuario::find($solicitud->idUsuarioSolicitante);
-            if (!$adoptante) {
-                throw new \Exception('Usuario adoptante no encontrado');
+            // ✅ CORREGIDO: Primero obtener el User del solicitante, luego su Usuario
+            $userSolicitante = User::find($solicitud->idUsuarioSolicitante);
+            if (!$userSolicitante) {
+                throw new \Exception('Usuario solicitante (User) no encontrado');
             }
+            
+            // Obtener el Usuario del solicitante (userable)
+            $usuarioSolicitante = $userSolicitante->userable;
+            if (!$usuarioSolicitante || !$usuarioSolicitante instanceof Usuario) {
+                throw new \Exception('Perfil de usuario (Usuario) no encontrado para el solicitante');
+            }
+            
+            $usuarioSolicitanteId = $usuarioSolicitante->id;
+            
+            Log::info('Transferiendo mascota - IDs:', [
+                'mascota_id' => $mascota->id,
+                'tutor_actual_id' => $usuarioAutenticadoId,
+                'tutor_nuevo_usuario_id' => $usuarioSolicitanteId,
+                'user_solicitante_id' => $userSolicitante->id,
+                'usuario_solicitante_id' => $usuarioSolicitanteId
+            ]);
             
             // ✅ PASO 1: REGISTRAR TRANSFERENCIA EN EL HISTORIAL
             $transferencia = HistorialTransferenciaMascota::create([
                 'mascota_id' => $mascota->id,
-                'tutor_anterior_id' => $user->id,
-                'tutor_nuevo_id' => $solicitud->idUsuarioSolicitante,
+                'tutor_anterior_id' => $usuarioAutenticadoId, // ID de Usuario, no User
+                'tutor_nuevo_id' => $usuarioSolicitanteId,    // ID de Usuario, no User
                 'solicitud_adopcion_id' => $solicitud->idSolicitud,
-                'proceso_adopcion_id' => null, // Se llenará después cuando se cree el proceso
+                'proceso_adopcion_id' => null,
                 'fecha_transferencia' => now(),
                 'motivo' => 'adopcion',
                 'observaciones' => 'Transferencia por aprobación de solicitud de adopción',
                 'datos_adicionales' => [
-                    'aprobado_por' => $user->id,
+                    'aprobado_por_user_id' => $user->id,
+                    'aprobado_por_usuario_id' => $usuarioAutenticadoId,
                     'aprobado_en' => now()->toDateTimeString(),
                     'ip' => request()->ip(),
                     'user_agent' => request()->userAgent()
@@ -795,15 +1064,15 @@ class SolicitudAdopcionController extends Controller
             ]);
             
             // ✅ PASO 2: ACTUALIZAR TUTOR ACTUAL DE LA MASCOTA
-            $mascota->usuario_id = $solicitud->idUsuarioSolicitante;
+            $mascota->usuario_id = $usuarioSolicitanteId; // Asignar ID de Usuario
             $mascota->save();
             
-            Log::info('Transferencia de mascota registrada', [
+            Log::info('Transferencia de mascota registrada exitosamente', [
                 'transferencia_id' => $transferencia->id_transferencia,
                 'mascota_id' => $mascota->id,
                 'nombre_mascota' => $mascota->nombre,
-                'tutor_anterior' => $user->id,
-                'tutor_nuevo' => $solicitud->idUsuarioSolicitante,
+                'tutor_anterior_usuario_id' => $usuarioAutenticadoId,
+                'tutor_nuevo_usuario_id' => $usuarioSolicitanteId,
                 'solicitud_id' => $solicitud->idSolicitud
             ]);
             
@@ -813,6 +1082,10 @@ class SolicitudAdopcionController extends Controller
             Log::error('Error al transferir mascota', [
                 'error' => $e->getMessage(),
                 'solicitud_id' => $solicitud->idSolicitud,
+                'solicitud_data' => [
+                    'idUsuarioSolicitante' => $solicitud->idUsuarioSolicitante,
+                    'idMascota' => $solicitud->idMascota
+                ],
                 'trace' => $e->getTraceAsString()
             ]);
             

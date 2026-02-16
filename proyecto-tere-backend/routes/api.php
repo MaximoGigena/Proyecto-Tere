@@ -26,6 +26,7 @@ use App\Http\Controllers\ControllersProcedimientos\TerapiaController;
 use App\Http\Controllers\ControllersProcedimientos\FarmacoController;
 use App\Http\Controllers\ControllersProcedimientos\TipoProcedimientoController;
 use App\Http\Controllers\CentroVeterinarioController;
+use App\Http\Controllers\VeterinarioProcedimientoController;
 use App\Http\Controllers\ControllersProcedimientos\VacunaController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\UsuarioContactoController;
@@ -39,10 +40,14 @@ use App\Http\Controllers\HistorialTransferenciaController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\MensajeController;
 use App\Http\Controllers\DenunciaController;
+use App\Http\Controllers\UsuarioMetricasController;
 use App\Http\Controllers\FiltrosMascotasController;
 use App\Http\Controllers\SancionController;
 use App\Http\Controllers\NotificacionController;
+use App\Http\Controllers\ReporteUsuarioController;
+use App\Http\Controllers\FiltroGeocodingController;
 use App\Models\OfertaAdopcion;
+use App\Http\Controllers\MetricasController;
 use App\Models\ContactoUsuario;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -142,17 +147,16 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         }
     });
 
-    // Ofertas por proximidad
-    Route::get('/adopciones/proximidad', [OfertasProximidadController::class, 'obtenerPorProximidad']);
+    // Ofertas por región
     Route::get('/adopciones/por-region', [OfertasProximidadController::class, 'obtenerPorRegion']);
+
+    Route::get('usuarios/{id}/perfil', [\App\Http\Controllers\Auth\RegistrarUsuarioController::class, 'getPerfilCompleto'])
+    ->middleware(['auth:sanctum', 'check.user.suspended']);
 
     Route::get('/ubicacion/actual', [UserLocationController::class, 'show']);
     
     // Mantén también tu ruta existente:
     Route::post('/guardar-ubicacion', [UserLocationController::class, 'store']);
-    
-    // Ofertas por proximidad
-    Route::get('/adopciones/proximidad', [OfertasProximidadController::class, 'obtenerPorProximidad']);
 
     // Ruta para obtener la ubicación del usuario autenticado
     Route::get('/user/location', [UserLocationController::class, 'show']);
@@ -190,9 +194,6 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
             'relations_loaded' => $user->getRelations(),
         ]);
     });
-
-    // Ubicación
-    Route::post('/guardar-ubicacion', [UserLocationController::class, 'store']);
 
     // Rutas para la gestión de mascotas
     Route::post('/mascotas', [MascotaController::class, 'store']);
@@ -245,42 +246,39 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
 
     // Obtener opciones de filtro
     Route::get('/filtros/opciones', [FiltrosMascotasController::class, 'obtenerOpcionesFiltro']);
+
+    // Ruta para buscar ofertas por ubicación específica
+    Route::post('/ofertas/ubicacion', [ManejarOfertasController::class, 'buscarPorUbicacion']);
     
     // Obtener especies disponibles
     Route::get('/filtros/especies-disponibles', [FiltrosMascotasController::class, 'obtenerEspeciesDisponibles']);
     
+    // Rutas para el filtro de geocoding
+    Route::prefix('geocoding')->group(function () {
+        Route::get('/geocode', [FiltroGeocodingController::class, 'geocode']);
+        Route::get('/autocomplete', [FiltroGeocodingController::class, 'autocomplete']);
+        Route::get('/reverse', [FiltroGeocodingController::class, 'reverseGeocode']);
+    });
+
     // =============================================
     // RUTAS PARA ADOPCIONES (GRUPO SEPARADO)
     // =============================================
     Route::prefix('adopciones')->group(function () {
-
+        
+        // RUTAS ESPECÍFICAS - DEBEN IR ANTES DE LAS RUTAS CON PARÁMETROS
+        // Ofertas por proximidad (ruta específica)
+        Route::get('/proximidad', [OfertasProximidadController::class, 'obtenerPorProximidad']);
+        
+        // Jerarquía de ubicación (ruta específica) - NUEVA
+        Route::get('/jerarquia-ubicacion', [ManejarOfertasController::class, 'obtenerOfertasConJerarquiaUbicacion']);
+        
+        // Ofertas disponibles
+        Route::get('/ofertas-disponibles', [OfertaAdopcionController::class, 'getOfertasDisponibles']);
+        
         // Rutas para el sistema de swipe
         Route::get('/ofertas-para-swipe', [ManejarOfertasController::class, 'obtenerOfertasParaSwipe']);
         Route::post('/registrar-interaccion', [ManejarOfertasController::class, 'registrarInteraccion']);
-        // Ofertas de adopción
-        Route::get('/ofertas-disponibles', [OfertaAdopcionController::class, 'getOfertasDisponibles']);
-        Route::get('/', [OfertaAdopcionController::class, 'index']);
-        Route::post('/', [OfertaAdopcionController::class, 'store']);
-        Route::get('/{id}', [OfertaAdopcionController::class, 'show']);
-        Route::put('/{id}', [OfertaAdopcionController::class, 'update']);
-        Route::delete('/{id}', [OfertaAdopcionController::class, 'cancelar']);
         
-        Route::get('/mis-mascotas/disponibles', [OfertaAdopcionController::class, 'getMascotasDisponibles']);
-        Route::get('/mis-mascotas/en-adopcion', [OfertaAdopcionController::class, 'getOfertasUsuario']);
-        
-        // Ruta para cancelar por mascotaId
-        Route::post('/{mascotaId}/cancelar', function($mascotaId) {
-            $controller = new OfertaAdopcionController();
-            return $controller->cancelarPorMascota($mascotaId);
-        });
-       
-        
-        // Ruta para obtener oferta por mascota ID (debe estar dentro de adopciones)
-        Route::get('/ofertas/mascota/{mascotaId}', [OfertaAdopcionController::class, 'getOfertaPorMascota']);
-        
-        // Rutas para manejar ofertas (mantener compatibilidad)
-        Route::get('/ofertas/{idOferta}', [ManejarOfertasController::class, 'obtenerOferta']);
-
         // ✅ Ruta de prueba
         Route::get('/test-ofertas-simple', function() {
             Log::info('Test ofertas simple llamado');
@@ -322,18 +320,40 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
             }
         });
 
-        // Rutas para la gestión de solicitudes de adopción (DENTRO de adopciones, para otras funcionalidades)
+        // RUTAS CON PARÁMETROS - DEBEN IR DESPUÉS DE LAS RUTAS ESPECÍFICAS
+        
+        // Ofertas de adopción - rutas CRUD
+        Route::get('/', [OfertaAdopcionController::class, 'index']);
+        Route::post('/', [OfertaAdopcionController::class, 'store']);
+        
+        // RUTA CON PARÁMETRO {id} - DEBE IR DESPUÉS DE TODAS LAS RUTAS ESPECÍFICAS
+        Route::get('/{id}', [OfertaAdopcionController::class, 'show']);
+        Route::put('/{id}', [OfertaAdopcionController::class, 'update']);
+        Route::delete('/{id}', [OfertaAdopcionController::class, 'cancelar']);
+        
+        // Otras rutas específicas
+        Route::get('/mis-mascotas/disponibles', [OfertaAdopcionController::class, 'getMascotasDisponibles']);
+        Route::get('/mis-mascotas/en-adopcion', [OfertaAdopcionController::class, 'getOfertasUsuario']);
+        
+        // Ruta para cancelar por mascotaId
+        Route::post('/{mascotaId}/cancelar', function($mascotaId) {
+            $controller = new OfertaAdopcionController();
+            return $controller->cancelarPorMascota($mascotaId);
+        });
+        
+        // Ruta para obtener oferta por mascota ID
+        Route::get('/ofertas/mascota/{mascotaId}', [OfertaAdopcionController::class, 'getOfertaPorMascota']);
+        
+        // Rutas para manejar ofertas (mantener compatibilidad)
+        Route::get('/ofertas/{idOferta}', [ManejarOfertasController::class, 'obtenerOferta']);
+
+        // Rutas para la gestión de solicitudes de adopción
         Route::prefix('solicitudes-adopcion')->group(function () {
             Route::post('/', [SolicitudAdopcionController::class, 'store']);
             Route::get('/', [SolicitudAdopcionController::class, 'index']);
             Route::get('/estadisticas', [SolicitudAdopcionController::class, 'estadisticas']);
             Route::get('/verificar/{idMascota}', [SolicitudAdopcionController::class, 'verificarSolicitud']);
             Route::post('/cancelar/{id}', [SolicitudAdopcionController::class, 'cancelar']);
-        });
-        
-        // ✅ Rutas específicas para ofertas (opcional, si necesitas mantener acceso directo)
-        Route::prefix('ofertas')->group(function () {
-            Route::get('/{id}', [OfertaAdopcionController::class, 'show']);
         });
     });
 
@@ -352,6 +372,24 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         Route::get('/usuario', [HistorialTransferenciaController::class, 'porUsuario']);
         Route::get('/usuario/estadisticas', [HistorialTransferenciaController::class, 'estadisticasUsuario']);
     });
+
+    Route::get('/mis-procedimientos', [VeterinarioProcedimientoController::class, 'misProcedimientos']);
+    
+    // Tus rutas existentes
+    Route::prefix('veterinario')->group(function () {
+        // Obtener procedimientos del veterinario autenticado
+        Route::get('/procedimientos', [VeterinarioProcedimientoController::class, 'misProcedimientos']);
+        // Detalles de un procedimiento específico
+        Route::get('/procedimientos/{id}/detalles', [VeterinarioProcedimientoController::class, 'detallesProcedimiento']);
+        // Estadísticas del veterinario autenticado
+        Route::get('/estadisticas', [VeterinarioProcedimientoController::class, 'estadisticas']);
+    });
+    
+    // Rutas para administradores (ver procedimientos de otros veterinarios)
+    Route::prefix('veterinarios')->group(function () {
+        Route::get('/{veterinario}/procedimientos', [VeterinarioProcedimientoController::class, 'index']);
+    });
+
 
     // Rutas para la gestión de tipos de vacuna - SOLO VETERINARIOS
     Route::prefix('tipos-vacuna')->group(function () {
@@ -489,6 +527,17 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         Route::get('/vacunas/{vacuna}', [VacunaController::class, 'show'])->name('api.vacunas.show');
         Route::put('/vacunas/{vacuna}', [VacunaController::class, 'updateApi'])->name('api.vacunas.update');
 
+        Route::get('/validar-vacuna/{tipoVacunaId}', 
+        [VacunaController::class, 'validarTipoVacuna']);
+    
+        // Listado de tipos válidos
+        Route::get('/tipos-vacuna-validos', 
+            [VacunaController::class, 'tiposVacunaValidos']);
+        
+        // Rutas existentes
+        Route::post('/vacunas', [VacunaController::class, 'store']);
+        Route::get('/vacunas', [VacunaController::class, 'index']);
+
         Route::get('/desparasitaciones', [DesparasitacionController::class, 'index']);
         Route::post('/desparasitaciones', [DesparasitacionController::class, 'store']);
 
@@ -624,7 +673,23 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         Route::get('/{chatId}', [ChatController::class, 'show']); // Ver chat específico
         Route::delete('/{chatId}', [ChatController::class, 'destroy']); // Eliminar chat
         Route::post('/{chatId}/leido', [ChatController::class, 'marcarLeido']); // Marcar como leído
+
+        // Nueva ruta para obtener interacciones del chat
+        Route::get('/{chatId}/interacciones', [ChatController::class, 'obtenerInteracciones']);
+        Route::get('/solicitud/{solicitudId}/verificar-adopcion', [ChatController::class, 'verificarChatParaAdopcion']);
+        Route::get('/con-estado-adopcion', [ChatController::class, 'chatsConEstadoAdopcion']);
+
+        Route::get('/chats/{chat}/estadisticas-interaccion', [ChatController::class, 'obtenerEstadisticasInteraccion']);
+    
+        // Notificar interacción completada
+        Route::post('/chats/{chat}/interaccion-completada', [ChatController::class, 'interaccionCompletada']);
+            
+        // Estadísticas de mensajes
+        Route::get('/{chatId}/estadisticas-mensajes', [MensajeController::class, 'estadisticasMensajes']);
         
+        // Nueva ruta para actualizar conteo de interacciones
+        Route::post('/{chatId}/actualizar-interacciones', [ChatController::class, 'actualizarInteracciones']);
+            
         // Mensajes
         Route::get('/{chatId}/mensajes', [MensajeController::class, 'index']); // Listar mensajes
         Route::post('/{chatId}/mensajes', [MensajeController::class, 'store']); // Enviar mensaje
@@ -672,6 +737,72 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
             Route::get('/denuncia/{denuncia}/recomendacion', [SancionController::class, 'recomendarSancion']);
             Route::get('/historial', [SancionController::class, 'obtenerHistorialSancionesUsuario']);
             Route::get('/activa', [SancionController::class, 'obtenerSancionActivaUsuario']);
+        });
+
+        // Auditorías - administración (solo para admin)
+        Route::prefix('auditorias')->group(function () {
+            // Obtener auditorías con filtros
+            Route::get('/', [App\Http\Controllers\AuditController::class, 'apiIndex']);
+            
+            // Obtener estadísticas
+            Route::get('/estadisticas', [App\Http\Controllers\AuditController::class, 'estadisticas']);
+            
+            // Exportar a CSV
+            Route::get('/exportar', [App\Http\Controllers\AuditController::class, 'exportarCSV']);
+            
+            // Obtener detalles de una auditoría específica
+            Route::get('/{id}', [App\Http\Controllers\AuditController::class, 'show']);
+            
+            // Obtener tablas únicas para filtros
+            Route::get('/tablas/unicas', [App\Http\Controllers\AuditController::class, 'getTablasUnicas']);
+        });
+
+        // Dentro del grupo de métricas para administradores
+        Route::prefix('metricas')->group(function () {
+            Route::get('/', [MetricasController::class, 'obtenerMetricas']);
+            Route::get('/adopciones', [MetricasController::class, 'estadisticasAdopciones']);
+            Route::get('/actividad-reciente', [MetricasController::class, 'actividadReciente']);
+
+            // Métricas de usuarios
+            Route::get('/usuarios', [UsuarioMetricasController::class, 'obtenerMetricas']);
+            Route::get('/usuarios/exportar', [UsuarioMetricasController::class, 'exportarMetricas']);
+            
+            Route::get('/usuarios/tendencias', [UsuarioMetricasController::class, 'obtenerTendencias']);
+            Route::get('/usuarios/detalle/{id}', [UsuarioMetricasController::class, 'obtenerMetricasUsuario']);
+            Route::get('/usuarios/comparativa', [UsuarioMetricasController::class, 'compararMetricas']);
+            Route::get('/usuarios/alertas', [UsuarioMetricasController::class, 'obtenerAlertas']);
+            Route::get('/usuarios/dashboard', [UsuarioMetricasController::class, 'obtenerDashboard']);
+        });
+
+         // Reportes
+         Route::prefix('reportes')->group(function () {
+            // CRUD básico
+            Route::get('/', [ReporteUsuarioController::class, 'index']);
+            Route::post('/', [ReporteUsuarioController::class, 'store']);
+            Route::get('/{id}', [ReporteUsuarioController::class, 'show']);
+            Route::put('/{id}', [ReporteUsuarioController::class, 'update']);
+            Route::delete('/{id}', [ReporteUsuarioController::class, 'destroy']);
+            
+
+            // Ejecución
+            Route::post('/{id}/ejecutar', [ReporteUsuarioController::class, 'ejecutar']);
+            Route::post('/ejecutar-directo', [ReporteUsuarioController::class, 'ejecutarDirecto']);
+            
+            Route::post('/ejecutar', [ReporteUsuarioController::class, 'ejecutar']);
+
+            // Exportación - Definir UNA SOLA ruta clara
+            Route::get('/{id}/exportar', [ReporteUsuarioController::class, 'exportarReporte']);
+            Route::post('/exportar-directo', [ReporteUsuarioController::class, 'exportarDirecto']);
+            // Solo 'exportar-con-graficos' sin el prefijo 'reportes' duplicado
+            Route::post('/exportar-con-graficos', [ReporteUsuarioController::class, 'exportarConGraficos']);
+            
+            // Métricas y configuraciones
+            Route::get('/metricas/usuarios', [ReporteUsuarioController::class, 'metricasUsuarios']);
+            Route::get('/metricas/veterinarios', [ReporteUsuarioController::class, 'metricasVeterinarios']);
+            Route::get('/estadisticas/generales', [ReporteUsuarioController::class, 'estadisticasGenerales']);
+            
+            // Ejecuciones
+            Route::get('/{id}/ejecuciones', [ReporteUsuarioController::class, 'ejecuciones']);
         });
 
         // Administración de veterinarios (solo para admin)

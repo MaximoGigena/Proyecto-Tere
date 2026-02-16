@@ -16,6 +16,11 @@ return new class extends Migration
             $table->foreignId('solicitud_id')->nullable()->constrained('solicitudes_adopcion', 'idSolicitud')->onDelete('cascade');
             $table->string('ultimo_mensaje')->nullable();
             $table->timestamp('ultimo_mensaje_en')->nullable();
+            $table->integer('total_interacciones')->default(0)->after('solicitud_id');
+            $table->integer('interacciones_usuario1')->default(0)->after('total_interacciones');
+            $table->integer('interacciones_usuario2')->default(0)->after('interacciones_usuario1');
+            $table->boolean('listo_para_adopcion')->default(false)->after('interacciones_usuario2');
+            $table->timestamp('fecha_habilitado_adopcion')->nullable()->after('listo_para_adopcion');
             $table->boolean('user1_deleted')->default(false);
             $table->boolean('user2_deleted')->default(false);
             $table->timestamps();

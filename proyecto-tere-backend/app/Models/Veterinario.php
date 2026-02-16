@@ -193,4 +193,9 @@ class Veterinario extends Model
     {
         return $this->hasMany(ProcesoMedico::class, 'veterinario_id');
     }
+
+    public function usuario()
+    {
+        return $this->morphOne(User::class, 'userable');
+    }
 }

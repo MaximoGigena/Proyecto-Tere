@@ -9,7 +9,6 @@ use App\Models\TiposProcedimientos\TipoTerapia;
 use App\Models\ArchivosTerapia;
 use App\Models\ProcesoMedico;
 
-
 class Terapia extends Model
 {
     use HasFactory, SoftDeletes;

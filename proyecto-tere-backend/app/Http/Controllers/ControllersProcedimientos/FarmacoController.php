@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreFarmacoRequest;
 use App\Services\EnvioDocumentosService;
 use Illuminate\Support\Facades\Storage;
 
@@ -42,23 +43,10 @@ class FarmacoController extends Controller
     /**
      * Almacenar nuevo fármaco
      */
-    public function store(Request $request, $mascotaId)
+    public function store(StoreFarmacoRequest $request, $mascotaId) // Cambiar Request por StoreFarmacoRequest
     {
-        // Validación según los campos de tu vista Vue
-        $validated = $request->validate([
-            'tipo_farmaco_id' => 'required|exists:tipos_farmaco,id',
-            'fecha_administracion' => 'required|date',
-            'frecuencia' => 'required|string|max:100',
-            'duracion' => 'required|string|max:100',
-            'dosis' => 'required|string|max:50',
-            'unidad' => 'required|in:mg,ml,UI,comp,gotas',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'proxima_dosis' => 'nullable|date|after:fecha_administracion',
-            'reacciones' => 'nullable|string|max:500',
-            'recomendaciones' => 'nullable|string|max:500',
-            'medio_envio' => 'required|in:email,telegram,whatsapp',
-            'archivos.*' => 'nullable|file|max:10240', // Máximo 10MB por archivo
-        ]);
+        // La validación ya se hizo en el Form Request
+        $validated = $request->validated(); // Cambiar validate() por validated()
 
         try {
             $farmacoCreado = null;

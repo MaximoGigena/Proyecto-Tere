@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreDesparasitacionRequest;
 use App\Services\EnvioDocumentosService;
 
 class DesparasitacionController extends Controller
@@ -41,23 +42,13 @@ class DesparasitacionController extends Controller
     /**
      * Almacenar nueva desparasitación
      */
-    public function store(Request $request, $mascotaId)
+    public function store(StoreDesparasitacionRequest $request, $mascotaId)
     {
-        // Validación según los campos del caso de uso
-        $validated = $request->validate([
-            'tipo_desparasitacion_id' => 'required|exists:tipos_desparasitacion,id',
-            'fecha' => 'required|date',
-            'nombre_producto' => 'required|string|max:255',
-            'dosis' => 'required|string|max:100',
-            'frecuencia_valor' => 'required|integer|min:1',
-            'frecuencia_unidad' => 'required|in:dias,semanas,meses',
-            'peso' => 'nullable|numeric|min:0',
-            'proxima_fecha' => 'nullable|date|after:fecha',
-            'observaciones' => 'nullable|string|max:500',
-            'costo' => 'nullable|numeric|min:0',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'medio_envio' => 'required|in:email,telegram,whatsapp',
-        ]);
+        // Si llegamos aquí, la validación ya pasó
+        $validated = $request->validated();
+        
+        // Agregar el mascotaId al array validado
+        $validated['mascota_id'] = $mascotaId;
 
         try {
             $desparasitacionCreada = null;

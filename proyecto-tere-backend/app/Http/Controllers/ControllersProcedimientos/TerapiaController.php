@@ -9,6 +9,7 @@ use App\Models\Mascota;
 use App\Models\TiposProcedimientos\TipoTerapia;
 use App\Models\CentroVeterinario;
 use App\Models\ContactoUsuario;
+use App\Http\Requests\StoreTerapiaRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
@@ -41,23 +42,10 @@ class TerapiaController extends Controller
     /**
      * Almacenar nueva terapia
      */
-    public function store(Request $request, $mascotaId)
+    public function store(StoreTerapiaRequest $request, $mascotaId)
     {
-        // Validación según los campos del modelo Terapia
-        $validated = $request->validate([
-            'tipo_terapia_id' => 'required|exists:tipos_terapia,id',
-            'fecha_inicio' => 'required|date',
-            'frecuencia' => 'required|in:' . implode(',', Terapia::getFrecuenciasPermitidas()),
-            'duracion_tratamiento' => 'required|string|max:100',
-            'fecha_fin' => 'nullable|date|after_or_equal:fecha_inicio',
-            'evolucion' => 'nullable|in:' . implode(',', Terapia::getEvolucionesPermitidas()),
-            'recomendaciones_tutor' => 'nullable|string|max:500',
-            'observaciones' => 'nullable|string|max:500',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'costo' => 'nullable|numeric|min:0',
-            'archivos.*' => 'nullable|file|max:10240', // 10MB máximo por archivo
-            'medio_envio' => 'nullable|string|in:email,whatsapp,telegram' // AÑADIR ESTO
-        ]);
+        // La validación ya se hizo en el Request
+        $validated = $request->validated();
 
         try {
             $terapiaCreada = null;

@@ -25,8 +25,18 @@ class ProcesoAdopcionController extends Controller
         DB::beginTransaction();
         
         try {
+            $user = Auth::user();
+            $usuarioAutenticadoId = $user->userable->id ?? null;
+            
+            if (!$usuarioAutenticadoId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no tiene perfil completo'
+                ], 403);
+            }
+
             // 1. Buscar la solicitud aprobada
-            $solicitud = SolicitudAdopcion::with(['mascota', 'usuario'])
+            $solicitud = SolicitudAdopcion::with(['mascota', 'usuarioSolicitante.userable'])
                 ->where('idSolicitud', $solicitudId)
                 ->where('estadoSolicitud', 'aprobada')
                 ->first();
@@ -62,6 +72,19 @@ class ProcesoAdopcionController extends Controller
                 ], 404);
             }
             
+            // ✅ OBTENER EL ID DE USUARIO DEL ADOPTANTE (no User ID)
+            $adoptanteUsuarioId = null;
+            if ($solicitud->usuarioSolicitante && $solicitud->usuarioSolicitante->userable) {
+                $adoptanteUsuarioId = $solicitud->usuarioSolicitante->userable->id;
+            }
+            
+            if (!$adoptanteUsuarioId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se pudo obtener el ID de usuario del adoptante'
+                ], 404);
+            }
+            
             // 4. Verificar que no existe ya un proceso activo
             $procesoExistente = ProcesoAdopcion::where('id_solicitud', $solicitudId)
                 ->whereNotIn('estado_proceso', ['finalizado', 'rechazado', 'cancelado'])
@@ -74,18 +97,16 @@ class ProcesoAdopcionController extends Controller
                 ], 409);
             }
             
-            // 5. Crear el proceso de adopción (SIN notas_tutor si la columna no existe)
+            // 5. Crear el proceso de adopción
             $procesoData = [
                 'id_oferta' => $oferta->id_oferta,
                 'id_solicitud' => $solicitud->idSolicitud,
-                'id_usuario_tutor' => $transferenciaReciente->tutor_anterior_id,
-                'id_usuario_adoptante' => $solicitud->idUsuarioSolicitante,
+                'id_usuario_tutor' => $transferenciaReciente->tutor_anterior_id, // ID de Usuario
+                'id_usuario_adoptante' => $adoptanteUsuarioId, // ID de Usuario
                 'estado_proceso' => 'iniciado',
                 'fecha_inicio' => now()
             ];
             
-            // Agregar notas_tutor solo si existe la columna
-            // Puedes verificar si la columna existe o simplemente omitirla
             $proceso = ProcesoAdopcion::create($procesoData);
 
             // ✅ ACTUALIZAR LA TRANSFERENCIA CON EL ID DEL PROCESO
@@ -105,8 +126,9 @@ class ProcesoAdopcionController extends Controller
             Log::info('Proceso de adopción creado', [
                 'proceso_id' => $proceso->id_proceso,
                 'solicitud_id' => $solicitudId,
-                'tutor_id' => $transferenciaReciente->tutor_anterior_id,
-                'adoptante_id' => $solicitud->idUsuarioSolicitante
+                'tutor_usuario_id' => $transferenciaReciente->tutor_anterior_id,
+                'adoptante_usuario_id' => $adoptanteUsuarioId,
+                'user_solicitante_id' => $solicitud->idUsuarioSolicitante
             ]);
             
             return response()->json([

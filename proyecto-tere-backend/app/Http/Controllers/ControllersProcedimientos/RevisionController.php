@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ControllersProcedimientos;
 
 use App\Models\ProcedimientosMedicos\Revision;
 use App\Models\ProcesoMedico;
+use App\Http\Requests\StoreRevisionRequest;
 use App\Models\Mascota;
 use App\Models\TiposProcedimientos\TipoRevision;
 use App\Models\CentroVeterinario;
@@ -41,25 +42,11 @@ class RevisionController extends Controller
     /**
      * Almacenar nueva revisión
      */
-    public function store(Request $request, $mascotaId)
+    public function store(StoreRevisionRequest $request, $mascotaId) // Cambia Request por StoreRevisionRequest
     {
-        // Validación según los campos del caso de uso
-        $validated = $request->validate([
-            'tipo_revision_id' => 'required|exists:tipos_revision,id',
-            'fecha_revision' => 'required|date',
-            'nivel_urgencia' => 'required|in:rutinaria,preventiva,urgencia,emergencia',
-            'motivo_consulta' => 'nullable|string|max:500',
-            'diagnostico' => 'nullable|string|max:500',
-            'fecha_proxima_revision' => 'nullable|date|after:fecha_revision',
-            'indicaciones_medicas' => 'nullable|string',
-            'recomendaciones_tutor' => 'nullable|string',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'observaciones' => 'nullable|string|max:500',
-            'costo' => 'nullable|numeric|min:0',
-            'medio_envio' => 'required|in:email,telegram,whatsapp',
-            'archivos.*' => 'nullable|file|max:10240', // Máximo 10MB por archivo
-        ]);
-
+        // Ahora la validación ya se hizo en el Request
+        $validated = $request->validated(); // Usar validated() en lugar de validate()
+        
         try {
             $revisionCreada = null;
             $mascotaData = null;

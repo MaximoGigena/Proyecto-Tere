@@ -7,14 +7,19 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
-        "barryvdh/laravel-dompdf": "^3.1",
+        "barryvdh/laravel-dompdf": "*",
+        "dompdf/dompdf": "*",
         "google/apiclient": "^2.18",
+        "google/apiclient-services": "^0.429.0",
         "guzzlehttp/guzzle": "*",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "*",
         "laravel/socialite": "^5.23",
         "laravel/tinker": "^2.10.1",
+        "maatwebsite/excel": "*",
+        "mpdf/mpdf": "*",
         "spatie/laravel-permission": "^6.23",
+        "tecnickcom/tcpdf": "*",
         "telegram-bot/api": "^2.5"
     },
     "require-dev": {
@@ -75,7 +80,8 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
-        }
+        },
+        "process-timeout": 6000
     },
     "minimum-stability": "stable",
     "prefer-stable": true

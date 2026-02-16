@@ -49,6 +49,51 @@ class UsersSeeder extends Seeder
                     'country_code' => 'AR',
                     'accuracy' => 10.2,
                 ],
+                [
+                    'latitude' => -32.9468,
+                    'longitude' => -60.6393,
+                    'city' => 'Rosario',
+                    'state' => 'Santa Fe',
+                    'country' => 'Argentina',
+                    'country_code' => 'AR',
+                    'accuracy' => 18.7,
+                ],
+                [
+                    'latitude' => -26.8083,
+                    'longitude' => -65.2176,
+                    'city' => 'San Miguel de Tucumán',
+                    'state' => 'Tucumán',
+                    'country' => 'Argentina',
+                    'country_code' => 'AR',
+                    'accuracy' => 22.1,
+                ],
+                [
+                    'latitude' => -34.9205,
+                    'longitude' => -57.9536,
+                    'city' => 'La Plata',
+                    'state' => 'Buenos Aires',
+                    'country' => 'Argentina',
+                    'country_code' => 'AR',
+                    'accuracy' => 14.8,
+                ],
+                [
+                    'latitude' => -38.9516,
+                    'longitude' => -68.0591,
+                    'city' => 'Neuquén',
+                    'state' => 'Neuquén',
+                    'country' => 'Argentina',
+                    'country_code' => 'AR',
+                    'accuracy' => 30.2,
+                ],
+                [
+                    'latitude' => -31.6285,
+                    'longitude' => -60.6925,
+                    'city' => 'Paraná',
+                    'state' => 'Entre Ríos',
+                    'country' => 'Argentina',
+                    'country_code' => 'AR',
+                    'accuracy' => 19.5,
+                ],
             ];
             
             // 1. Primero crear Super Admin
@@ -82,6 +127,31 @@ class UsersSeeder extends Seeder
                     'nombre' => 'Carlos López',
                     'email' => 'carlos@example.com',
                     'ubicacion_index' => 2,
+                ],
+                [
+                    'nombre' => 'Ana Martínez',
+                    'email' => 'ana@example.com',
+                    'ubicacion_index' => 3,
+                ],
+                [
+                    'nombre' => 'Luis Rodríguez',
+                    'email' => 'luis@example.com',
+                    'ubicacion_index' => 4,
+                ],
+                [
+                    'nombre' => 'Sofía Fernández',
+                    'email' => 'sofia@example.com',
+                    'ubicacion_index' => 5,
+                ],
+                [
+                    'nombre' => 'Diego Gómez',
+                    'email' => 'diego@example.com',
+                    'ubicacion_index' => 6,
+                ],
+                [
+                    'nombre' => 'Valeria Díaz',
+                    'email' => 'valeria@example.com',
+                    'ubicacion_index' => 7,
                 ],
             ];
 

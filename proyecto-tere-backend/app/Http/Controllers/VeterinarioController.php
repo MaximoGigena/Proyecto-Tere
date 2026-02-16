@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
 
 class VeterinarioController extends Controller
@@ -147,11 +148,23 @@ class VeterinarioController extends Controller
                                     ->where('estado', Veterinario::ESTADO_PENDIENTE)
                                     ->firstOrFail();
 
+            // Asegurarnos de que fotos es un array
+            $fotos = $solicitud->fotos;
+            if (is_string($fotos)) {
+                $fotos = json_decode($fotos, true);
+            }
+            
+            // Obtener la primera foto si existe
+            $fotoPrincipal = null;
+            if (!empty($fotos) && is_array($fotos)) {
+                $fotoPrincipal = $fotos[0] ?? null;
+            }
+
             // Actualizar el veterinario a estado aprobado
             $veterinario->update([
                 'estado' => Veterinario::ESTADO_APROBADO,
                 'activo' => true,
-                'foto' => $solicitud->fotos[0] ?? $veterinario->foto // Actualizar foto si es necesario
+                'foto' => $fotoPrincipal ?? $veterinario->foto
             ]);
 
             // Actualizar el usuario a estado activo
@@ -171,6 +184,9 @@ class VeterinarioController extends Controller
                 ]);
             }
 
+            // Actualizar contactos desde la solicitud
+            $this->actualizarContactosDesdeSolicitud($veterinario, $solicitud);
+
             // Actualizar estado de la solicitud
             $solicitud->update(['estado' => SolicitudVeterinario::ESTADO_APROBADO]);
 
@@ -178,16 +194,51 @@ class VeterinarioController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Solicitud aprobada exitosamente'
+                'message' => 'Solicitud aprobada exitosamente',
+                'veterinario_id' => $veterinario->id
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
+            
+            // Log del error para depuración
+            Log::error('Error al aprobar solicitud: ' . $e->getMessage(), [
+                'exception' => $e,
+                'solicitud_id' => $solicitudId
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error al aprobar la solicitud',
-                'error' => $e->getMessage()
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno del servidor'
             ], 500);
+        }
+    }
+
+    /**
+     * Método auxiliar para actualizar contactos desde la solicitud
+     */
+    private function actualizarContactosDesdeSolicitud($veterinario, $solicitud)
+    {
+        // Eliminar contactos existentes
+        $veterinario->mediosContacto()->delete();
+
+        // Crear contacto de teléfono si existe en la solicitud
+        if ($solicitud->telefono) {
+            ContactoVeterinario::create([
+                'veterinario_id' => $veterinario->id,
+                'tipo' => 'telefono',
+                'valor' => $solicitud->telefono
+            ]);
+        }
+
+        // Crear contacto de email si existe en la solicitud
+        if ($solicitud->email_contacto) {
+            ContactoVeterinario::create([
+                'veterinario_id' => $veterinario->id,
+                'tipo' => 'email',
+                'valor' => $solicitud->email_contacto
+            ]);
         }
     }
 

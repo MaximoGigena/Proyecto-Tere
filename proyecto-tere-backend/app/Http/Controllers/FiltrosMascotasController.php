@@ -6,6 +6,7 @@ use App\Models\OfertaAdopcion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Builder;
 
 class FiltrosMascotasController extends Controller
 {
@@ -337,5 +338,41 @@ class FiltrosMascotasController extends Controller
         }
         
         return $rangos;
+    }
+
+     /**
+     * Aplicar filtro de ubicación a la consulta
+     */
+    public function aplicarFiltroUbicacion(Builder $query, Request $request)
+    {
+        // Filtro por coordenadas y radio
+        if ($request->has('latitud') && $request->has('longitud')) {
+            $lat = $request->latitud;
+            $lon = $request->longitud;
+            $radio = $request->radio_km ?? 10;
+            
+            $query->whereHas('mascota.usuario.user.ubicacionActual', function($q) use ($lat, $lon, $radio) {
+                $q->whereRaw(
+                    "ST_Distance_Sphere(
+                        location,
+                        ST_GeomFromText(?, 4326)
+                    ) <= ?",
+                    ["POINT({$lon} {$lat})", $radio * 1000]
+                );
+            });
+        }
+        // Filtro por ciudad/provincia
+        elseif ($request->has('ciudad') || $request->has('provincia')) {
+            $query->whereHas('mascota.usuario.user.ubicacionActual', function($q) use ($request) {
+                if ($request->has('ciudad')) {
+                    $q->where('city', 'like', '%' . $request->ciudad . '%');
+                }
+                if ($request->has('provincia')) {
+                    $q->where('state', 'like', '%' . $request->provincia . '%');
+                }
+            });
+        }
+        
+        return $query;
     }
 }

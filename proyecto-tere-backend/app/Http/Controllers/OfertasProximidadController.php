@@ -18,10 +18,12 @@ class OfertasProximidadController extends Controller
     {
         try {
             $user = Auth::user();
-            $usuarioId = $user->id;
+            $usuario = $user->userable; // Esto es el modelo Usuario
+            $usuarioId = $usuario->id; // ID del Usuario (no del User)
             
             Log::info('=== OBTENER TODAS LAS OFERTAS POR PROXIMIDAD ===');
-            Log::info('Usuario:', ['id' => $usuarioId, 'email' => $user->email]);
+            Log::info('Usuario (User):', ['user_id' => $user->id, 'email' => $user->email]);
+            Log::info('Usuario (Usuario):', ['usuario_id' => $usuarioId, 'tipo' => get_class($usuario)]);
             
             // 1. Obtener ubicación del usuario actual
             $ubicacionUsuario = $user->ubicacionActual;
@@ -45,7 +47,7 @@ class OfertasProximidadController extends Controller
                 Log::warning('Usuario no tiene ubicación registrada o no tiene coordenadas');
             }
             
-            // 2. Obtener TODAS las ofertas
+            // 2. Obtener TODAS las ofertas EXCLUYENDO LAS DEL USUARIO
             $query = OfertaAdopcion::with([
                 'mascota.fotos',
                 'mascota.caracteristicas',
@@ -54,7 +56,16 @@ class OfertasProximidadController extends Controller
                 'usuarioResponsable'
             ])
             ->where('estado_oferta', 'publicada')
+            // ✅ CORRECCIÓN: Usar $usuarioId (el ID del Usuario)
             ->where('id_usuario_responsable', '!=', $usuarioId);
+            
+            // ✅ Agregar log para depuración
+            Log::info('Excluyendo ofertas del usuario:', [
+                'user_id' => $user->id,
+                'usuario_id' => $usuarioId,
+                'sql' => $query->toSql(),
+                'bindings' => $query->getBindings()
+            ]);
             
             // 3. Obtener todas las ofertas SIN FILTRAR
             $ofertas = $query->get();
@@ -66,6 +77,17 @@ class OfertasProximidadController extends Controller
             
             foreach ($ofertas as $oferta) {
                 try {
+                    // ✅ VERIFICACIÓN EXTRA: Confirmar que no es del usuario
+                    $esDelUsuario = $oferta->id_usuario_responsable == $usuarioId;
+                    if ($esDelUsuario) {
+                        Log::warning('Oferta del usuario encontrada después del filtro!', [
+                            'oferta_id' => $oferta->id_oferta,
+                            'id_usuario_responsable' => $oferta->id_usuario_responsable,
+                            'usuario_id' => $usuarioId
+                        ]);
+                        continue; // Saltar esta oferta
+                    }
+                    
                     $distanciaKm = null;
                     $ubicacionTutor = null;
                     
@@ -110,6 +132,7 @@ class OfertasProximidadController extends Controller
                     continue;
                 }
             }
+        
             
             // 5. ✅ CORRECCIÓN: NO FILTRAR NUNCA por distancia
             // Solo ordenar si hay ubicación del usuario

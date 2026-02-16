@@ -1,6 +1,6 @@
 <?php
-// database/migrations/2025_12_29_999999_create_all_audit_triggers.php
-// NOTA: Usa una fecha muy posterior (ej: 999999) para que sea la última migración
+// database/migrations/2026_01_23_999999_create_all_audit_triggers.php
+// Migración unificada que reemplaza todas las anteriores
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -12,10 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Verificar que la función existe, si no, crearla
+        // Crear la función de auditoría (si no existe)
         $this->createAuditFunctionIfNotExists();
         
-        // Crear triggers para TODAS las tablas en una sola ejecución
+        // Crear triggers para TODAS las tablas
         $this->createAllTriggers();
     }
 
@@ -27,8 +27,8 @@ return new class extends Migration
         // Eliminar TODOS los triggers
         $this->dropAllTriggers();
         
-        // Opcional: Eliminar la función (comenta si quieres mantenerla)
-        // DB::unprepared('DROP FUNCTION IF EXISTS audit_trigger_function() CASCADE;');
+        // Opcional: Comenta la siguiente línea si quieres mantener la función
+        // $this->dropAuditFunction();
     }
     
     /**
@@ -166,50 +166,125 @@ return new class extends Migration
     }
     
     /**
-     * Crear todos los triggers
+     * Crear todos los triggers para todas las tablas
      */
     private function createAllTriggers(): void
     {
-        $tables = [
+        // Lista completa de todas las tablas que necesitan auditoría
+        $allTables = [
+            // Tablas de usuarios
             'users' => 'users_audit_trigger',
             'usuarios' => 'usuarios_audit_trigger',
             'caracteristicas_usuarios' => 'caracteristicas_usuarios_audit_trigger',
             'user_locations' => 'user_locations_audit_trigger',
             'usuario_contacto' => 'usuario_contacto_audit_trigger',
+            
+            // Tablas de mascotas
             'mascotas' => 'mascotas_audit_trigger',
             'caracteristicas_mascotas' => 'caracteristicas_mascotas_audit_trigger',
             'bajas_mascotas' => 'bajas_mascotas_audit_trigger',
+            
+            // Tablas de adopción
             'ofertas_adopcion' => 'ofertas_adopcion_audit_trigger',
             'solicitudes_adopcion' => 'solicitudes_adopcion_audit_trigger',
+            
+            // Tablas de procedimientos médicos
+            'alergias' => 'alergias_audit_trigger',
+            'cirugias' => 'cirugias_audit_trigger',
+            'cuidados_paliativos' => 'cuidados_paliativos_audit_trigger',
+            'desparasitaciones' => 'desparasitaciones_audit_trigger',
+            'diagnosticos' => 'diagnosticos_audit_trigger',
+            'farmacos' => 'farmacos_audit_trigger',
+            'revisiones' => 'revisiones_audit_trigger',
+            'terapias' => 'terapias_audit_trigger',
+            'vacunas' => 'vacunas_audit_trigger',
+            
+            // Tablas de tipos (categorías)
+            'tipos_alergia' => 'tipos_alergia_audit_trigger',
+            'tipos_cirugia' => 'tipos_cirugia_audit_trigger',
+            'tipos_paliativo' => 'tipos_paliativo_audit_trigger',
+            'tipos_desparasitacion' => 'tipos_desparasitacion_audit_trigger',
+            'tipos_diagnostico' => 'tipos_diagnostico_audit_trigger',
+            'tipos_farmaco' => 'tipos_farmaco_audit_trigger',
+            'tipos_revision' => 'tipos_revision_audit_trigger',
+            'tipos_terapia' => 'tipos_terapia_audit_trigger',
+            'tipos_vacuna' => 'tipos_vacuna_audit_trigger',
+            
+            // Tablas de relación/intermedia
+            'procesos_medicos' => 'procesos_medicos_audit_trigger',
+            'procedimiento_diagnosticos' => 'procedimiento_diagnosticos_audit_trigger',
+            'archivo_cirugias' => 'archivo_cirugias_audit_trigger',
+            'archivos_terapia' => 'archivos_terapia_audit_trigger',
+            'farmacos_asociados' => 'farmacos_asociados_audit_trigger',
+            'revision_diagnosticos' => 'revision_diagnosticos_audit_trigger',
+            
+            // Tablas de historial
+            'procedimiento_diagnostico_historial' => 'procedimiento_diagnostico_historial_audit_trigger',
+            
+            // Tablas de veterinarios
+            'veterinarios' => 'veterinarios_audit_trigger',
+            'solicitudes_veterinarios' => 'solicitudes_veterinarios_audit_trigger',
+            'centros_veterinarios' => 'centros_veterinarios_audit_trigger',
+            'caracteristicas_veterinarios' => 'caracteristicas_veterinarios_audit_trigger',
+            'contacto_veterinarios' => 'contacto_veterinarios_audit_trigger',
+            
+            // Nota: Las tablas de tipos ya están incluidas arriba, no es necesario duplicarlas
         ];
         
-        foreach ($tables as $table => $triggerName) {
-            // Verificar si la tabla existe
-            $tableExists = DB::selectOne("
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
-                    AND table_name = ?
-                ) as exists
-            ", [$table]);
-            
-            if ($tableExists->exists) {
-                // Eliminar trigger si existe
-                DB::unprepared("DROP TRIGGER IF EXISTS {$triggerName} ON {$table} CASCADE;");
-                
-                // Crear trigger
-                DB::unprepared("
-                    CREATE TRIGGER {$triggerName}
-                    AFTER INSERT OR UPDATE OR DELETE ON {$table}
-                    FOR EACH ROW 
-                    EXECUTE FUNCTION audit_trigger_function();
-                ");
-                
-                echo "✅ Trigger creado para tabla: {$table}\n";
-            } else {
-                echo "⚠️  Tabla no existe: {$table} (saltando...)\n";
-            }
+        foreach ($allTables as $table => $triggerName) {
+            $this->createTriggerForTable($table, $triggerName);
         }
+        
+        echo "\n🎯 Todos los triggers han sido creados/actualizados\n";
+    }
+    
+    /**
+     * Crear trigger para una tabla específica
+     */
+    private function createTriggerForTable(string $table, string $triggerName): void
+    {
+        // Verificar si la tabla existe
+        $tableExists = DB::selectOne("
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = ?
+            ) as exists
+        ", [$table]);
+        
+        if (!$tableExists->exists) {
+            echo "⚠️  Tabla no existe: {$table} (saltando...)\n";
+            return;
+        }
+        
+        // Verificar si la tabla tiene columna 'id' o manejamos caso especial
+        $hasIdColumn = DB::selectOne("
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = ? 
+                AND column_name IN ('id', 'idSolicitud', 'id_oferta')
+                LIMIT 1
+            ) as exists
+        ", [$table]);
+        
+        if (!$hasIdColumn->exists) {
+            echo "⚠️  Tabla {$table} no tiene columna ID reconocida (saltando...)\n";
+            return;
+        }
+        
+        // Eliminar trigger si ya existe
+        DB::unprepared("DROP TRIGGER IF EXISTS {$triggerName} ON {$table} CASCADE;");
+        
+        // Crear nuevo trigger
+        DB::unprepared("
+            CREATE TRIGGER {$triggerName}
+            AFTER INSERT OR UPDATE OR DELETE ON {$table}
+            FOR EACH ROW 
+            EXECUTE FUNCTION audit_trigger_function();
+        ");
+        
+        echo "✅ Trigger creado/actualizado para tabla: {$table}\n";
     }
     
     /**
@@ -217,22 +292,51 @@ return new class extends Migration
      */
     private function dropAllTriggers(): void
     {
-        $tables = [
-            'users' => 'users_audit_trigger',
-            'usuarios' => 'usuarios_audit_trigger',
-            'caracteristicas_usuarios' => 'caracteristicas_usuarios_audit_trigger',
-            'user_locations' => 'user_locations_audit_trigger',
-            'usuario_contacto' => 'usuario_contacto_audit_trigger',
-            'mascotas' => 'mascotas_audit_trigger',
-            'caracteristicas_mascotas' => 'caracteristicas_mascotas_audit_trigger',
-            'bajas_mascotas' => 'bajas_mascotas_audit_trigger',
-            'ofertas_adopcion' => 'ofertas_adopcion_audit_trigger',
-            'solicitudes_adopcion' => 'solicitudes_adopcion_audit_trigger',
+        $allTables = [
+            // Tablas de usuarios
+            'users', 'usuarios', 'caracteristicas_usuarios', 'user_locations', 'usuario_contacto',
+            
+            // Tablas de mascotas
+            'mascotas', 'caracteristicas_mascotas', 'bajas_mascotas',
+            
+            // Tablas de adopción
+            'ofertas_adopcion', 'solicitudes_adopcion',
+            
+            // Tablas de procedimientos médicos
+            'alergias', 'cirugias', 'cuidados_paliativos', 'desparasitaciones', 'diagnosticos',
+            'farmacos', 'revisiones', 'terapias', 'vacunas',
+            
+            // Tablas de tipos
+            'tipos_alergia', 'tipos_cirugia', 'tipos_paliativo', 'tipos_desparasitacion',
+            'tipos_diagnostico', 'tipos_farmaco', 'tipos_revision', 'tipos_terapia', 'tipos_vacuna',
+            
+            // Tablas de relación
+            'procesos_medicos', 'procedimiento_diagnosticos', 'archivo_cirugias',
+            'archivos_terapia', 'farmacos_asociados', 'revision_diagnosticos',
+            
+            // Tablas de historial
+            'procedimiento_diagnostico_historial',
+            
+            // Tablas de veterinarios
+            'veterinarios', 'solicitudes_veterinarios', 'centros_veterinarios',
+            'caracteristicas_veterinarios', 'contacto_veterinarios',
         ];
         
-        foreach ($tables as $table => $triggerName) {
+        foreach ($allTables as $table) {
+            $triggerName = $table . '_audit_trigger';
             DB::unprepared("DROP TRIGGER IF EXISTS {$triggerName} ON {$table} CASCADE;");
             echo "✅ Trigger eliminado para tabla: {$table}\n";
         }
+        
+        echo "\n🗑️  Todos los triggers han sido eliminados\n";
+    }
+    
+    /**
+     * Eliminar la función de auditoría (opcional)
+     */
+    private function dropAuditFunction(): void
+    {
+        DB::unprepared('DROP FUNCTION IF EXISTS audit_trigger_function() CASCADE;');
+        echo "🗑️  Función audit_trigger_function eliminada\n";
     }
 };

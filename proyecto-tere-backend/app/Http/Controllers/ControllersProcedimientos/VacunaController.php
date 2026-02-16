@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Services\EnvioDocumentosService;
+use App\Http\Requests\StoreVacunaRequest;
+use App\Services\Validaciones\VacunaValidationService;
 
 class VacunaController extends Controller
 {
@@ -41,20 +43,10 @@ class VacunaController extends Controller
     /**
      * Almacenar nueva vacuna
      */
-    public function store(Request $request, $mascotaId)
+    public function store(StoreVacunaRequest $request, $mascotaId)
     {
         // Validación según los campos del caso de uso
-        $validated = $request->validate([
-            'tipo_vacuna_id' => 'required|exists:tipos_vacuna,id',
-            'fecha_aplicacion' => 'required|date',
-            'numero_dosis' => 'required|string|max:50',
-            'lote_serie' => 'required|string|max:100',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'fecha_proxima_dosis' => 'nullable|date|after:fecha_aplicacion',
-            'observaciones' => 'nullable|string|max:500',
-            'costo' => 'nullable|numeric|min:0',
-            'medio_envio' => 'required|in:email,telegram,whatsapp', // Nueva validación
-        ]);
+         $validated = $request->validated();
 
         try {
             $vacunaCreada = null;
@@ -474,6 +466,96 @@ class VacunaController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al eliminar la vacuna: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    /**
+     * Nuevo endpoint para validar antes de mostrar el formulario
+     */
+    public function validarTipoVacuna(Request $request, $mascotaId, $tipoVacunaId): JsonResponse
+    {
+        try {
+            $mascota = Mascota::findOrFail($mascotaId);
+            $tipoVacuna = TipoVacuna::findOrFail($tipoVacunaId);
+
+            $validacion = $this->validationService
+                ->validarMascotaParaTipoVacuna($mascota, $tipoVacuna);
+
+            return response()->json([
+                'success' => $validacion['valido'],
+                'valido' => $validacion['valido'],
+                'errors' => $validacion['errors'],
+                'detalles' => $validacion['detalles'],
+                'tipo_vacuna' => [
+                    'id' => $tipoVacuna->id,
+                    'nombre' => $tipoVacuna->nombre,
+                    'especies' => $tipoVacuna->especies,
+                    'edad_minima' => $tipoVacuna->edad_minima,
+                    'edad_unidad' => $tipoVacuna->edad_unidad
+                ],
+                'mascota' => [
+                    'id' => $mascota->id,
+                    'nombre' => $mascota->nombre,
+                    'especie' => $mascota->especie,
+                    'edad_formateada' => $mascota->edad_formateada
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error en validación: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener tipos de vacuna válidos para una mascota
+     */
+    public function tiposVacunaValidos($mascotaId): JsonResponse
+    {
+        try {
+            $mascota = Mascota::findOrFail($mascotaId);
+            $tiposVacuna = TipoVacuna::where('activo', true)->get();
+
+            $tiposValidos = [];
+            $tiposInvalidos = [];
+
+            foreach ($tiposVacuna as $tipo) {
+                $validacion = $this->validationService
+                    ->validarMascotaParaTipoVacuna($mascota, $tipo);
+
+                if ($validacion['valido']) {
+                    $tiposValidos[] = [
+                        'id' => $tipo->id,
+                        'nombre' => $tipo->nombre,
+                        'enfermedades' => $tipo->enfermedades,
+                        'detalles' => $validacion['detalles']
+                    ];
+                } else {
+                    $tiposInvalidos[] = [
+                        'id' => $tipo->id,
+                        'nombre' => $tipo->nombre,
+                        'errors' => $validacion['errors'],
+                        'detalles' => $validacion['detalles']
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'validos' => $tiposValidos,
+                    'invalidos' => $tiposInvalidos,
+                    'total_validos' => count($tiposValidos),
+                    'total_invalidos' => count($tiposInvalidos)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error obteniendo tipos válidos: ' . $e->getMessage()
             ], 500);
         }
     }

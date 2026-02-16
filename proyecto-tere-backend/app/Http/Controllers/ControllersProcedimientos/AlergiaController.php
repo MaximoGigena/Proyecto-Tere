@@ -8,6 +8,7 @@ use App\Models\Mascota;
 use App\Models\TiposProcedimientos\TipoAlergia;
 use App\Models\CentroVeterinario;
 use App\Models\ContactoUsuario;
+use App\Http\Requests\StoreAlergiaRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
@@ -61,22 +62,10 @@ class AlergiaController extends Controller
     /**
      * Almacenar nueva alergia
      */
-    public function store(Request $request, $mascotaId)
+     public function store(StoreAlergiaRequest $request, $mascotaId) // Cambiar Request por StoreAlergiaRequest
     {
-        // Validación según los campos del formulario
-        $validated = $request->validate([
-            'tipo_alergia_id' => 'required|exists:tipos_alergia,id',
-            'fecha_deteccion' => 'required|date',
-            'gravedad' => 'required|in:leve,moderada,grave',
-            'reaccion_comun' => 'required|string|max:255',
-            'estado' => 'required|in:activa,superada,seguimiento',
-            'desencadenante' => 'nullable|string|max:255',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'conducta_recomendada' => 'nullable|string',
-            'recomendaciones_tutor' => 'nullable|string',
-            'observaciones' => 'nullable|string',
-            'medio_envio' => 'required|in:email,telegram,whatsapp',
-        ]);
+        // La validación ya se hizo en el FormRequest
+        $validated = $request->validated();
 
         try {
             $alergiaCreada = null;

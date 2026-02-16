@@ -10,6 +10,7 @@ use App\Models\TiposProcedimientos\TipoPaliativo;
 use App\Models\TiposProcedimientos\TipoDiagnostico;
 use App\Models\CentroVeterinario;
 use App\Models\ProcedimientoDiagnostico;
+use App\Http\Requests\StorePaliativoRequest;
 use App\Models\ProcedimientosMedicos\Diagnostico;
 use App\Models\FarmacoAsociado;
 use Illuminate\Http\Request;
@@ -46,46 +47,18 @@ class PaliativoController extends Controller
     /**
      * Almacenar nuevo procedimiento paliativo
      */
-     public function store(Request $request, $mascotaId): JsonResponse
+    public function store(StorePaliativoRequest $request, $mascotaId): JsonResponse
     {
-        // Validación modificada - quitar validación automática de diagnosticos
-        $validated = $request->validate([
-            // Campos obligatorios del modelo CuidadoPaliativo
-            'tipo_procedimiento_id' => 'required|exists:tipos_paliativo,id',
-            'fecha_inicio' => 'required|date',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'resultado' => 'required|in:mejoria,alivio,estabilizacion,sin_cambio,empeoramiento',
-            'estado' => 'required|in:estable,dolor_controlado,dolor_parcial,deterioro,critico',
-            
-            // Campos opcionales
-            'frecuencia_valor' => 'nullable|integer|min:1',
-            'frecuencia_unidad' => 'nullable|in:horas,dias,semanas,meses',
-            'fecha_control' => 'nullable|date',
-            'descripcion' => 'nullable|string|max:1000',
-            'medicacion_notas' => 'nullable|string|max:500',
-            'recomendaciones' => 'nullable|string|max:500',
-            'medio_envio' => 'required|in:email,telegram,whatsapp',
-            
-            // QUITAR esta validación porque ahora diagnosticos es un array de objetos
-            // 'diagnosticos' => 'nullable|array',
-            // 'diagnosticos.*' => 'exists:tipos_diagnostico,id',
-            
-            // Fármacos asociados
-            'farmacos_asociados' => 'nullable|array',
-            'farmacos_asociados.*.farmaco_id' => 'required_with:farmacos_asociados|exists:tipos_farmaco,id',
-            'farmacos_asociados.*.dosis' => 'required_with:farmacos_asociados|numeric|min:0.001',
-            'farmacos_asociados.*.frecuencia' => 'nullable|string',
-            'farmacos_asociados.*.duracion' => 'nullable|string',
-            'farmacos_asociados.*.observaciones' => 'nullable|string|max:1000',
-            'farmacos_asociados.*.momento_aplicacion' => 'required_with:farmacos_asociados|in:inicio,mantenimiento,rescue,final',
-            
-            // Archivos adjuntos
-            'archivos.*' => 'nullable|file|max:10240', // 10MB máximo
-        ]);
-
         try {
+            // Los datos ya están validados por StorePaliativoRequest
+            $validated = $request->validated();
+            
+            // Obtener detalles de validación si los necesitas
+            $validacionDetalles = $request->input('validacion_detalles', []);
+            
             $paliativoCreado = null;
             $mascotaData = null;
+
 
             DB::transaction(function () use ($validated, $mascotaId, &$paliativoCreado, &$mascotaData, $request) {
                 // 1. Crear el registro específico de CuidadoPaliativo
@@ -553,7 +526,7 @@ class PaliativoController extends Controller
         try {
             $paliativo = CuidadoPaliativo::whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
-            })->findOrFail($paliativoId);
+            })->first();
 
             // Verificar si ya está eliminado
             if ($paliativo->trashed()) {

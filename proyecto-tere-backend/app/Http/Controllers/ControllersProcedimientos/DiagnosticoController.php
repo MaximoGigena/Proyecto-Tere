@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Http\Requests\StoreDiagnosticoRequest;
 use App\Services\EnvioDocumentosService;
 use Illuminate\Support\Facades\Validator;
 
@@ -45,9 +46,12 @@ class DiagnosticoController extends Controller
     /**
      * Almacenar nuevo diagnóstico
      */
-    public function store(Request $request, $mascotaId)
+    public function store(StoreDiagnosticoRequest $request, $mascotaId)
     {
         try {
+            // Los datos ya están validados por el Request
+            $validated = $request->validated();
+            
             Log::info('📥 Datos recibidos en store:', [
                 'all_data' => $request->all(),
                 'has_diferenciales' => $request->has('diagnosticos_diferenciales_seleccionados'),

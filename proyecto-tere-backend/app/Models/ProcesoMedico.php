@@ -84,4 +84,49 @@ class ProcesoMedico extends Model
         return $this->save();
     }
 
+    /**
+     * Scope para filtrar por veterinario
+     */
+    public function scopePorVeterinario($query, $veterinarioId)
+    {
+        return $query->where('veterinario_id', $veterinarioId);
+    }
+
+    /**
+     * Scope para filtrar por categoría
+     */
+    public function scopePorCategoria($query, $categoria)
+    {
+        return $query->where('categoria', $categoria);
+    }
+
+    /**
+     * Scope para buscar en observaciones o nombre de mascota
+     */
+    public function scopeBuscar($query, $termino)
+    {
+        return $query->where(function($q) use ($termino) {
+            $q->where('observaciones', 'LIKE', "%{$termino}%")
+            ->orWhereHas('mascota', function($q2) use ($termino) {
+                $q2->where('nombre', 'LIKE', "%{$termino}%");
+            });
+        });
+    }
+
+    /**
+     * Accessor para el tipo de procedimiento formateado
+     */
+    public function getTipoProcedimientoAttribute()
+    {
+        return ucfirst($this->categoria);
+    }
+
+    /**
+     * Accessor para fecha formateada
+     */
+    public function getFechaFormateadaAttribute()
+    {
+        return $this->fecha_aplicacion->format('d/m/Y');
+    }
+
 }

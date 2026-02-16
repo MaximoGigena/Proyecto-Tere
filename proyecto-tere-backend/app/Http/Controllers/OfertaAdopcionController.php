@@ -899,79 +899,90 @@ class OfertaAdopcionController extends Controller
     public function getOfertaPorMascota($mascotaId)
     {
         try {
+            Log::info('=== getOfertaPorMascota ===');
+            Log::info('Mascota ID recibida: ' . $mascotaId);
+            
             $user = Auth::user();
             
-            $mascota = Mascota::where('id', $mascotaId)
-                ->where('usuario_id', $user->id)
-                ->first();
+            // Obtener el ID del Usuario (no del User)
+            $usuarioId = $user->userable->id;
             
-            if (!$mascota) {
+            if (!$usuarioId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Mascota no encontrada o no autorizado'
+                    'message' => 'Usuario no tiene perfil completo'
+                ], 400);
+            }
+            
+            // Verificar que la mascota pertenece al usuario autenticado
+            $mascota = Mascota::where('id', $mascotaId)
+                ->where('usuario_id', $usuarioId)
+                ->first();
+                
+            if (!$mascota) {
+                Log::warning('❌ Mascota no encontrada o no pertenece al usuario', [
+                    'mascota_id' => $mascotaId,
+                    'usuario_id' => $usuarioId
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mascota no encontrada o no tienes permisos'
                 ], 404);
             }
             
-            $oferta = OfertaAdopcion::with([
-                'mascota' => function($query) {
-                    $query->with(['fotos', 'caracteristicas', 'edadRelacion']);
-                }
-            ])
-            ->where('id_mascota', $mascotaId)
-            ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
-            ->first();
-            
+            // Obtener la oferta activa para esta mascota
+            $oferta = OfertaAdopcion::with(['mascota', 'mascota.fotos'])
+                ->where('id_mascota', $mascotaId)
+                ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
+                ->first();
+                
             if (!$oferta) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No hay oferta activa para esta mascota'
+                    'message' => 'No se encontró oferta activa para esta mascota'
                 ], 404);
             }
             
-            $mascotaData = [
-                'id' => $oferta->mascota->id,
-                'nombre' => $oferta->mascota->nombre,
-                'especie' => $oferta->mascota->especie,
-                'raza' => $oferta->mascota->raza,
-                'sexo' => $oferta->mascota->sexo,
-                'castrado' => $oferta->mascota->castrado,
-                'edad_formateada' => $oferta->mascota->edad_formateada,
-                'foto_principal_url' => $oferta->mascota->foto_principal_url,
-                'caracteristicas' => is_string($oferta->mascota->caracteristicas ?? '') 
-                    ? json_decode($oferta->mascota->caracteristicas, true) 
-                    : ($oferta->mascota->caracteristicas ?? []),
-                'fotos' => $oferta->mascota->fotos->map(function($foto) {
-                    return [
-                        'id' => $foto->id,
-                        'url' => $foto->url ?? asset('storage/' . $foto->ruta_foto),
-                        'es_principal' => $foto->es_principal,
-                        'ruta_foto' => $foto->ruta_foto
-                    ];
-                })
+            // Formatear respuesta
+            $data = [
+                'id_oferta' => $oferta->id_oferta,
+                'estado_oferta' => $oferta->estado_oferta,
+                'permiso_historial_medico' => $oferta->permiso_historial_medico,
+                'permiso_contacto_tutor' => $oferta->permiso_contacto_tutor,
+                'created_at' => $oferta->created_at,
+                'mascota' => [
+                    'id' => $oferta->mascota->id,
+                    'nombre' => $oferta->mascota->nombre,
+                    'especie' => $oferta->mascota->especie,
+                    'raza' => $oferta->mascota->raza,
+                    'edad_formateada' => $oferta->mascota->edad_formateada,
+                    'foto_principal_url' => $oferta->mascota->foto_principal_url,
+                    'caracteristicas' => $oferta->mascota->caracteristicas,
+                    'fotos' => $oferta->mascota->fotos->map(function($foto) {
+                        return [
+                            'url' => asset('storage/' . $foto->ruta_foto),
+                            'ruta_foto' => $foto->ruta_foto,
+                            'es_principal' => $foto->es_principal
+                        ];
+                    })
+                ]
             ];
             
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'id_oferta' => $oferta->id_oferta,
-                    'estado_oferta' => $oferta->estado_oferta,
-                    'permiso_historial_medico' => $oferta->permiso_historial_medico,
-                    'permiso_contacto_tutor' => $oferta->permiso_contacto_tutor,
-                    'created_at' => $oferta->created_at,
-                    'mascota' => $mascotaData
-                ]
+                'data' => $data
             ]);
             
         } catch (\Exception $e) {
-            Log::error('Error al obtener oferta por mascota:', [
+            Log::error('Error en getOfertaPorMascota:', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener la oferta',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno'
+                'message' => 'Error al obtener la oferta'
             ], 500);
         }
     }

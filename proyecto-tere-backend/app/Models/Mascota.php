@@ -364,4 +364,22 @@ class Mascota extends Model
         
         return 'Ubicación no disponible';
     }
+
+    public function user()
+    {
+        // Si usuario_id es ID de Usuario, NO de User
+        // Necesitas obtener el User a través de Usuario
+        return $this->belongsTo(User::class, 'usuario_id', 'id')
+            ->where('userable_type', 'App\Models\Usuario');
+        
+        // O MEJOR: Crear una relación a través de Usuario
+        return $this->hasOneThrough(
+            User::class,
+            Usuario::class,
+            'id', // Foreign key en Usuario
+            'id', // Foreign key en User
+            'usuario_id', // Local key en Mascota
+            'user_id' // Foreign key en Usuario que apunta a User
+        )->where('users.userable_type', 'App\Models\Usuario');
+    }
 }

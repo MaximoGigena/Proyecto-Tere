@@ -1,4 +1,3 @@
-// database/migrations/xxxx_xx_xx_xxxxxx_create_mensajes_table.php
 <?php
 
 use Illuminate\Database\Migrations\Migration;

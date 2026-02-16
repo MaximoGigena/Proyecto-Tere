@@ -94,4 +94,22 @@ class SolicitudAdopcion extends Model
 
         return $estados[$this->estadoSolicitud] ?? ['text' => 'Desconocido', 'color' => 'text-gray-600', 'bg' => 'bg-gray-100'];
     }
+
+    public function usuarioSolicitante()
+    {
+        return $this->belongsTo(User::class, 'idUsuarioSolicitante');
+    }
+
+    // Agregar relación con OfertaAdopcion
+    public function oferta()
+    {
+        return $this->hasOneThrough(
+            OfertaAdopcion::class,
+            Mascota::class,
+            'id', // Foreign key en Mascota
+            'id_mascota', // Foreign key en OfertaAdopcion
+            'idMascota', // Local key en SolicitudAdopcion
+            'id' // Local key en Mascota
+        );
+    }
 }
