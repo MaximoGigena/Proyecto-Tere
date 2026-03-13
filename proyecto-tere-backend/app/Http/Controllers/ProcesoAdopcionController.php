@@ -6,6 +6,7 @@ use App\Models\ProcesoAdopcion;
 use App\Models\SolicitudAdopcion;
 use App\Models\OfertaAdopcion;
 use App\Models\Usuario;
+use App\Models\Notificacion;
 use App\Models\AdopcionCompletada;
 use App\Models\HistorialTransferenciaMascota;
 use App\Models\Mascota;
@@ -59,6 +60,12 @@ class ProcesoAdopcionController extends Controller
                     'message' => 'No se encontró el historial de transferencia para esta solicitud'
                 ], 404);
             }
+
+            if (!$transferenciaReciente->motivo) {
+                $transferenciaReciente->motivo = 'adopcion';
+                $transferenciaReciente->observaciones = 'Transferencia por proceso de adopción aprobado';
+                $transferenciaReciente->save();
+            }
             
             // 3. Buscar la oferta relacionada
             $oferta = OfertaAdopcion::where('id_mascota', $solicitud->idMascota)
@@ -71,6 +78,7 @@ class ProcesoAdopcionController extends Controller
                     'message' => 'No se encontró la oferta de adopción relacionada'
                 ], 404);
             }
+
             
             // ✅ OBTENER EL ID DE USUARIO DEL ADOPTANTE (no User ID)
             $adoptanteUsuarioId = null;
@@ -111,6 +119,9 @@ class ProcesoAdopcionController extends Controller
 
             // ✅ ACTUALIZAR LA TRANSFERENCIA CON EL ID DEL PROCESO
             $transferenciaReciente->update(['proceso_adopcion_id' => $proceso->id_proceso]);
+
+             // ✅ NUEVO: Enviar notificación de proceso iniciado
+            $this->enviarNotificacionProcesoIniciado($proceso);
             
             // 6. Registrar evento inicial
             $proceso->seguimientos()->create([
@@ -404,11 +415,23 @@ class ProcesoAdopcionController extends Controller
                 ]
             ]);
             
-            // Intentar finalizar si ambas partes confirmaron
-            if ($proceso->intentarFinalizar()) {
-                // Registrar finalización automática
+            // ✅ SOLUCIÓN: Verificar si ambas partes confirmaron
+            $ambasConfirmaciones = $proceso->confirmacion_tutor && $proceso->confirmacion_adoptante;
+            
+            if ($ambasConfirmaciones && $proceso->estado_proceso === 'aprobado') {
+                // Cambiar estado manualmente
+                $proceso->estado_proceso = 'finalizado';
+                $proceso->save();
+                
+                // ✅ RECARGAR relaciones antes de enviar notificaciones
+                $proceso->load(['tutor', 'adoptante', 'oferta.mascota']);
+                
+                // Enviar notificaciones
+                $this->enviarNotificacionAdopcionCompletada($proceso);
+                
+                // Registrar finalización
                 $proceso->seguimientos()->create([
-                    'id_usuario' => null, // Sistema
+                    'id_usuario' => null,
                     'estado_anterior' => 'aprobado',
                     'estado_nuevo' => 'finalizado',
                     'observaciones' => 'Proceso finalizado automáticamente tras confirmaciones de ambas partes',
@@ -420,19 +443,20 @@ class ProcesoAdopcionController extends Controller
                 'success' => true,
                 'message' => 'Confirmación registrada exitosamente',
                 'data' => [
-                    'proceso' => $proceso,
+                    'proceso' => $proceso->fresh(), // ✅ Usar fresh() para obtener datos actualizados
                     'fue_finalizado' => $proceso->estado_proceso === 'finalizado'
                 ]
             ]);
             
         } catch (\Exception $e) {
             Log::error('Error al confirmar entrega', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString() // Agrega trace para mejor depuración
             ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Error al registrar la confirmación'
+                'message' => 'Error al registrar la confirmación: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -539,6 +563,9 @@ class ProcesoAdopcionController extends Controller
             
             // Si ya confirmó su parte, marcar como finalizado
             if ($proceso->intentarFinalizar()) {
+
+                $this->enviarNotificacionAdopcionCompletada($proceso);
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Proceso finalizado exitosamente',
@@ -675,5 +702,182 @@ class ProcesoAdopcionController extends Controller
             'como_tutor' => ProcesoAdopcion::where('id_usuario_tutor', $userId)->count(),
             'como_adoptante' => ProcesoAdopcion::where('id_usuario_adoptante', $userId)->count()
         ];
+    }
+
+    /**
+     * Enviar notificaciones de adopción completada a ambas partes
+     */
+    private function enviarNotificacionAdopcionCompletada(ProcesoAdopcion $proceso)
+    {
+        Log::info('🔔 INTENTANDO crear notificaciones de adopción completada', [
+            'proceso_id' => $proceso->id_proceso,
+            'tutor_id' => $proceso->id_usuario_tutor,
+            'adoptante_id' => $proceso->id_usuario_adoptante,
+            'estado_proceso' => $proceso->estado_proceso
+        ]);
+        
+        // Cargar relaciones necesarias
+        $proceso->loadMissing(['tutor', 'adoptante', 'oferta.mascota']);
+        
+        // Verificar que existen los usuarios
+        if (!$proceso->tutor) {
+            Log::error('❌ Tutor no encontrado', ['tutor_id' => $proceso->id_usuario_tutor]);
+            return false;
+        }
+        
+        if (!$proceso->adoptante) {
+            Log::error('❌ Adoptante no encontrado', ['adoptante_id' => $proceso->id_usuario_adoptante]);
+            return false;
+        }
+        
+        $mascota = $proceso->oferta->mascota ?? null;
+        $nombreMascota = $mascota ? $mascota->nombre : 'la mascota';
+        
+        $titulo = "🎉 ¡Proceso de adopción completado!";
+        
+        DB::beginTransaction();
+        
+        try {
+            // ✅ CORREGIDO: Cambiar 'usuario_id' por 'user_id'
+            $notificacionTutor = Notificacion::create([
+                'user_id' => $proceso->id_usuario_tutor,  // 👈 CAMBIADO AQUÍ
+                'tipo' => 'ADOPCION',
+                'titulo' => $titulo,
+                'contenido' => "Hola {$proceso->tutor->nombre},\n\n¡Felicitaciones! El proceso de adopción de **{$nombreMascota}** ha sido completado exitosamente.\n\nGracias por confiar en nuestra plataforma.",
+                'origen' => 'SISTEMA',
+                'referencia_tipo' => 'proceso_adopcion',
+                'referencia_id' => $proceso->id_proceso,
+                'leida' => false,
+                'activa' => true
+            ]);
+            
+            Log::info('✅ Notificación TUTOR creada', [
+                'notificacion_id' => $notificacionTutor->id,
+                'user_id' => $proceso->id_usuario_tutor  // 👈 Actualizado el log
+            ]);
+            
+            // ✅ CORREGIDO: Cambiar 'usuario_id' por 'user_id'
+            $notificacionAdoptante = Notificacion::create([
+                'user_id' => $proceso->id_usuario_adoptante,  // 👈 CAMBIADO AQUÍ
+                'tipo' => 'ADOPCION',
+                'titulo' => $titulo,
+                'contenido' => "Hola {$proceso->adoptante->nombre},\n\n¡Felicitaciones! El proceso de adopción de **{$nombreMascota}** ha sido completado exitosamente.\n\n**{$nombreMascota}** ahora es oficialmente parte de tu familia.",
+                'origen' => 'SISTEMA',
+                'referencia_tipo' => 'proceso_adopcion',
+                'referencia_id' => $proceso->id_proceso,
+                'leida' => false,
+                'activa' => true
+            ]);
+            
+            Log::info('✅ Notificación ADOPTANTE creada', [
+                'notificacion_id' => $notificacionAdoptante->id,
+                'user_id' => $proceso->id_usuario_adoptante  // 👈 Actualizado el log
+            ]);
+            
+            DB::commit();
+            
+            Log::info('🎉 AMBAS notificaciones creadas exitosamente', [
+                'proceso_id' => $proceso->id_proceso
+            ]);
+            
+            return true;
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('❌ ERROR al crear notificaciones', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'proceso_id' => $proceso->id_proceso
+            ]);
+            
+            return false;
+        }
+    }
+
+    /**
+     * Enviar notificaciones cuando se inicia el proceso de adopción
+     */
+    private function enviarNotificacionProcesoIniciado(ProcesoAdopcion $proceso)
+    {
+        Log::info('🔔 ENVIANDO notificación de proceso INICIADO', [
+            'proceso_id' => $proceso->id_proceso,
+            'tutor_id' => $proceso->id_usuario_tutor,
+            'adoptante_id' => $proceso->id_usuario_adoptante
+        ]);
+        
+        // Cargar relaciones necesarias
+        $proceso->loadMissing(['tutor', 'adoptante', 'oferta.mascota']);
+        
+        // Verificar que existen los usuarios
+        if (!$proceso->tutor) {
+            Log::error('❌ Tutor no encontrado en notificación de inicio', ['tutor_id' => $proceso->id_usuario_tutor]);
+            return false;
+        }
+        
+        if (!$proceso->adoptante) {
+            Log::error('❌ Adoptante no encontrado en notificación de inicio', ['adoptante_id' => $proceso->id_usuario_adoptante]);
+            return false;
+        }
+        
+        $mascota = $proceso->oferta->mascota ?? null;
+        $nombreMascota = $mascota ? $mascota->nombre : 'la mascota';
+        
+        DB::beginTransaction();
+        
+        try {
+            // Notificación para el TUTOR
+            $notificacionTutor = Notificacion::create([
+                'user_id' => $proceso->id_usuario_tutor,
+                'tipo' => 'ADOPCION',
+                'titulo' => '📋 Proceso de adopción iniciado',
+                'contenido' => "Hola {$proceso->tutor->nombre},\n\nEl proceso de adopción de **{$nombreMascota}** ha sido iniciado. Ahora puedes coordinar los siguientes pasos con el adoptante a través del chat.",
+                'origen' => 'SISTEMA',
+                'referencia_tipo' => 'proceso_adopcion',
+                'referencia_id' => $proceso->id_proceso,
+                'leida' => false,
+                'activa' => true
+            ]);
+            
+            Log::info('✅ Notificación TUTOR creada (inicio proceso)', [
+                'notificacion_id' => $notificacionTutor->id
+            ]);
+            
+            // Notificación para el ADOPTANTE
+            $notificacionAdoptante = Notificacion::create([
+                'user_id' => $proceso->id_usuario_adoptante,
+                'tipo' => 'ADOPCION',
+                'titulo' => '📋 ¡Tu solicitud fue aprobada!',
+                'contenido' => "Hola {$proceso->adoptante->nombre},\n\n¡Felicitaciones! Tu solicitud para adoptar a **{$nombreMascota}** ha sido aprobada. Se ha iniciado el proceso de adopción. El tutor se comunicará contigo para coordinar los siguientes pasos.",
+                'origen' => 'SISTEMA',
+                'referencia_tipo' => 'proceso_adopcion',
+                'referencia_id' => $proceso->id_proceso,
+                'leida' => false,
+                'activa' => true
+            ]);
+            
+            Log::info('✅ Notificación ADOPTANTE creada (inicio proceso)', [
+                'notificacion_id' => $notificacionAdoptante->id
+            ]);
+            
+            DB::commit();
+            
+            Log::info('🎉 Notificaciones de INICIO de proceso creadas exitosamente', [
+                'proceso_id' => $proceso->id_proceso
+            ]);
+            
+            return true;
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('❌ ERROR al crear notificaciones de inicio', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'proceso_id' => $proceso->id_proceso
+            ]);
+            
+            return false;
+        }
     }
 }

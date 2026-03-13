@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\OfertaAdopcion;
 use App\Models\InteraccionSwipeUsuario;
+use App\Services\MascotaMatchingService;
 use App\Models\Mascota;
 use App\Helpers\UbicacionHelper;
 use Illuminate\Http\Request;
@@ -13,6 +14,507 @@ use Illuminate\Support\Facades\Log;
 
 class ManejarOfertasController extends Controller
 {
+
+     protected $matchingService;
+
+    public function __construct(MascotaMatchingService $matchingService)
+    {
+        $this->matchingService = $matchingService;
+    }
+
+    /**
+     * Obtener ofertas para swipe ordenadas por score de compatibilidad
+     */
+    public function obtenerOfertasPorScore(Request $request)
+    {
+        try {
+            Log::info('📊 OBTENIENDO OFERTAS POR SCORE DE COMPATIBILIDAD 📊');
+            
+            $user = Auth::user();
+            $usuarioModel = $user->userable;
+            $usuarioId = $usuarioModel->id;
+            
+            // Obtener IDs de mascotas ya interactuadas
+            $mascotasInteractuadas = InteraccionSwipeUsuario::where('usuario_id', $user->id)
+                ->pluck('mascota_id')
+                ->toArray();
+            
+            Log::info('Mascotas interactuadas excluidas:', [
+                'count' => count($mascotasInteractuadas)
+            ]);
+            
+            // Consulta base de ofertas disponibles
+            $query = OfertaAdopcion::with([
+                'mascota.caracteristicas',
+                'mascota.fotos',
+                'mascota.edadRelacion',
+                'mascota.usuario.user.ubicacionActual'
+            ])
+            ->where('estado_oferta', 'publicada')
+            ->where('id_usuario_responsable', '!=', $usuarioId)
+            ->whereDoesntHave('mascota', function($q) use ($usuarioId) {
+                $q->where('usuario_id', $usuarioId);
+            });
+            
+            // Excluir mascotas ya interactuadas
+            if (!empty($mascotasInteractuadas)) {
+                $query->whereDoesntHave('mascota', function($q) use ($mascotasInteractuadas) {
+                    $q->whereIn('id', $mascotasInteractuadas);
+                });
+            }
+            
+            // Aplicar filtros si existen
+            if ($request->has('filtros')) {
+                $filtros = json_decode($request->filtros, true);
+                if (is_array($filtros)) {
+                    $tempRequest = new Request($filtros);
+                    $filtrosController = new FiltrosMascotasController();
+                    $query = $filtrosController->aplicarFiltros($query, $tempRequest);
+                }
+            }
+            
+            // Obtener todas las ofertas disponibles
+            $ofertas = $query->get();
+            
+            Log::info('Ofertas base obtenidas:', [
+                'total_sin_score' => $ofertas->count()
+            ]);
+            
+            // Calcular score de compatibilidad para cada oferta
+            $ofertasConScore = $ofertas->map(function($oferta) use ($user, $usuarioModel) {
+                try {
+                    $mascota = $oferta->mascota;
+                    
+                    if (!$mascota) {
+                        return null;
+                    }
+                    
+                    // Calcular score usando el servicio de matching
+                    $score = $this->matchingService->calculateCompatibilityScore(
+                        $usuarioModel, 
+                        $mascota
+                    );
+                    
+                    // Calcular distancia si hay ubicación
+                    $distancia = null;
+                    $distanciaTexto = null;
+                    
+                    if ($user->ubicacionActual && 
+                        $mascota->usuario && 
+                        $mascota->usuario->user && 
+                        $mascota->usuario->user->ubicacionActual) {
+                        
+                        $ubicacionUsuario = $user->ubicacionActual;
+                        $ubicacionTutor = $mascota->usuario->user->ubicacionActual;
+                        
+                        $distancia = $this->calcularDistancia(
+                            $ubicacionUsuario->latitude,
+                            $ubicacionUsuario->longitude,
+                            $ubicacionTutor->latitude,
+                            $ubicacionTutor->longitude
+                        );
+                        
+                        $distanciaTexto = $this->formatearDistancia($distancia);
+                    }
+                    
+                    // Asignar score y distancia a la oferta
+                    $oferta->compatibility_score = $score;
+                    $oferta->distancia_km = $distancia;
+                    $oferta->distancia_texto = $distanciaTexto;
+                    
+                    // Nivel de compatibilidad
+                    $oferta->compatibility_level = $this->getCompatibilityLevel($score);
+                    
+                    return $oferta;
+                    
+                } catch (\Exception $e) {
+                    Log::error('Error calculando score para mascota:', [
+                        'mascota_id' => $oferta->mascota->id ?? 'unknown',
+                        'error' => $e->getMessage()
+                    ]);
+                    return null;
+                }
+            })
+            ->filter()
+            ->values();
+            
+            // Ordenar por score de compatibilidad (mayor a menor)
+            $ofertasOrdenadas = $ofertasConScore->sortByDesc('compatibility_score')->values();
+            
+            // Limitar número de resultados
+            $limit = $request->get('limit', 20);
+            $ofertasFinales = $ofertasOrdenadas->take($limit);
+            
+            Log::info('Ofertas finales ordenadas por score:', [
+                'total_con_score' => $ofertasOrdenadas->count(),
+                'mostrando' => $ofertasFinales->count(),
+                'top_scores' => $ofertasFinales->take(3)->map(function($o) {
+                    return [
+                        'mascota' => $o->mascota->nombre,
+                        'score' => $o->compatibility_score,
+                        'nivel' => $o->compatibility_level
+                    ];
+                })
+            ]);
+            
+            // Formatear respuesta
+            $ofertasFormateadas = $this->formatearOfertasParaSwipe($ofertasFinales);
+            
+            // Verificar si el usuario tiene datos opcionales completados
+            $userHasOptionalData = $this->userHasOptionalData($usuarioModel);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $ofertasFormateadas,
+                'meta' => [
+                    'total' => $ofertasFormateadas->count(),
+                    'user_has_optional_data' => $userHasOptionalData,
+                    'ordenamiento' => 'compatibility_score_desc',
+                    'total_disponibles' => $ofertasOrdenadas->count()
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error en obtenerOfertasPorScore: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al cargar ofertas por compatibilidad: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener ofertas para swipe con soporte para filtros
+     */
+    public function obtenerOfertasParaSwipe(Request $request)
+    {
+        Log::info('🎯 OBTENIENDO OFERTAS PARA SWIPE CON FILTROS 🎯');
+        Log::info('Request params:', $request->all());
+        
+        try {
+            $user = Auth::user();
+            $usuarioModel = $user->userable;
+            $usuarioId = $usuarioModel->id;
+            
+            // Obtener ubicación del usuario para calcular distancias
+            $ubicacionUsuario = null;
+            if ($user->ubicacionActual) {
+                $ubicacionUsuario = [
+                    'latitude' => $user->ubicacionActual->latitude,
+                    'longitude' => $user->ubicacionActual->longitude,
+                ];
+            }
+            
+            // Obtener IDs de mascotas ya interactuadas
+            $mascotasInteractuadas = InteraccionSwipeUsuario::where('usuario_id', $user->id)
+                ->pluck('mascota_id')
+                ->toArray();
+            
+            Log::info('Mascotas interactuadas excluidas:', [
+                'count' => count($mascotasInteractuadas)
+            ]);
+            
+            // Consulta base de ofertas disponibles
+            $query = OfertaAdopcion::with([
+                'mascota.caracteristicas',
+                'mascota.fotos',
+                'mascota.edadRelacion',
+                'mascota.usuario.user.ubicacionActual'
+            ])
+            ->where('estado_oferta', 'publicada')
+            ->where('id_usuario_responsable', '!=', $usuarioId)
+            ->whereDoesntHave('mascota', function($q) use ($usuarioId) {
+                $q->where('usuario_id', $usuarioId);
+            });
+            
+            // Excluir mascotas ya interactuadas
+            if (!empty($mascotasInteractuadas)) {
+                $query->whereDoesntHave('mascota', function($q) use ($mascotasInteractuadas) {
+                    $q->whereIn('id', $mascotasInteractuadas);
+                });
+            }
+            
+            // ✅ APLICAR FILTROS desde el request
+            $filtrosController = new FiltrosMascotasController();
+            
+            // Aplicar filtros de especie, sexo y edad
+            $query = $filtrosController->aplicarFiltros($query, $request);
+            
+            // ✅ APLICAR FILTRO DE UBICACIÓN específico (coordenadas)
+            if ($request->has('latitud') && $request->has('longitud')) {
+                $lat = $request->latitud;
+                $lon = $request->longitud;
+                $radio = $request->radio_km ?? 10;
+                
+                Log::info('Aplicando filtro por ubicación específica:', [
+                    'lat' => $lat,
+                    'lon' => $lon,
+                    'radio_km' => $radio
+                ]);
+                
+                $query->whereHas('mascota.usuario.user.ubicacionActual', function($q) use ($lat, $lon, $radio) {
+                    $q->whereRaw(
+                        "ST_DWithin(
+                            location::geography,
+                            ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography,
+                            ?
+                        )",
+                        [$lon, $lat, $radio * 1000]
+                    );
+                });
+            }
+            
+            // Obtener todas las ofertas disponibles
+            $ofertas = $query->get();
+            
+            Log::info('Ofertas base obtenidas después de filtros:', [
+                'total_sin_score' => $ofertas->count()
+            ]);
+            
+            // Calcular score de compatibilidad para cada oferta
+            $ofertasConScore = $ofertas->map(function($oferta) use ($user, $usuarioModel, $ubicacionUsuario, $request) {
+                try {
+                    $mascota = $oferta->mascota;
+                    
+                    if (!$mascota) {
+                        return null;
+                    }
+                    
+                    // Calcular distancia
+                    $distancia = null;
+                    $distanciaTexto = null;
+                    
+                    // Priorizar ubicación del filtro si existe
+                    if ($request->has('latitud') && $request->has('longitud')) {
+                        $lat = $request->latitud;
+                        $lon = $request->longitud;
+                    } elseif ($ubicacionUsuario) {
+                        $lat = $ubicacionUsuario['latitude'];
+                        $lon = $ubicacionUsuario['longitude'];
+                    } else {
+                        $lat = null;
+                        $lon = null;
+                    }
+                    
+                    if ($lat && $lon && 
+                        $mascota->usuario && 
+                        $mascota->usuario->user && 
+                        $mascota->usuario->user->ubicacionActual) {
+                        
+                        $ubicacionTutor = $mascota->usuario->user->ubicacionActual;
+                        
+                        $distancia = $this->calcularDistancia(
+                            $lat,
+                            $lon,
+                            $ubicacionTutor->latitude,
+                            $ubicacionTutor->longitude
+                        );
+                        
+                        $distanciaTexto = $this->formatearDistancia($distancia);
+                    }
+                    
+                    // Calcular score
+                    $score = $this->matchingService->calculateCompatibilityScore(
+                        $usuarioModel, 
+                        $mascota,
+                        $distancia
+                    );
+                    
+                    // Asignar score y distancia
+                    $oferta->compatibility_score = $score;
+                    $oferta->distancia_km = $distancia;
+                    $oferta->distancia_texto = $distanciaTexto;
+                    $oferta->compatibility_level = $this->getCompatibilityLevel($score);
+                    
+                    return $oferta;
+                    
+                } catch (\Exception $e) {
+                    Log::error('Error calculando score:', [
+                        'mascota_id' => $oferta->mascota->id ?? 'unknown',
+                        'error' => $e->getMessage()
+                    ]);
+                    return null;
+                }
+            })
+            ->filter()
+            ->values();
+            
+            // Ordenar por score
+            $ofertasOrdenadas = $ofertasConScore->sortByDesc('compatibility_score')->values();
+            
+            // Limitar resultados
+            $limit = $request->get('limit', 20);
+            $ofertasFinales = $ofertasOrdenadas->take($limit);
+            
+            Log::info('Ofertas finales:', [
+                'total_con_score' => $ofertasOrdenadas->count(),
+                'mostrando' => $ofertasFinales->count()
+            ]);
+            
+            // Formatear respuesta
+            $ofertasFormateadas = $this->formatearOfertasParaSwipe($ofertasFinales);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $ofertasFormateadas,
+                'meta' => [
+                    'total' => $ofertasOrdenadas->count(),
+                    'total_pagina' => $ofertasFormateadas->count(),
+                    'filtros_aplicados' => [
+                        'especie' => $request->has('especie'),
+                        'sexo' => $request->has('sexo'),
+                        'edad' => $request->has('rangos_edad'),
+                        'ubicacion' => $request->has('latitud')
+                    ]
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error en obtenerOfertasParaSwipe: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al cargar ofertas: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Formatear ofertas para el componente de swipe
+     */
+    private function formatearOfertasParaSwipe($ofertas)
+    {
+        return $ofertas->map(function($oferta) {
+            try {
+                $mascota = $oferta->mascota;
+                
+                if (!$mascota) {
+                    return null;
+                }
+                
+                // Obtener ubicación del tutor
+                $ubicacionTexto = 'Ubicación no disponible';
+                $ubicacionTutor = null;
+                
+                if ($mascota->usuario && 
+                    $mascota->usuario->user && 
+                    $ubicacion = $mascota->usuario->user->ubicacionActual) {
+                    
+                    $ubicacionTutor = [
+                        'latitude' => $ubicacion->latitude,
+                        'longitude' => $ubicacion->longitude,
+                        'city' => $ubicacion->city,
+                        'state' => $ubicacion->state,
+                        'country' => $ubicacion->country,
+                        'country_code' => $ubicacion->country_code,
+                    ];
+                    
+                    $parts = [];
+                    if ($ubicacion->city) $parts[] = $ubicacion->city;
+                    if ($ubicacion->state && $ubicacion->state !== $ubicacion->city) {
+                        $parts[] = $ubicacion->state;
+                    }
+                    if ($ubicacion->country) $parts[] = $ubicacion->country;
+                    $ubicacionTexto = implode(', ', $parts);
+                    
+                    // Agregar distancia si está disponible
+                    if (isset($oferta->distancia_km)) {
+                        $ubicacionTutor['distancia_km'] = round($oferta->distancia_km, 1);
+                        $ubicacionTutor['distancia_texto'] = $oferta->distancia_texto;
+                    }
+                }
+                
+                // Obtener foto principal
+                $fotoPrincipal = $mascota->fotos->first();
+                $fotoPrincipalUrl = $fotoPrincipal ? $fotoPrincipal->url : null;
+                
+                if (!$fotoPrincipalUrl && $mascota->fotos->isNotEmpty()) {
+                    $fotoPrincipalUrl = $mascota->fotos->first()->url;
+                }
+                
+                // Determinar rango etario
+                $rangoEtario = 'Adulto';
+                if ($mascota->edadRelacion && $mascota->edadRelacion->dias !== null) {
+                    $rangoEtario = FiltrosMascotasController::determinarRangoEtario(
+                        $mascota->especie,
+                        $mascota->edadRelacion->dias
+                    );
+                }
+                
+                // Preparar fotos
+                $fotos = $mascota->fotos->map(function($foto) {
+                    return [
+                        'id' => $foto->id,
+                        'url' => $foto->url,
+                        'es_principal' => $foto->es_principal,
+                        'ruta_foto' => $foto->ruta_foto
+                    ];
+                })->toArray();
+                
+                return [
+                    'id_oferta' => $oferta->id_oferta,
+                    'estado_oferta' => $oferta->estado_oferta,
+                    'mascota' => [
+                        'id' => $mascota->id,
+                        'nombre' => $mascota->nombre,
+                        'especie' => $mascota->especie,
+                        'sexo' => $mascota->sexo,
+                        'castrado' => $mascota->castrado,
+                        'rango_etario' => $rangoEtario,
+                        'foto_principal_url' => $fotoPrincipalUrl,
+                        'caracteristicas' => $mascota->caracteristicas,
+                        'ubicacion_texto' => $ubicacionTexto,
+                        'ubicacion' => $ubicacionTutor,
+                        'edad_formateada' => $mascota->edad_formateada,
+                        'fotos' => $fotos,
+                        'usuario_id' => $mascota->usuario_id
+                    ],
+                    // ✅ NUEVOS CAMPOS PARA SCORING
+                    'compatibility' => [
+                        'score' => $oferta->compatibility_score ?? 0,
+                        'level' => $oferta->compatibility_level ?? 'Sin datos',
+                        'puntaje_hibrido' => $oferta->puntaje_hibrido ?? null
+                    ],
+                    'distancia' => $oferta->distancia_texto ?? null,
+                    'distancia_km' => $oferta->distancia_km ?? null,
+                    'created_at' => $oferta->created_at
+                ];
+                
+            } catch (\Exception $e) {
+                Log::error('Error formateando oferta: ' . $e->getMessage());
+                return null;
+            }
+        })->filter()->values();
+    }
+
+    /**
+     * Obtener nivel de compatibilidad textual
+     */
+    private function getCompatibilityLevel($score)
+    {
+        if ($score >= 80) return 'Excelente';
+        if ($score >= 60) return 'Buena';
+        if ($score >= 40) return 'Regular';
+        if ($score >= 20) return 'Baja';
+        return 'Muy baja';
+    }
+
+    /**
+     * Verifica si el usuario tiene datos opcionales completados
+     */
+    private function userHasOptionalData($user)
+    {
+        return !empty($user->tipo_vivienda) || 
+               !empty($user->experiencia_mascotas) || 
+               !empty($user->convive_con_niños) || 
+               !empty($user->convive_con_mascotas);
+    }
+
     /**
      * Obtener una oferta de adopción específica con información de la mascota
      */
@@ -168,10 +670,12 @@ class ManejarOfertasController extends Controller
 
             // ✅ EXCLUIR ofertas del usuario autenticado
             $usuario = $usuarioAutenticado->userable;
+
             $query->where('id_usuario_responsable', '!=', $usuario->id)
-                ->whereDoesntHave('mascota', function($q) use ($usuarioAutenticado) {
-                    $q->where('usuario_id', $usuarioAutenticado->id);
-                });
+              ->whereDoesntHave('mascota', function($q) use ($usuario) {
+                  // Usar $usuario->id (que es el ID del USUARIO)
+                  $q->where('usuario_id', $usuario->id);
+              });
 
             // ✅ Aplicar filtros estándar (especie, sexo, edad)
             $filtrosController = new FiltrosMascotasController();
@@ -621,164 +1125,6 @@ class ManejarOfertasController extends Controller
             ], 500);
         }
     }
-    
-    /**
-     * Obtener ofertas para el sistema de swipe
-     */
-    public function obtenerOfertasParaSwipe(Request $request)
-    {
-        try {
-            $usuario = Auth::user();
-            
-            $mascotasInteractuadas = InteraccionSwipeUsuario::where('usuario_id', $usuario->id)
-                ->pluck('mascota_id')
-                ->toArray();
-            
-            $usuarioModel = $usuario->userable;
-            // Consulta base con ubicación
-            $query = OfertaAdopcion::with([
-                'mascota.caracteristicas',
-                'mascota.fotos',
-                'mascota.edadRelacion',
-                'mascota.usuario.user.ubicacionActual' // ✅ Añadir ubicación
-            ])
-            ->where('estado_oferta', 'publicada')
-            ->where('id_usuario_responsable', '!=', $usuarioModel->id);
-            
-            // Excluir mascotas ya interactuadas
-            if (!empty($mascotasInteractuadas)) {
-                $query->whereHas('mascota', function($q) use ($mascotasInteractuadas) {
-                    $q->whereNotIn('id', $mascotasInteractuadas);
-                });
-            }
-            
-            // Aplicar filtros si existen
-            if ($request->has('filtros')) {
-                $filtros = json_decode($request->filtros, true);
-                
-                if (is_array($filtros)) {
-                    $tempRequest = new Request($filtros);
-                    $filtrosController = new FiltrosMascotasController();
-                    $query = $filtrosController->aplicarFiltros($query, $tempRequest);
-                }
-            }
-            
-            $ofertas = $query->orderBy('created_at', 'desc')
-                ->limit(10)
-                ->get()
-                ->map(function($oferta) {
-                    $mascota = $oferta->mascota;
-                    
-                    $fotos = $mascota->fotos ?? collect([]);
-                    
-                    // ✅ Obtener ubicación
-                    $ubicacionTutor = null;
-                    $ubicacionTexto = 'Ubicación no disponible';
-                    
-                    if ($mascota->usuario && 
-                        $mascota->usuario->user && 
-                        $mascota->usuario->user->ubicacionActual) {
-                        
-                        $ubicacion = $mascota->usuario->user->ubicacionActual;
-                        $ubicacionTutor = [
-                            'latitude' => $ubicacion->latitude,
-                            'longitude' => $ubicacion->longitude,
-                            'city' => $ubicacion->city,
-                            'state' => $ubicacion->state,
-                            'country' => $ubicacion->country,
-                            'country_code' => $ubicacion->country_code
-                        ];
-                        
-                        $parts = [];
-                        if ($ubicacion->city) $parts[] = $ubicacion->city;
-                        if ($ubicacion->state && $ubicacion->state !== $ubicacion->city) {
-                            $parts[] = $ubicacion->state;
-                        }
-                        if ($ubicacion->country) $parts[] = $ubicacion->country;
-                        
-                        $ubicacionTexto = implode(', ', $parts);
-                    }
-                    
-                    // Determinar rango etario
-                    $rangoEtario = 'Adulto';
-                    if ($mascota->edadRelacion && $mascota->edadRelacion->dias !== null) {
-                        $rangoEtario = FiltrosMascotasController::determinarRangoEtario(
-                            $mascota->especie,
-                            $mascota->edadRelacion->dias
-                        );
-                    }
-                    
-                    return [
-                        'id_oferta' => $oferta->id_oferta,
-                        'estado_oferta' => $oferta->estado_oferta,
-                        'permiso_historial_medico' => $oferta->permiso_historial_medico,
-                        'permiso_contacto_tutor' => $oferta->permiso_contacto_tutor,
-                        'created_at' => $oferta->created_at,
-                        'mascota' => [
-                            'id' => $mascota->id,
-                            'nombre' => $mascota->nombre,
-                            'especie' => $mascota->especie,
-                            'sexo' => $mascota->sexo,
-                            'castrado' => $mascota->castrado,
-                            'rango_etario' => $rangoEtario,
-                            'fecha_nacimiento' => $mascota->fecha_nacimiento,
-                            'usuario_id' => $mascota->usuario_id,
-                            'caracteristicas' => $mascota->caracteristicas,
-                            'fotos' => $fotos->map(function($foto) {
-                                return [
-                                    'id' => $foto->id,
-                                    'url' => asset('storage/' . $foto->ruta_foto),
-                                    'es_principal' => $foto->es_principal ?? false,
-                                    'ruta_foto' => $foto->ruta_foto
-                                ];
-                            })->toArray(),
-                            'edad' => $mascota->edadRelacion ? [
-                                'dias' => $mascota->edadRelacion->dias,
-                                'meses' => $mascota->edadRelacion->meses,
-                                'años' => $mascota->edadRelacion->años,
-                                'edad_formateada' => $mascota->edadRelacion->edad_formateada
-                            ] : null,
-                            'edad_formateada' => $mascota->edad_formateada ?? 'Edad no disponible',
-                            'usuario' => $mascota->usuario ? [
-                                'id' => $mascota->usuario->id,
-                                'nombre' => $mascota->usuario->nombre,
-                            ] : null,
-                            'foto_principal_url' => $mascota->foto_principal_url ?? null,
-                            // ✅ INCLUIR UBICACIÓN
-                            'ubicacion' => $ubicacionTutor,
-                            'ubicacion_texto' => $ubicacionTexto
-                        ]
-                    ];
-                });
-            
-            Log::info('Ofertas para swipe obtenidas', [
-                'usuario_id' => $usuario->id,
-                'total_ofertas' => $ofertas->count(),
-                'mascotas_interactuadas_count' => count($mascotasInteractuadas)
-            ]);
-            
-            return response()->json([
-                'success' => true,
-                'data' => $ofertas,
-                'count' => $ofertas->count(),
-                'debug' => [
-                    'usuario_id' => $usuario->id,
-                    'mascotas_interactuadas' => $mascotasInteractuadas
-                ]
-            ]);
-            
-        } catch (\Exception $e) {
-            Log::error('Error obteniendo ofertas para swipe: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al cargar ofertas: ' . $e->getMessage(),
-                'error_details' => $e->getFile() . ':' . $e->getLine()
-            ], 500);
-        }
-    }
 
     /**
      * Obtener ofertas ordenadas por proximidad
@@ -789,7 +1135,8 @@ class ManejarOfertasController extends Controller
             Log::info('📌 📌 📌 EJECUTANDO obtenerOfertasProximidad() 📌 📌 📌');
             
             $user = Auth::user();
-            $usuarioId = $user->id;
+            $usuario = $user->userable; // ✅ Obtén el USUARIO primero
+            $usuarioId = $usuario->id; 
             
             // Verificar si el usuario tiene ubicación
             $ubicacionUsuario = $user->ubicacionActual;
@@ -802,10 +1149,11 @@ class ManejarOfertasController extends Controller
             }
             
             Log::info('Usuario autenticado para proximidad:', [
-                'usuario_id' => $usuarioId,
+                'user_id' => $user->id,           // ID del USER (tabla users)
+                'usuario_id' => $usuarioId,        // ✅ ID del USUARIO (tabla usuarios)
                 'email' => $user->email
             ]);
-            
+                
             // ✅ CORRECCIÓN: Usar el método corregido que EXCLUYE las ofertas del usuario
             $ofertas = $this->obtenerOfertasConDistancia($ubicacionUsuario, $request, $usuarioId);
             

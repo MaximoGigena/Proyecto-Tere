@@ -264,15 +264,6 @@ class Mascota extends Model
     }
 
     /**
-     * Relación con el historial de transferencias
-     */
-    public function transferencias()
-    {
-        return $this->hasMany(HistorialTransferenciaMascota::class, 'mascota_id')
-                    ->orderBy('fecha_transferencia', 'desc');
-    }
-
-    /**
      * Obtener todos los tutores históricos
      */
     public function getTutoresHistoricosAttribute()
@@ -381,5 +372,182 @@ class Mascota extends Model
             'usuario_id', // Local key en Mascota
             'user_id' // Foreign key en Usuario que apunta a User
         )->where('users.userable_type', 'App\Models\Usuario');
+    }
+
+    /**
+     * Obtener tutor en una fecha específica
+     */
+    public function tutorEnFecha($fecha)
+    {
+        $fechaCarbon = Carbon::parse($fecha);
+        
+        // Buscar transferencias después de esta fecha
+        $transferenciaPosterior = $this->transferencias()
+            ->where('fecha_transferencia', '>', $fechaCarbon)
+            ->orderBy('fecha_transferencia', 'asc')
+            ->first();
+        
+        if ($transferenciaPosterior) {
+            // El tutor antes de esta transferencia es el tutor_anterior
+            return Usuario::find($transferenciaPosterior->tutor_anterior_id);
+        }
+        
+        // Si no hay transferencias posteriores, el tutor actual es el dueño
+        return $this->usuario;
+    }
+
+    /**
+     * Verificar si un usuario marcó este chat como favorito
+     */
+    public function esFavoritoParaUsuario($userId)
+    {
+        if (!$this->favoritos_por_usuario) {
+            return false;
+        }
+        
+        $favoritos = json_decode($this->favoritos_por_usuario, true);
+        
+        // Si es un array simple de IDs
+        if (array_values($favoritos) === $favoritos) {
+            return in_array($userId, $favoritos);
+        }
+        
+        // Si es un objeto con estructura {user_id: boolean}
+        return isset($favoritos[$userId]) && $favoritos[$userId] === true;
+    }
+
+    /**
+     * Marcar/Desmarcar chat como favorito para un usuario
+     */
+    public function toggleFavorito($userId)
+    {
+        $favoritos = $this->favoritos_por_usuario 
+            ? json_decode($this->favoritos_por_usuario, true) 
+            : [];
+        
+        // Si es array simple
+        if (array_values($favoritos) === $favoritos) {
+            if (in_array($userId, $favoritos)) {
+                // Quitar de favoritos
+                $favoritos = array_values(array_diff($favoritos, [$userId]));
+            } else {
+                // Agregar a favoritos
+                $favoritos[] = $userId;
+            }
+        } else {
+            // Si es estructura objeto
+            $favoritos[$userId] = !($favoritos[$userId] ?? false);
+        }
+        
+        $this->favoritos_por_usuario = json_encode($favoritos);
+        $this->save();
+        
+        return $this->esFavoritoParaUsuario($userId);
+    }
+
+    /**
+     * Obtener todos los chats favoritos de un usuario
+     */
+    public function scopeFavoritosDeUsuario($query, $userId)
+    {
+        return $query->where(function($q) use ($userId) {
+            $q->whereRaw("JSON_CONTAINS(favoritos_por_usuario, '\"$userId\"')")
+            ->orWhereRaw("JSON_EXTRACT(favoritos_por_usuario, '$.\"$userId\"') = true");
+        });
+    }
+
+    /**
+     * Relación con el historial de transferencias
+     */
+    public function transferencias()
+    {
+        return $this->hasMany(HistorialTransferenciaMascota::class, 'mascota_id')
+                    ->with(['tutorAnterior', 'tutorNuevo'])
+                    ->orderBy('fecha_transferencia', 'desc');
+    }
+
+    /**
+     * Obtener historial completo de tutores con formato para el frontend
+     */
+    public function getHistorialTutoresAttribute()
+    {
+        return $this->historialTutoresCompleto();
+    }
+
+    /**
+     * Obtener el historial completo de tutores con fechas precisas
+     * (Este método ya existe en tu modelo, solo asegúrate de que esté correcto)
+     */
+    public function historialTutoresCompleto()
+    {
+        // Obtener todas las transferencias ordenadas por fecha
+        $transferencias = $this->transferencias()
+            ->with(['tutorAnterior', 'tutorNuevo'])
+            ->orderBy('fecha_transferencia', 'asc')
+            ->get();
+        
+        $historial = collect();
+        
+        // Si no hay transferencias, solo está el tutor actual
+        if ($transferencias->isEmpty()) {
+            $historial->push([
+                'id' => uniqid(), // ID temporal para el frontend
+                'usuario_id' => $this->usuario_id,
+                'nombre' => $this->usuario->nombre ?? 'Usuario desconocido',
+                'foto' => $this->usuario->foto_principal_url ?? null,
+                'adopcion' => $this->created_at->format('d/m/Y'),
+                'desligo' => 'Presente',
+                'es_actual' => true,
+                'es_primer_tutor' => true,
+                'motivo' => null,
+                'contactable' => false,
+                'medios_contacto' => []
+            ]);
+            
+            return $historial;
+        }
+        
+        // Procesar la primera transferencia para obtener el tutor original
+        $primeraTransferencia = $transferencias->first();
+        
+        // Tutor original (anterior a la primera transferencia)
+        $historial->push([
+            'id' => uniqid() . '_1',
+            'usuario_id' => $primeraTransferencia->tutor_anterior_id,
+            'nombre' => $primeraTransferencia->tutorAnterior->nombre ?? 'Usuario desconocido',
+            'foto' => $primeraTransferencia->tutorAnterior->foto_principal_url ?? null,
+            'adopcion' => $this->created_at->format('d/m/Y'),
+            'desligo' => $primeraTransferencia->fecha_transferencia->format('d/m/Y'),
+            'es_actual' => false,
+            'es_primer_tutor' => true,
+            'motivo' => $primeraTransferencia->motivo,
+            'contactable' => false,
+            'medios_contacto' => []
+        ]);
+        
+        // Procesar transferencias intermedias
+        foreach ($transferencias as $index => $transferencia) {
+            $siguienteTransferencia = $transferencias->get($index + 1);
+            
+            $esActual = $transferencia->tutor_nuevo_id == $this->usuario_id;
+            
+            $historial->push([
+                'id' => uniqid() . '_' . ($index + 2),
+                'usuario_id' => $transferencia->tutor_nuevo_id,
+                'nombre' => $transferencia->tutorNuevo->nombre ?? 'Usuario desconocido',
+                'foto' => $transferencia->tutorNuevo->foto_principal_url ?? null,
+                'adopcion' => $transferencia->fecha_transferencia->format('d/m/Y'),
+                'desligo' => $siguienteTransferencia 
+                    ? $siguienteTransferencia->fecha_transferencia->format('d/m/Y')
+                    : ($esActual ? 'Presente' : 'Desconocida'),
+                'es_actual' => $esActual,
+                'es_primer_tutor' => false,
+                'motivo' => $transferencia->motivo,
+                'contactable' => false,
+                'medios_contacto' => []
+            ]);
+        }
+        
+        return $historial;
     }
 }

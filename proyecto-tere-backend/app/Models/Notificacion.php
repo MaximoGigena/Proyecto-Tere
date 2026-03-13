@@ -1,10 +1,10 @@
 <?php
+// app/Models/Notificacion.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Log;
 
 class Notificacion extends Model
 {
@@ -13,7 +13,7 @@ class Notificacion extends Model
     protected $table = 'notificaciones';
 
     protected $fillable = [
-        'usuario_id',
+        'user_id',
         'tipo',
         'titulo',
         'contenido',
@@ -33,7 +33,7 @@ class Notificacion extends Model
         'updated_at' => 'datetime'
     ];
 
-    // Tipos de notificaciones
+    // Tipos de notificaciones - ¡AGREGADO!
     const TIPOS = [
         'ADVERTENCIA' => 'Advertencia',
         'SANCION' => 'Sanción',
@@ -42,23 +42,32 @@ class Notificacion extends Model
         'PROCEDIMIENTO' => 'Procedimiento',
         'DENUNCIA' => 'Denuncia',
         'OFERTA' => 'Oferta',
+        'ADOPCION' => 'Adopción',
         'SOLICITUD' => 'Solicitud',
         'ALERTA' => 'Alerta'
     ];
 
-    // Orígenes de notificaciones
+    // Orígenes de notificaciones - ¡AGREGADO!
     const ORIGENES = [
         'SISTEMA' => 'Sistema',
         'USUARIO' => 'Usuario',
         'ADMINISTRADOR' => 'Administrador',
+        'REFUGIO' => 'Refugio',
+        'MUNICIPIO' => 'Municipio',
         'VETERINARIO' => 'Veterinario',
         'MODERADOR' => 'Moderador'
     ];
 
     // Relaciones
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    // Para mantener compatibilidad con código existente
     public function usuario()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function referencia()
@@ -66,7 +75,12 @@ class Notificacion extends Model
         return $this->morphTo();
     }
 
-    // Scopes útiles
+    // Scopes
+    public function scopeParaUsuario($query, $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
     public function scopeActivas($query)
     {
         return $query->where('activa', true);
@@ -75,11 +89,6 @@ class Notificacion extends Model
     public function scopeNoLeidas($query)
     {
         return $query->where('leida', false);
-    }
-
-    public function scopeParaUsuario($query, $usuarioId)
-    {
-        return $query->where('usuario_id', $usuarioId);
     }
 
     public function scopePorTipo($query, $tipo)
@@ -125,21 +134,13 @@ class Notificacion extends Model
             : $this->contenido;
     }
 
-    /**
-     * Crear notificación para advertencia como sanción
-     */
+    // Métodos de creación estáticos
     public static function crearParaAdvertenciaSancion($sancion)
     {
-        // Verificar que sea una advertencia
         if ($sancion->tipo !== 'ADVERTENCIA') {
-            Log::warning('Intento de crear notificación para sanción que no es advertencia:', [
-                'tipo' => $sancion->tipo,
-                'sancion_id' => $sancion->id
-            ]);
             return null;
         }
         
-        // Cargar la relación usuario si no está cargada
         if (!$sancion->relationLoaded('usuario')) {
             $sancion->load('usuario');
         }
@@ -147,10 +148,6 @@ class Notificacion extends Model
         $usuario = $sancion->usuario;
         
         if (!$usuario) {
-            Log::error('Usuario no encontrado para sanción:', [
-                'sancion_id' => $sancion->id,
-                'usuario_id' => $sancion->usuario_id
-            ]);
             return null;
         }
         
@@ -167,7 +164,7 @@ class Notificacion extends Model
         }
         
         return self::create([
-            'usuario_id' => $usuario->id,
+            'user_id' => $usuario->id,
             'tipo' => 'ADVERTENCIA',
             'titulo' => '⚠️ Has recibido una advertencia formal',
             'contenido' => self::generarContenidoAdvertencia($sancion, $denunciaInfo),
@@ -179,8 +176,104 @@ class Notificacion extends Model
         ]);
     }
 
+    public static function crearParaAdvertencia($userId, $motivo, $denunciaId = null)
+    {
+        return self::create([
+            'user_id' => $userId,
+            'tipo' => 'ADVERTENCIA',
+            'titulo' => 'Advertencia por comportamiento inapropiado',
+            'contenido' => "Has recibido una advertencia por: {$motivo}\n\n" .
+                          "Por favor, revisa las normas de la comunidad.",
+            'origen' => 'ADMINISTRADOR',
+            'referencia_tipo' => $denunciaId ? 'denuncia' : null,
+            'referencia_id' => $denunciaId,
+            'leida' => false,
+            'activa' => true
+        ]);
+    }
+
+    public static function notificarEstadoDenuncia($denuncia)
+    {
+        $titulo = "Actualización en tu denuncia #{$denuncia->id}";
+        $contenido = "El estado de tu denuncia ha cambiado a: {$denuncia->estado}\n" .
+                     ($denuncia->notas_admin ? "\nNotas del administrador: {$denuncia->notas_admin}" : "");
+        
+        return self::create([
+            'user_id' => $denuncia->usuario_id,
+            'tipo' => 'DENUNCIA',
+            'titulo' => $titulo,
+            'contenido' => $contenido,
+            'origen' => 'SISTEMA',
+            'referencia_tipo' => 'denuncia',
+            'referencia_id' => $denuncia->id,
+            'leida' => false,
+            'activa' => true
+        ]);
+    }
+
+    public static function crearNotificacion($userId, $titulo, $contenido, $tipo = 'SISTEMA', $origen = 'SISTEMA', $referenciaTipo = null, $referenciaId = null)
+    {
+        return self::create([
+            'user_id' => $userId,
+            'tipo' => $tipo,
+            'titulo' => $titulo,
+            'contenido' => $contenido,
+            'origen' => $origen,
+            'referencia_tipo' => $referenciaTipo,
+            'referencia_id' => $referenciaId,
+            'leida' => false,
+            'activa' => true
+        ]);
+    }
+
+    public static function notificarBloqueoUsuario($usuario, $bloqueado, $motivo = null)
+    {
+        $titulo = $bloqueado ? 'Tu cuenta ha sido bloqueada' : 'Tu cuenta ha sido desbloqueada';
+        $contenido = $bloqueado 
+            ? "Tu cuenta ha sido bloqueada por el siguiente motivo:\n\n{$motivo}\n\nPara más información, contacta al soporte."
+            : "Tu cuenta ha sido desbloqueada. Ya puedes acceder a todas las funciones de la plataforma.";
+        
+        return self::create([
+            'user_id' => $usuario->id,
+            'tipo' => 'SISTEMA',
+            'titulo' => $titulo,
+            'contenido' => $contenido,
+            'origen' => 'ADMINISTRADOR',
+            'referencia_tipo' => 'usuario',
+            'referencia_id' => $usuario->id,
+            'leida' => false,
+            'activa' => true
+        ]);
+    }
+
+    public static function notificarNuevaOferta($mascotaId, $usuariosInteresados)
+    {
+        $mascota = \App\Models\Mascota::find($mascotaId);
+        
+        if (!$mascota) {
+            return null;
+        }
+        
+        $titulo = "Nueva oferta de adopción disponible";
+        $contenido = "¡Hay una nueva oferta para adoptar a {$mascota->nombre}! Visita la plataforma para más detalles.";
+        
+        foreach ($usuariosInteresados as $userId) {
+            self::create([
+                'user_id' => $userId,
+                'tipo' => 'OFERTA',
+                'titulo' => $titulo,
+                'contenido' => $contenido,
+                'origen' => 'SISTEMA',
+                'referencia_tipo' => 'mascota',
+                'referencia_id' => $mascotaId,
+                'leida' => false,
+                'activa' => true
+            ]);
+        }
+    }
+
     /**
-     * Generar contenido específico para advertencia (método estático)
+     * Generar contenido específico para advertencia
      */
     private static function generarContenidoAdvertencia($sancion, $denunciaInfo = '')
     {
@@ -188,7 +281,6 @@ class Notificacion extends Model
                 "Has recibido una **advertencia formal** de la administración por la siguiente razón:\n\n" .
                 "📝 **Motivo:** {$sancion->razon}\n";
         
-        // Agregar nivel de gravedad si está disponible
         if ($sancion->nivel) {
             $nivelesTexto = [
                 'LEVE' => 'Leve',
@@ -199,7 +291,6 @@ class Notificacion extends Model
             $contenido .= "⚖️ **Nivel de gravedad:** " . ($nivelesTexto[$sancion->nivel] ?? $sancion->nivel) . "\n";
         }
         
-        // Agregar descripción si existe
         if ($sancion->descripcion) {
             $contenido .= "\n📄 **Descripción detallada:**\n{$sancion->descripcion}\n";
         }
@@ -207,12 +298,10 @@ class Notificacion extends Model
         $contenido .= $denunciaInfo .
                 "\n📅 **Fecha de la advertencia:** {$sancion->fecha_inicio->format('d/m/Y H:i')}\n";
         
-        // Agregar duración si es temporal
         if ($sancion->duracion_dias) {
             $contenido .= "⏱️ **Vigencia:** {$sancion->duracion_dias} días\n";
         }
         
-        // Agregar información sobre restricciones si existen
         if ($sancion->restricciones && count($sancion->restricciones) > 0) {
             $restriccionesTexto = [
                 'CREAR_OFERTAS' => 'Crear nuevas ofertas',
@@ -239,7 +328,7 @@ class Notificacion extends Model
     }
     
     /**
-     * Generar contenido para sanción (método estático)
+     * Generar contenido para sanción
      */
     private static function generarContenidoSancion($sancion)
     {
@@ -254,116 +343,5 @@ class Notificacion extends Model
                ($sancion->restricciones ? "- " . implode("\n- ", $sancion->restricciones) : "Ninguna") .
                "\n\nSi consideras que esta sanción es un error, puedes contactar al soporte.\n\n" .
                "Saludos,\nEquipo de administración";
-    }
-    
-    /**
-     * Crear notificación para advertencia
-     */
-    public static function crearParaAdvertencia($usuarioId, $motivo, $denunciaId = null)
-    {
-        return self::create([
-            'usuario_id' => $usuarioId,
-            'tipo' => 'ADVERTENCIA',
-            'titulo' => 'Advertencia por comportamiento inapropiado',
-            'contenido' => "Has recibido una advertencia por: {$motivo}\n\n" .
-                          "Por favor, revisa las normas de la comunidad.",
-            'origen' => 'ADMINISTRADOR',
-            'referencia_tipo' => $denunciaId ? 'denuncia' : null,
-            'referencia_id' => $denunciaId,
-            'leida' => false,
-            'activa' => true
-        ]);
-    }
-    
-    /**
-     * Notificar cambio en denuncia
-     */
-    public static function notificarEstadoDenuncia($denuncia)
-    {
-        $titulo = "Actualización en tu denuncia #{$denuncia->id}";
-        $contenido = "El estado de tu denuncia ha cambiado a: {$denuncia->estado}\n" .
-                     ($denuncia->notas_admin ? "\nNotas del administrador: {$denuncia->notas_admin}" : "");
-        
-        return self::create([
-            'usuario_id' => $denuncia->usuario_id,
-            'tipo' => 'DENUNCIA',
-            'titulo' => $titulo,
-            'contenido' => $contenido,
-            'origen' => 'SISTEMA',
-            'referencia_tipo' => 'denuncia',
-            'referencia_id' => $denuncia->id,
-            'leida' => false,
-            'activa' => true
-        ]);
-    }
-    
-    /**
-     * Crear notificación genérica
-     */
-    public static function crearNotificacion($usuarioId, $titulo, $contenido, $tipo = 'SISTEMA', $origen = 'SISTEMA', $referenciaTipo = null, $referenciaId = null)
-    {
-        return self::create([
-            'usuario_id' => $usuarioId,
-            'tipo' => $tipo,
-            'titulo' => $titulo,
-            'contenido' => $contenido,
-            'origen' => $origen,
-            'referencia_tipo' => $referenciaTipo,
-            'referencia_id' => $referenciaId,
-            'leida' => false,
-            'activa' => true
-        ]);
-    }
-    
-    /**
-     * Notificar bloqueo/desbloqueo de usuario
-     */
-    public static function notificarBloqueoUsuario($usuario, $bloqueado, $motivo = null)
-    {
-        $titulo = $bloqueado ? 'Tu cuenta ha sido bloqueada' : 'Tu cuenta ha sido desbloqueada';
-        $contenido = $bloqueado 
-            ? "Tu cuenta ha sido bloqueada por el siguiente motivo:\n\n{$motivo}\n\nPara más información, contacta al soporte."
-            : "Tu cuenta ha sido desbloqueada. Ya puedes acceder a todas las funciones de la plataforma.";
-        
-        return self::create([
-            'usuario_id' => $usuario->id,
-            'tipo' => 'SISTEMA',
-            'titulo' => $titulo,
-            'contenido' => $contenido,
-            'origen' => 'ADMINISTRADOR',
-            'referencia_tipo' => 'usuario',
-            'referencia_id' => $usuario->id,
-            'leida' => false,
-            'activa' => true
-        ]);
-    }
-    
-    /**
-     * Notificar nueva oferta de adopción
-     */
-    public static function notificarNuevaOferta($mascotaId, $usuariosInteresados)
-    {
-        $mascota = \App\Models\Mascota::find($mascotaId);
-        
-        if (!$mascota) {
-            return null;
-        }
-        
-        $titulo = "Nueva oferta de adopción disponible";
-        $contenido = "¡Hay una nueva oferta para adoptar a {$mascota->nombre}! Visita la plataforma para más detalles.";
-        
-        foreach ($usuariosInteresados as $usuarioId) {
-            self::create([
-                'usuario_id' => $usuarioId,
-                'tipo' => 'OFERTA',
-                'titulo' => $titulo,
-                'contenido' => $contenido,
-                'origen' => 'SISTEMA',
-                'referencia_tipo' => 'mascota',
-                'referencia_id' => $mascotaId,
-                'leida' => false,
-                'activa' => true
-            ]);
-        }
-    }
+    } 
 }

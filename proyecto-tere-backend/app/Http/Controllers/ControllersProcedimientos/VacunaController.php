@@ -17,15 +17,20 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Services\EnvioDocumentosService;
 use App\Http\Requests\StoreVacunaRequest;
+use App\Http\Requests\UpdateVacunaRequest;
 use App\Services\Validaciones\VacunaValidationService;
 
 class VacunaController extends Controller
 {
     protected $envioDocumentosService;
+    protected $validationService;
 
-    public function __construct(EnvioDocumentosService $envioDocumentosService)
-    {
+    public function __construct(
+        EnvioDocumentosService $envioDocumentosService,
+        VacunaValidationService $validationService // Inyectar el servicio de validación
+    ) {
         $this->envioDocumentosService = $envioDocumentosService;
+        $this->validationService = $validationService;
     }
 
     /**
@@ -280,14 +285,26 @@ class VacunaController extends Controller
     public function updateApi(Request $request, $id): JsonResponse
     {
         try {
-            $vacuna = Vacuna::findOrFail($id);
+            // Buscar la vacuna a actualizar
+            $vacuna = Vacuna::with('procesoMedico.mascota')->findOrFail($id);
             
-            // Validación
+            // Verificar permisos
+            $user = auth()->user();
+            $veterinarioId = $vacuna->procesoMedico->veterinario_id ?? null;
+            
+            if ($veterinarioId !== $user->id && !$user->isAdmin()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado para editar esta vacuna'
+                ], 403);
+            }
+
+            // Validación de campos básicos
             $validated = $request->validate([
-                'tipo_vacuna_id' => 'required|exists:tipos_vacuna,id',
-                'fecha_aplicacion' => 'required|date',
-                'numero_dosis' => 'required|string|max:50',
-                'lote_serie' => 'required|string|max:100',
+                'tipo_vacuna_id' => 'sometimes|required|exists:tipos_vacuna,id',
+                'fecha_aplicacion' => 'sometimes|required|date',
+                'numero_dosis' => 'sometimes|required|string|max:50',
+                'lote_serie' => 'sometimes|required|string|max:100',
                 'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
                 'fecha_proxima_dosis' => 'nullable|date|after:fecha_aplicacion',
                 'observaciones' => 'nullable|string|max:500',
@@ -295,25 +312,100 @@ class VacunaController extends Controller
                 'medio_envio' => 'sometimes|in:email,telegram,whatsapp',
             ]);
 
+            // 🟢 VALIDACIÓN CRUZADA: Si se está cambiando el tipo de vacuna
+            if (isset($validated['tipo_vacuna_id']) && $validated['tipo_vacuna_id'] != $vacuna->tipo_vacuna_id) {
+                
+                // Obtener la mascota asociada
+                $mascota = $vacuna->procesoMedico->mascota;
+                
+                // Obtener el nuevo tipo de vacuna
+                $nuevoTipoVacuna = TipoVacuna::findOrFail($validated['tipo_vacuna_id']);
+                
+                // Ejecutar validación cruzada
+                $validacion = $this->validationService->validarMascotaParaTipoVacuna(
+                    $mascota, 
+                    $nuevoTipoVacuna
+                );
+                
+                // Si la validación falla, retornar error
+                if (!$validacion['valido']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'La vacuna seleccionada no es válida para esta mascota',
+                        'errors' => $validacion['errors'],
+                        'detalles' => $validacion['detalles']
+                    ], 422); // 422 Unprocessable Entity
+                }
+                
+                Log::info('✅ Validación cruzada superada para actualización de vacuna', [
+                    'vacuna_id' => $vacuna->id,
+                    'tipo_vacuna_anterior' => $vacuna->tipo_vacuna_id,
+                    'tipo_vacuna_nuevo' => $validated['tipo_vacuna_id'],
+                    'mascota_id' => $mascota->id
+                ]);
+            }
+
             DB::transaction(function () use ($validated, $vacuna) {
                 // Actualizar la vacuna
                 $vacuna->update([
-                    'tipo_vacuna_id' => $validated['tipo_vacuna_id'],
-                    'numero_dosis' => $validated['numero_dosis'],
-                    'lote_serie' => $validated['lote_serie'],
-                    'fecha_proxima_dosis' => $validated['fecha_proxima_dosis'] ?? null,
+                    'tipo_vacuna_id' => $validated['tipo_vacuna_id'] ?? $vacuna->tipo_vacuna_id,
+                    'numero_dosis' => $validated['numero_dosis'] ?? $vacuna->numero_dosis,
+                    'lote_serie' => $validated['lote_serie'] ?? $vacuna->lote_serie,
+                    'fecha_proxima_dosis' => $validated['fecha_proxima_dosis'] ?? $vacuna->fecha_proxima_dosis,
                 ]);
 
                 // Actualizar el proceso médico asociado
                 if ($vacuna->procesoMedico) {
-                    $vacuna->procesoMedico->update([
-                        'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
-                        'fecha_aplicacion' => $validated['fecha_aplicacion'],
-                        'observaciones' => $validated['observaciones'] ?? null,
-                        'costo' => $validated['costo'] ?? null,
-                    ]);
+                    $updateData = [];
+                    
+                    if (isset($validated['centro_veterinario_id'])) {
+                        $updateData['centro_veterinario_id'] = $validated['centro_veterinario_id'];
+                    }
+                    if (isset($validated['fecha_aplicacion'])) {
+                        $updateData['fecha_aplicacion'] = $validated['fecha_aplicacion'];
+                    }
+                    if (isset($validated['observaciones'])) {
+                        $updateData['observaciones'] = $validated['observaciones'];
+                    }
+                    if (isset($validated['costo'])) {
+                        $updateData['costo'] = $validated['costo'];
+                    }
+                    
+                    if (!empty($updateData)) {
+                        $vacuna->procesoMedico->update($updateData);
+                    }
                 }
             });
+
+            // Si se solicitó reenvío del certificado
+            $mensajeEnvio = '';
+            if ($request->has('medio_envio') && $request->medio_envio) {
+                try {
+                    $mascotaData = $vacuna->procesoMedico->mascota;
+                    $vacunaCargada = $vacuna->load(['tipo', 'procesoMedico.centroVeterinario']);
+                    
+                    $resultadoEnvio = $this->envioDocumentosService->enviarCertificadoVacuna(
+                        $vacunaCargada, 
+                        $mascotaData, 
+                        $request->medio_envio
+                    );
+
+                    $mensajeEnvio = ' y certificado reenviado';
+                    
+                    Log::info('✅ Certificado reenviado después de actualización', [
+                        'vacuna_id' => $vacuna->id,
+                        'medio_envio' => $request->medio_envio
+                    ]);
+
+                } catch (\Exception $e) {
+                    $mensajeEnvio = ' (pero error reenviando certificado: ' . $e->getMessage() . ')';
+                    
+                    Log::error('❌ Error reenviando certificado después de actualización', [
+                        'vacuna_id' => $vacuna->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
 
             Log::info('✅ Vacuna actualizada exitosamente', [
                 'vacuna_id' => $vacuna->id,
@@ -322,10 +414,17 @@ class VacunaController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Vacuna actualizada exitosamente',
-                'data' => $vacuna->load(['tipo', 'procesoMedico.centroVeterinario'])
+                'message' => 'Vacuna actualizada exitosamente' . $mensajeEnvio,
+                'data' => $vacuna->load(['tipo', 'procesoMedico.centroVeterinario', 'procesoMedico.mascota'])
             ]);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error de validación',
+                'errors' => $e->errors()
+            ], 422);
+            
         } catch (\Exception $e) {
             Log::error('❌ Error actualizando vacuna', [
                 'vacuna_id' => $id,

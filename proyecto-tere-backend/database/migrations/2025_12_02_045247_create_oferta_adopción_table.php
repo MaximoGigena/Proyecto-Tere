@@ -37,6 +37,10 @@ return new class extends Migration
             $table->boolean('permiso_contacto_tutor')
                   ->default(false)
                   ->comment('Permiso para contactar al tutor/rescatista de la mascota');
+
+            $table->json('medios_contacto_seleccionados')
+                  ->nullable()
+                  ->comment('JSON con los IDs de los medios de contacto seleccionados');      
             
             // Timestamps
             $table->timestamps();

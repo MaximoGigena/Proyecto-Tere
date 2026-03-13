@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreFarmacoRequest;
+use App\Http\Requests\UpdateFarmacoRequest;
 use App\Services\EnvioDocumentosService;
 use Illuminate\Support\Facades\Storage;
 
@@ -291,34 +292,39 @@ class FarmacoController extends Controller
     /**
      * Actualizar fármaco
      */
-    public function update(Request $request, $mascotaId, $farmacoId)
+    public function update(UpdateFarmacoRequest $request, $mascotaId, $farmacoId) // Cambiar Request por UpdateFarmacoRequest
     {
-        $validated = $request->validate([
-            'tipo_farmaco_id' => 'required|exists:tipos_farmaco,id',
-            'fecha_administracion' => 'required|date',
-            'frecuencia' => 'required|string|max:100',
-            'duracion' => 'required|string|max:100',
-            'dosis' => 'required|string|max:50',
-            'unidad' => 'required|in:mg,ml,UI,comp,gotas',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'proxima_dosis' => 'nullable|date|after:fecha_administracion',
-            'reacciones' => 'nullable|string|max:500',
-            'recomendaciones' => 'nullable|string|max:500',
-        ]);
+        // La validación ya se hizo en el Form Request UpdateFarmacoRequest
+        $validated = $request->validated(); // Cambiar validate() por validated()
 
         try {
             // Buscar el fármaco
             $farmaco = Farmaco::findOrFail($farmacoId);
             
+            // Verificar que el fármaco pertenece a la mascota
+            if ($farmaco->procesoMedico->mascota_id != $mascotaId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El fármaco no pertenece a la mascota especificada'
+                ], 403);
+            }
+
             DB::transaction(function () use ($validated, $farmaco) {
-                // 1. Actualizar el fármaco (CORREGIR NOMBRES DE CAMPOS)
+                // Guardar estado anterior para logging
+                $estadoAnterior = [
+                    'tipo_farmaco_id' => $farmaco->tipo_farmaco_id,
+                    'dosis' => $farmaco->dosis,
+                    'frecuencia' => $farmaco->frecuencia
+                ];
+
+                // 1. Actualizar el fármaco
                 $farmaco->update([
                     'tipo_farmaco_id' => $validated['tipo_farmaco_id'],
                     'fecha_administracion' => $validated['fecha_administracion'],
                     'frecuencia' => $validated['frecuencia'],
-                    'duracion_tratamiento' => $validated['duracion'], // CAMBIADO
+                    'duracion_tratamiento' => $validated['duracion'],
                     'dosis' => $validated['dosis'],
-                    'unidad_dosis' => $validated['unidad'], // CAMBIADO
+                    'unidad_dosis' => $validated['unidad'],
                     'proxima_dosis' => $validated['proxima_dosis'] ?? null,
                     'reacciones_adversas' => $validated['reacciones'] ?? null,
                     'recomendaciones_tutor' => $validated['recomendaciones'] ?? null,
@@ -329,9 +335,24 @@ class FarmacoController extends Controller
                     $farmaco->procesoMedico->update([
                         'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
                         'fecha_aplicacion' => $validated['fecha_administracion'],
-                        'observaciones' => 'Administración de fármaco: ' . ($validated['recomendaciones'] ?? 'Sin observaciones'),
+                        'observaciones' => 'Fármaco actualizado: ' . ($validated['recomendaciones'] ?? 'Sin observaciones'),
                     ]);
                 }
+
+                // Log de auditoría
+                Log::info('✅ Fármaco actualizado exitosamente', [
+                    'farmaco_id' => $farmaco->id,
+                    'mascota_id' => $farmaco->procesoMedico->mascota_id,
+                    'veterinario_id' => Auth::id(),
+                    'cambios' => [
+                        'anterior' => $estadoAnterior,
+                        'nuevo' => [
+                            'tipo_farmaco_id' => $farmaco->tipo_farmaco_id,
+                            'dosis' => $farmaco->dosis,
+                            'frecuencia' => $farmaco->frecuencia
+                        ]
+                    ]
+                ]);
             });
 
             // Cargar relaciones para la respuesta
@@ -346,13 +367,17 @@ class FarmacoController extends Controller
                 'message' => 'Fármaco actualizado exitosamente',
                 'data' => [
                     'farmaco' => $farmaco,
-                    'procesoMedico' => $farmaco->procesoMedico,
-                    'centro_veterinario_id' => $farmaco->procesoMedico->centro_veterinario_id ?? null
+                    'procesoMedico' => $farmaco->procesoMedico
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error al actualizar fármaco: ' . $e->getMessage());
+            Log::error('❌ Error al actualizar fármaco:', [
+                'farmaco_id' => $farmacoId,
+                'mascota_id' => $mascotaId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             
             return response()->json([
                 'success' => false,

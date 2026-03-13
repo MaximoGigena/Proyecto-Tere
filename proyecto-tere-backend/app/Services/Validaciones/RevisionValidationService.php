@@ -373,4 +373,67 @@ class RevisionValidationService
             default => 7 // Por defecto, una semana
         };
     }
+
+    /**
+     * Validar frecuencia de revisiones para UPDATE (excluyendo la revisión actual)
+     */
+    public function validarFrecuenciaRevisionUpdate(int $mascotaId, int $tipoRevisionId, string $fechaRevision, int $revisionIdExcluir): array
+    {
+        $errors = [];
+        
+        try {
+            $tipoRevision = TipoRevision::findOrFail($tipoRevisionId);
+            $fechaRevisionCarbon = Carbon::parse($fechaRevision);
+            
+            // Buscar revisiones recientes del mismo tipo, EXCLUYENDO la actual
+            $revisionesRecientes = Revision::where('tipo_revision_id', $tipoRevisionId)
+                ->where('id', '!=', $revisionIdExcluir) // EXCLUIR LA REVISIÓN ACTUAL
+                ->whereHas('procesoMedico', function($query) use ($mascotaId) {
+                    $query->where('mascota_id', $mascotaId);
+                })
+                ->whereDate('fecha_revision', '>=', $fechaRevisionCarbon->copy()->subDays(7))
+                ->count();
+            
+            if ($revisionesRecientes > 0) {
+                $errors[] = "Esta mascota ya tiene otra revisión de este tipo programada recientemente.";
+            }
+            
+            // Validar según frecuencia recomendada
+            if ($tipoRevision->frecuencia_recomendada) {
+                $ultimaRevision = Revision::where('tipo_revision_id', $tipoRevisionId)
+                    ->where('id', '!=', $revisionIdExcluir) // EXCLUIR LA REVISIÓN ACTUAL
+                    ->whereHas('procesoMedico', function($query) use ($mascotaId) {
+                        $query->where('mascota_id', $mascotaId);
+                    })
+                    ->orderBy('fecha_revision', 'desc')
+                    ->first();
+                
+                if ($ultimaRevision) {
+                    $diasDesdeUltima = $fechaRevisionCarbon->diffInDays($ultimaRevision->fecha_revision);
+                    
+                    $diasMinimosRecomendados = $this->obtenerDiasMinimosPorFrecuencia(
+                        $tipoRevision->frecuencia_recomendada
+                    );
+                    
+                    if ($diasDesdeUltima < $diasMinimosRecomendados) {
+                        $errors[] = "La frecuencia mínima recomendada para esta revisión es cada " . 
+                                   $diasMinimosRecomendados . " días.";
+                    }
+                }
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Error validando frecuencia de revisión en update', [
+                'mascota_id' => $mascotaId,
+                'tipo_revision_id' => $tipoRevisionId,
+                'revision_id_excluir' => $revisionIdExcluir,
+                'error' => $e->getMessage()
+            ]);
+        }
+        
+        return [
+            'valido' => empty($errors),
+            'errors' => $errors
+        ];
+    }
 }

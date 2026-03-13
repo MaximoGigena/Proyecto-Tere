@@ -21,6 +21,7 @@ return new class extends Migration
             $table->integer('interacciones_usuario2')->default(0)->after('interacciones_usuario1');
             $table->boolean('listo_para_adopcion')->default(false)->after('interacciones_usuario2');
             $table->timestamp('fecha_habilitado_adopcion')->nullable()->after('listo_para_adopcion');
+            $table->json('favoritos_por_usuario')->nullable()->after('fecha_habilitado_adopcion');
             $table->boolean('user1_deleted')->default(false);
             $table->boolean('user2_deleted')->default(false);
             $table->timestamps();

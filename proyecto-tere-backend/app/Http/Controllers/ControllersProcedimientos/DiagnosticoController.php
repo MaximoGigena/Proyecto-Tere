@@ -18,6 +18,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Http\Requests\StoreDiagnosticoRequest;
+use App\Http\Requests\UpdateDiagnosticoRequest;
 use App\Services\EnvioDocumentosService;
 use Illuminate\Support\Facades\Validator;
 
@@ -572,60 +573,23 @@ class DiagnosticoController extends Controller
     /**
      * Actualizar diagnóstico
      */
-    public function update(Request $request, $mascotaId, $diagnosticoId): JsonResponse
+    public function update(UpdateDiagnosticoRequest $request, $mascotaId, $diagnosticoId): JsonResponse
     {
         try {
+            // Los datos ya están validados por el UpdateDiagnosticoRequest
+            $validated = $request->validated();
+            
             $diagnostico = Diagnostico::whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
             })->findOrFail($diagnosticoId);
 
-            Log::info('📥 Datos recibidos en update:', [
-                'all_data' => $request->all(),
-                'has_diferenciales' => $request->has('diagnosticos_diferenciales_seleccionados'),
-                'diagnostico_id' => $diagnosticoId
+            Log::info('📥 Datos validados en update:', [
+                'diagnostico_id' => $diagnosticoId,
+                'validated_data' => $validated,
+                'diferenciales_count' => isset($validated['diagnosticos_diferenciales_seleccionados']) 
+                    ? count($validated['diagnosticos_diferenciales_seleccionados']) 
+                    : 0
             ]);
-
-            // Preparar datos para validación
-            $validationData = $request->all();
-            
-            // Procesar diagnósticos diferenciales si vienen como JSON string
-            if ($request->has('diagnosticos_diferenciales_seleccionados')) {
-                $diferencialesInput = $request->diagnosticos_diferenciales_seleccionados;
-                
-                if (is_string($diferencialesInput)) {
-                    try {
-                        $decoded = json_decode($diferencialesInput, true);
-                        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                            $validationData['diagnosticos_diferenciales_seleccionados'] = $decoded;
-                        }
-                    } catch (\Exception $e) {
-                        Log::error('❌ Error decodificando JSON en update:', [
-                            'error' => $e->getMessage(),
-                            'raw' => $diferencialesInput
-                        ]);
-                    }
-                }
-            }
-
-            $validated = Validator::make($validationData, [
-                'tipo_diagnostico_id' => 'required|exists:tipos_diagnostico,id',
-                'nombre' => 'required|string|max:255',
-                'fecha_diagnostico' => 'required|date',
-                'estado' => 'required|in:activo,resuelto,cronico,seguimiento,sospecha',
-                'examenes' => 'nullable|string',
-                'conducta' => 'nullable|string',
-                'observaciones' => 'nullable|string|max:500',
-                'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-                'costo' => 'nullable|numeric|min:0',
-                'archivos.*' => 'nullable|file|max:10240',
-                'medio_envio' => 'required|in:email,telegram,whatsapp',
-                'mascota_id' => 'required|exists:mascotas,id',
-                
-                'diagnosticos_diferenciales_seleccionados' => 'nullable|array',
-                'diagnosticos_diferenciales_seleccionados.*.id' => 'required|exists:tipos_diagnostico,id',
-                'diagnosticos_diferenciales_seleccionados.*.nombre' => 'required|string|max:255',
-                'diagnosticos_diferenciales_seleccionados.*.relevancia' => 'nullable|in:primario,secundario,asociado',
-            ])->validate();
 
             DB::transaction(function () use ($validated, $diagnostico, $request, $diagnosticoId) {
                 // 1. Actualizar el diagnóstico
@@ -653,8 +617,7 @@ class DiagnosticoController extends Controller
                 $diagnostico->procedimientosDiagnosticos()->delete();
                 
                 Log::info('🗑️ Diagnósticos diferenciales eliminados para diagnóstico:', [
-                    'diagnostico_id' => $diagnosticoId,
-                    'count' => $diagnostico->procedimientosDiagnosticos()->count()
+                    'diagnostico_id' => $diagnosticoId
                 ]);
 
                 // 4. Crear nuevos diagnósticos diferenciales
@@ -667,10 +630,14 @@ class DiagnosticoController extends Controller
                         $diagnostico->procesoMedico, 
                         $validated['diagnosticos_diferenciales_seleccionados']
                     );
+                    
+                    Log::info('📝 Nuevos diagnósticos diferenciales guardados:', [
+                        'count' => count($validated['diagnosticos_diferenciales_seleccionados'])
+                    ]);
                 }
 
                 // 5. Manejar eliminación de archivos
-                if (isset($validated['archivos_a_eliminar'])) {
+                if (isset($validated['archivos_a_eliminar']) && is_array($validated['archivos_a_eliminar'])) {
                     $this->eliminarArchivos($diagnostico, $validated['archivos_a_eliminar']);
                 }
 
@@ -688,6 +655,29 @@ class DiagnosticoController extends Controller
                 'procedimientosDiagnosticos.diagnostico'
             ]);
 
+            // 7. Opcional: Enviar certificado actualizado si se solicita
+            $mensajeEnvio = '';
+            if (isset($validated['medio_envio']) && !empty($validated['medio_envio'])) {
+                try {
+                    $mascotaData = Mascota::with('usuario')->find($mascotaId);
+                    
+                    if ($mascotaData) {
+                        $resultadoEnvio = $this->envioDocumentosService->enviarCertificadoDiagnostico(
+                            $diagnostico, 
+                            $mascotaData, 
+                            $validated['medio_envio']
+                        );
+                        $mensajeEnvio = ' y certificado enviado';
+                    }
+                } catch (\Exception $e) {
+                    $mensajeEnvio = ' (pero error enviando certificado: ' . $e->getMessage() . ')';
+                    Log::error('❌ Error enviando certificado en actualización', [
+                        'diagnostico_id' => $diagnostico->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
             Log::info('✅ Diagnóstico actualizado exitosamente', [
                 'diagnostico_id' => $diagnostico->id,
                 'mascota_id' => $mascotaId
@@ -695,7 +685,7 @@ class DiagnosticoController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Diagnóstico actualizado exitosamente',
+                'message' => 'Diagnóstico actualizado exitosamente' . $mensajeEnvio,
                 'data' => $diagnostico
             ]);
 

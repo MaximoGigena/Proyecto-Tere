@@ -152,20 +152,38 @@ class FiltrosMascotasController extends Controller
         return $query;
     }
 
+  
     /**
      * Aplicar filtro de sexo
      */
     private function aplicarFiltroSexo($query, $sexos)
     {
+        Log::info('=== APLICANDO FILTRO SEXO ===');
+        Log::info('Sexos recibidos:', ['sexos_raw' => $sexos]);
+        
         if (is_string($sexos)) {
-            $sexos = json_decode($sexos, true) ?? [$sexos];
+            $sexos = json_decode($sexos, true);
+            Log::info('Sexos después de decodificar:', ['sexos_decoded' => $sexos]);
         }
         
-        $sexos = array_map('strtolower', (array)$sexos);
+        // Si después de decodificar no es array o está vacío, intentar tratarlo como string único
+        if (!is_array($sexos) && is_string($sexos)) {
+            $sexos = [$sexos];
+        }
+        
+        if (!is_array($sexos) || empty($sexos)) {
+            Log::info('No hay sexos para filtrar');
+            return;
+        }
+        
+        $sexos = array_map('strtolower', $sexos);
+        Log::info('Sexos normalizados:', ['sexos' => $sexos]);
         
         $query->whereHas('mascota', function($q) use ($sexos) {
             $q->whereIn('sexo', $sexos);
         });
+        
+        Log::info('Filtro de sexo aplicado correctamente');
     }
 
     /**

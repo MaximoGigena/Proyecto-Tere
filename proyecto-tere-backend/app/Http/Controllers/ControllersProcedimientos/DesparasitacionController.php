@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDesparasitacionRequest;
+use App\Http\Requests\UpdateDesparasitacionRequest;
 use App\Services\EnvioDocumentosService;
 
 class DesparasitacionController extends Controller
@@ -263,7 +264,7 @@ class DesparasitacionController extends Controller
     }
 
     // En DesparasitacionController.php
-    public function update(Request $request, $id)
+    public function update(UpdateDesparasitacionRequest $request, $id)
     {
         try {
             $desparasitacion = Desparasitacion::with('procesoMedico')->find($id);
@@ -275,20 +276,8 @@ class DesparasitacionController extends Controller
                 ], 404);
             }
 
-            // Validación
-            $validated = $request->validate([
-                'tipo_desparasitacion_id' => 'required|exists:tipos_desparasitacion,id',
-                'fecha' => 'required|date',
-                'nombre_producto' => 'required|string|max:255',
-                'dosis' => 'required|string|max:100',
-                'frecuencia_valor' => 'required|integer|min:1',
-                'frecuencia_unidad' => 'required|in:dias,semanas,meses',
-                'peso' => 'nullable|numeric|min:0',
-                'proxima_fecha' => 'nullable|date|after:fecha',
-                'observaciones' => 'nullable|string|max:500',
-                'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-                // Nota: En modo edición, el medio_envio no se puede cambiar
-            ]);
+            // Los datos ya están validados por UpdateDesparasitacionRequest
+            $validated = $request->validated();
 
             DB::transaction(function () use ($desparasitacion, $validated) {
                 // 1. Actualizar la desparasitación
@@ -310,7 +299,6 @@ class DesparasitacionController extends Controller
                         'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
                         'fecha_aplicacion' => $validated['fecha'],
                         'observaciones' => $validated['observaciones'] ?? null,
-                        // No actualizamos el medio_envio en edición
                     ]);
                 }
             });
@@ -322,6 +310,15 @@ class DesparasitacionController extends Controller
                 'procesoMedico.mascota'
             ]);
 
+            // Log de éxito
+            Log::info('✅ Desparasitación actualizada exitosamente con validación', [
+                'desparasitacion_id' => $id,
+                'mascota_id' => $desparasitacion->procesoMedico->mascota_id,
+                'veterinario_id' => Auth::id(),
+                'tipo_anterior' => $desparasitacion->getOriginal('tipo_desparasitacion_id'),
+                'tipo_nuevo' => $desparasitacion->tipo_desparasitacion_id
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Desparasitación actualizada exitosamente',
@@ -329,7 +326,11 @@ class DesparasitacionController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error al actualizar desparasitación: ' . $e->getMessage());
+            Log::error('❌ Error al actualizar desparasitación', [
+                'desparasitacion_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             
             return response()->json([
                 'success' => false,

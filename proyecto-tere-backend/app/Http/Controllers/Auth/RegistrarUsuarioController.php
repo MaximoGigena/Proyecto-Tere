@@ -695,4 +695,157 @@ class RegistrarUsuarioController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Verificar si el usuario tiene datos opcionales completados
+     */
+    public function checkOptionalDataStatus(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $usuarioModel = $user->userable;
+            
+            $hasOptionalData = !empty($usuarioModel->tipo_vivienda) || 
+                            !empty($usuarioModel->experiencia_mascotas) || 
+                            !empty($usuarioModel->convive_con_niños) || 
+                            !empty($usuarioModel->convive_con_mascotas);
+            
+            return response()->json([
+                'success' => true,
+                'has_optional_data' => $hasOptionalData
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error verificando datos opcionales: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al verificar datos opcionales'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener datos de contacto del usuario
+     */
+    public function getContacto($id)
+    {
+        try {
+            Log::info('Obteniendo contacto para usuario ID: ' . $id);
+            
+            $user = Auth::user();
+            
+            // Verificar que el usuario autenticado sea el mismo
+            if ($user->userable->id != $id) {
+                Log::warning('Usuario no autorizado', [
+                    'auth_user_id' => $user->userable->id,
+                    'requested_id' => $id
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado'
+                ], 403);
+            }
+            
+            $usuario = Usuario::with('contacto')->find($id);
+            
+            if (!$usuario) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado'
+                ], 404);
+            }
+            
+            // Si no tiene registro en usuario_contacto, crear uno vacío
+            if (!$usuario->contacto) {
+                $contactoData = [
+                    'telefono' => null,
+                    'email' => $user->email, // Usar email del usuario autenticado
+                    'telegram_chat_id' => null
+                ];
+            } else {
+                $contactoData = [
+                    'telefono' => $usuario->contacto->telefono,
+                    'email' => $usuario->contacto->email ?? $user->email,
+                    'telegram_chat_id' => $usuario->contacto->telegram_chat_id
+                ];
+            }
+            
+            Log::info('Contacto obtenido:', $contactoData);
+            
+            return response()->json($contactoData);
+            
+        } catch (\Exception $e) {
+            Log::error('Error al obtener contacto:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener datos de contacto'
+            ], 500);
+        }
+    }
+
+    /**
+     * Actualizar datos de contacto del usuario (opcional)
+     */
+    public function updateContacto(Request $request, $id)
+    {
+        try {
+            $user = Auth::user();
+            
+            if ($user->userable->id != $id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado'
+                ], 403);
+            }
+            
+            $usuario = Usuario::find($id);
+            
+            if (!$usuario) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado'
+                ], 404);
+            }
+            
+            // Validar datos
+            $request->validate([
+                'telefono' => 'nullable|string|max:20',
+                'email' => 'nullable|email|max:255',
+                'telegram_chat_id' => 'nullable|string|max:255'
+            ]);
+            
+            // Actualizar o crear contacto
+            $contacto = $usuario->contacto()->updateOrCreate(
+                ['usuario_id' => $usuario->id],
+                [
+                    'telefono' => $request->telefono,
+                    'email' => $request->email,
+                    'telegram_chat_id' => $request->telegram_chat_id,
+                    'nombre_completo' => $usuario->nombre // Asumiendo que quieres guardar el nombre
+                ]
+            );
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'telefono' => $contacto->telefono,
+                    'email' => $contacto->email,
+                    'telegram_chat_id' => $contacto->telegram_chat_id
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error al actualizar contacto:', ['error' => $e->getMessage()]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar datos de contacto'
+            ], 500);
+        }
+    }
 }

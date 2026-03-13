@@ -16,7 +16,7 @@ return new class extends Migration
             $table->id();
             
             // Usuario destinatario
-            $table->unsignedBigInteger('usuario_id');
+            $table->unsignedBigInteger('user_id');
             
             // Tipo de notificación
             $table->enum('tipo', [
@@ -27,6 +27,7 @@ return new class extends Migration
                 'PROCEDIMIENTO',
                 'DENUNCIA',
                 'OFERTA',
+                'ADOPCION',
                 'SOLICITUD',
                 'ALERTA'
             ])->default('SISTEMA');
@@ -59,13 +60,13 @@ return new class extends Migration
             $table->timestamps();
             
             // Foreign key
-            $table->foreign('usuario_id')
+            $table->foreign('user_id')
                   ->references('id')
                   ->on('users')
                   ->onDelete('cascade');
             
             // Índices para optimización
-            $table->index(['usuario_id', 'leida']);
+            $table->index(['user_id', 'leida']);
             $table->index(['referencia_tipo', 'referencia_id']);
             $table->index(['activa', 'created_at']);
             $table->index('tipo');

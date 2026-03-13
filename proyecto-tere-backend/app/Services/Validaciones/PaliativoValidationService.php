@@ -507,4 +507,79 @@ class PaliativoValidationService
             ];
         }
     }
+    
+    /**
+     * Método mejorado para validar actualizaciones
+     */
+    public function validarAntesDeActualizar(int $mascotaId, int $tipoPaliativoId, ?int $paliativoActualId = null): array
+    {
+        try {
+            Log::info('Iniciando validación antes de actualizar', [
+                'mascota_id' => $mascotaId,
+                'tipo_paliativo_id' => $tipoPaliativoId,
+                'paliativo_actual_id' => $paliativoActualId
+            ]);
+
+            $mascota = Mascota::with(['procesosMedicos.procesable'])->findOrFail($mascotaId);
+            $tipoPaliativo = TipoPaliativo::findOrFail($tipoPaliativoId);
+
+            // Validación base
+            $validacion = $this->validarMascotaParaTipoPaliativo($mascota, $tipoPaliativo);
+            
+            // Validación adicional para actualizaciones: verificar si el paliativo ya está en uso
+            if ($paliativoActualId) {
+                $paliativoActual = CuidadoPaliativo::with('procesoMedico')->find($paliativoActualId);
+                
+                if ($paliativoActual) {
+                    // Verificar que el paliativo pertenezca a la mascota
+                    if ($paliativoActual->procesoMedico->mascota_id != $mascotaId) {
+                        return [
+                            'valido' => false,
+                            'errors' => ['El procedimiento paliativo no pertenece a esta mascota.'],
+                            'advertencias' => [],
+                            'detalles' => $validacion['detalles']
+                        ];
+                    }
+                    
+                    // Si es el mismo tipo de paliativo que ya tenía, convertir errores en advertencias
+                    if ($paliativoActual->tipo_paliativo_id == $tipoPaliativoId && !$validacion['valido']) {
+                        return [
+                            'valido' => true,
+                            'errors' => [],
+                            'advertencias' => array_merge(
+                                $validacion['advertencias'],
+                                array_map(function($error) {
+                                    return "⚠️ " . $error . " (Manteniendo el tipo de paliativo existente)";
+                                }, $validacion['errors'])
+                            ),
+                            'detalles' => $validacion['detalles']
+                        ];
+                    }
+                }
+            }
+
+            Log::info('Validación completada', [
+                'valido' => $validacion['valido'],
+                'errors_count' => count($validacion['errors'] ?? []),
+                'advertencias_count' => count($validacion['advertencias'] ?? [])
+            ]);
+
+            return $validacion;
+            
+        } catch (\Exception $e) {
+            Log::error('Error en validación de actualización de paliativo', [
+                'mascota_id' => $mascotaId,
+                'tipo_paliativo_id' => $tipoPaliativoId,
+                'paliativo_actual_id' => $paliativoActualId,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [
+                'valido' => false,
+                'errors' => ['Error en validación: ' . $e->getMessage()],
+                'advertencias' => [],
+                'detalles' => []
+            ];
+        }
+    }
 }

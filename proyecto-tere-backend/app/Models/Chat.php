@@ -25,14 +25,16 @@ class Chat extends Model
         'interacciones_usuario1',
         'interacciones_usuario2',
         'listo_para_adopcion',
-        'fecha_habilitado_adopcion'
+        'fecha_habilitado_adopcion',
+        'favoritos_por_usuario',
     ];
 
     protected $casts = [
         'user1_deleted' => 'boolean',
         'user2_deleted' => 'boolean',
         'ultimo_mensaje_en' => 'datetime',
-        'fecha_habilitado_adopcion' => 'datetime'
+        'fecha_habilitado_adopcion' => 'datetime',
+        'favoritos_por_usuario' => 'array'
     ];
 
     // Relación con el primer usuario
@@ -290,5 +292,67 @@ class Chat extends Model
                 ? '✅ El chat cumple con el mínimo de interacciones requeridas para proceder con la adopción.'
                 : '⚠️ Se requieren más interacciones entre ambos usuarios para habilitar la adopción.'
         ];
+    }
+
+   /**
+     * Obtener el array de favoritos (inicializa si es null)
+     */
+    protected function getFavoritosArray()
+    {
+        return $this->favoritos_por_usuario ?? [];
+    }
+
+    /**
+     * Toggle favorito para un usuario
+     * @param int $userId
+     * @return bool (nuevo estado: true = agregado, false = quitado)
+     */
+    public function toggleFavorito($userId)
+    {
+        // Verificar si el usuario es participante del chat
+        if (!$this->esParticipante($userId)) {
+            return false;
+        }
+        
+        $favoritos = $this->getFavoritosArray();
+        
+        if (in_array($userId, $favoritos)) {
+            // Quitar de favoritos
+            $favoritos = array_values(array_diff($favoritos, [$userId]));
+            $nuevoEstado = false;
+        } else {
+            // Agregar a favoritos
+            $favoritos[] = $userId;
+            $nuevoEstado = true;
+        }
+        
+        $this->favoritos_por_usuario = $favoritos;
+        $this->save();
+        
+        return $nuevoEstado;
+    }
+
+    /**
+     * Verificar si el chat es favorito de un usuario
+     * @param int $userId
+     * @return bool
+     */
+    public function esFavoritoDe($userId)
+    {
+        $favoritos = $this->getFavoritosArray();
+        return in_array($userId, $favoritos);
+    }
+
+    /**
+     * Scope para obtener solo chats favoritos de un usuario
+     * Usa JSON contiene en PostgreSQL
+     */
+    public function scopeFavoritosDeUsuario($query, $userId)
+    {
+        // Para PostgreSQL (que es tu caso según el error)
+        return $query->whereRaw('jsonb_exists(favoritos_por_usuario::jsonb, ?)', [$userId]);
+        
+        // Alternativa para MySQL:
+        // return $query->whereJsonContains('favoritos_por_usuario', $userId);
     }
 }

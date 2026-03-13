@@ -36,7 +36,7 @@ class UserLocationController extends Controller
 
             Log::debug('Datos validados', $validated);
 
-            // 🔥 NUEVO: Obtener datos de reverse geocoding con Nominatim
+            // Obtener datos de reverse geocoding con Nominatim
             $geoData = $this->getReverseGeocodingData(
                 $validated['latitude'],
                 $validated['longitude']
@@ -44,14 +44,15 @@ class UserLocationController extends Controller
 
             Log::debug('Datos de geocoding obtenidos', $geoData);
 
-            // ✅ CORREGIDO: Usar user_id en lugar de usuario_id
+            // 🔥 CORREGIDO: Verificar si existe ubicación previa para actualizar
+            $existingLocation = UbicacionUsuario::where('user_id', $user->id)->first();
+            
             $locationData = [
-                'user_id' => $user->id, // ← CORRECTO: user_id
+                'user_id' => $user->id,
                 'latitude' => $validated['latitude'],
                 'longitude' => $validated['longitude'],
                 'accuracy' => $validated['accuracy'] ?? null,
                 'location_updated_at' => now(),
-                // Datos obtenidos del reverse geocoding
                 'country' => $geoData['country'] ?? null,
                 'country_code' => $geoData['country_code'] ?? null,
                 'state' => $geoData['state'] ?? null,
@@ -59,35 +60,18 @@ class UserLocationController extends Controller
                 'source' => 'gps'
             ];
 
-            // Para PostgreSQL
-            if (config('database.default') === 'pgsql') {
-                // ✅ CORREGIDO: Usar user_id en la consulta SQL
-                DB::insert(
-                    "INSERT INTO user_locations (user_id, latitude, longitude, accuracy, location, 
-                    location_updated_at, country, country_code, state, city, source, created_at, updated_at) 
-                    VALUES (?, ?, ?, ?, ST_SetSRID(ST_MakePoint(?, ?), 4326), ?, ?, ?, ?, ?, ?, NOW(), NOW())",
-                    [
-                        $user->id, // ← user_id
-                        $validated['latitude'],
-                        $validated['longitude'],
-                        $validated['accuracy'] ?? null,
-                        $validated['longitude'],
-                        $validated['latitude'],
-                        now(),
-                        $geoData['country'] ?? null,
-                        $geoData['country_code'] ?? null,
-                        $geoData['state'] ?? null,
-                        $geoData['city'] ?? null,
-                        'gps'
-                    ]
-                );
-                
-                $locationId = DB::getPdo()->lastInsertId();
-                $location = UbicacionUsuario::find($locationId);
+            // 🔥 CORREGIDO: Usar updateOrCreate para evitar duplicados
+            $location = UbicacionUsuario::updateOrCreate(
+                ['user_id' => $user->id],
+                $locationData
+            );
 
-            } else {
-                // Para MySQL/SQLite
-                $location = UbicacionUsuario::create($locationData);
+            // Para PostgreSQL, asegurarse de que el campo location esté actualizado
+            if (config('database.default') === 'pgsql' && $location) {
+                DB::statement(
+                    "UPDATE user_locations SET location = ST_SetSRID(ST_MakePoint(?, ?), 4326) WHERE id = ?",
+                    [$validated['longitude'], $validated['latitude'], $location->id]
+                );
             }
 
             Log::info('Ubicación guardada exitosamente', [

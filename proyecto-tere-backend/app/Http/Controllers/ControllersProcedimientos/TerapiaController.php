@@ -10,6 +10,7 @@ use App\Models\TiposProcedimientos\TipoTerapia;
 use App\Models\CentroVeterinario;
 use App\Models\ContactoUsuario;
 use App\Http\Requests\StoreTerapiaRequest;
+use App\Http\Requests\UpdateTerapiaRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
@@ -298,17 +299,14 @@ class TerapiaController extends Controller
     /**
      * Actualizar terapia
      */
-    public function update(Request $request, $id)
+    public function update(UpdateTerapiaRequest $request, $id)
     { 
-        // Debug: Ver qué datos llegan
         Log::info('📥 Datos recibidos en update terapia:', [
             'terapia_id' => $id,
-            'all_data' => $request->all(),
-            'content_type' => $request->header('Content-Type'),
-            'input_data' => $request->input()
+            'all_data' => $request->all()
         ]);
         
-        // Buscar la terapia primero
+        // Buscar la terapia (el Request ya validó)
         $terapia = Terapia::with('procesoMedico')->find($id);
         
         if (!$terapia) {
@@ -318,26 +316,12 @@ class TerapiaController extends Controller
             ], 404);
         }
 
-        // Validación CORREGIDA (centros_veterinarios en plural)
-        $validated = $request->validate([
-            'tipo_terapia_id' => 'required|exists:tipos_terapia,id',
-            'fecha_inicio' => 'required|date',
-            'frecuencia' => 'required|in:' . implode(',', Terapia::getFrecuenciasPermitidas()),
-            'duracion_tratamiento' => 'required|string|max:100',
-            'fecha_fin' => 'nullable|date|after_or_equal:fecha_inicio',
-            'evolucion' => 'nullable|in:' . implode(',', Terapia::getEvolucionesPermitidas()),
-            'recomendaciones_tutor' => 'nullable|string|max:500',
-            'observaciones' => 'nullable|string|max:500',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'costo' => 'nullable|numeric|min:0',
-            'medio_envio' => 'nullable|string|in:email,whatsapp,telegram',
-        ]);
-        
-        Log::info('✅ Datos validados:', $validated);
+        // Los datos ya están validados por UpdateTerapiaRequest
+        $validated = $request->validated();
 
         try {
             DB::transaction(function () use ($validated, $terapia) {
-                // 1. Actualizar la terapia
+                // Actualizar la terapia
                 $terapia->update([
                     'tipo_terapia_id' => $validated['tipo_terapia_id'],
                     'fecha_inicio' => $validated['fecha_inicio'],
@@ -349,7 +333,7 @@ class TerapiaController extends Controller
                     'observaciones' => $validated['observaciones'] ?? null,
                 ]);
 
-                // 2. Actualizar el proceso médico asociado
+                // Actualizar el proceso médico asociado
                 if ($terapia->procesoMedico) {
                     $terapia->procesoMedico->update([
                         'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? null,
@@ -362,6 +346,21 @@ class TerapiaController extends Controller
 
             // Cargar relaciones actualizadas
             $terapia->load(['tipoTerapia', 'procesoMedico.centroVeterinario']);
+
+            // ENVIAR CERTIFICADO SI SE SELECCIONÓ MEDIO DE ENVÍO (opcional, similar al store)
+            if ($request->input('medio_envio')) {
+                $mascotaData = Mascota::with('usuario')->find($terapia->procesoMedico->mascota_id);
+                try {
+                    $this->envioDocumentosService->enviarCertificadoTerapia(
+                        $terapia,
+                        $mascotaData,
+                        $request->input('medio_envio')
+                    );
+                    Log::info('✅ Certificado de terapia reenviado en actualización');
+                } catch (\Exception $e) {
+                    Log::warning('⚠️ Error reenviando certificado en actualización: ' . $e->getMessage());
+                }
+            }
 
             return response()->json([
                 'success' => true,
@@ -378,8 +377,7 @@ class TerapiaController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al actualizar la terapia: ' . $e->getMessage(),
-                'errors' => $validated // Para debugging
+                'message' => 'Error al actualizar la terapia: ' . $e->getMessage()
             ], 500);
         }
     }

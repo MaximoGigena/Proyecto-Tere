@@ -5,6 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\OfertaAdopcion;
 use App\Models\Mascota;
 use App\Models\MascotaFoto;
+use App\Models\ProcedimientosMedicos\Vacuna;
+use App\Models\ProcedimientosMedicos\Desparasitacion;
+use App\Models\ProcedimientosMedicos\Revision;
+use App\Models\ProcedimientosMedicos\Alergia;
+use App\Models\ProcedimientosMedicos\Cirugia;
+use App\Models\ProcedimientosMedicos\Farmaco;
+use App\Models\ProcedimientosMedicos\Terapia;
+use App\Models\ProcedimientosMedicos\Diagnostico;
+use App\Models\ProcedimientosMedicos\CuidadoPaliativo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -68,6 +77,7 @@ class OfertaAdopcionController extends Controller
                 'permisos' => 'required|array',
                 'permisos.compartirHistorialMedico' => 'required|boolean',
                 'permisos.compartirMediosContacto' => 'required|boolean',
+                'permisos.mediosContactoSeleccionados' => 'required_if:permisos.compartirMediosContacto,true|array', // ✅ Validar
             ]);
             
             if ($validator->fails()) {
@@ -112,15 +122,24 @@ class OfertaAdopcionController extends Controller
                 ], 409);
             }
             
+            // ✅ Preparar medios de contacto seleccionados
+            $mediosSeleccionados = $request->permisos['compartirMediosContacto'] 
+                ? $request->permisos['mediosContactoSeleccionados'] 
+                : [];
+            
             $oferta = OfertaAdopcion::create([
                 'id_mascota' => $request->mascotaId,
                 'id_usuario_responsable' => $usuarioId,
                 'estado_oferta' => 'publicada',
                 'permiso_historial_medico' => $request->permisos['compartirHistorialMedico'],
                 'permiso_contacto_tutor' => $request->permisos['compartirMediosContacto'],
+                'medios_contacto_seleccionados' => $mediosSeleccionados, // ✅ Guardar como JSON
             ]);
             
-            Log::info('Oferta creada exitosamente', ['oferta_id' => $oferta->id_oferta]);
+            Log::info('Oferta creada exitosamente', [
+                'oferta_id' => $oferta->id_oferta,
+                'medios_seleccionados' => $mediosSeleccionados
+            ]);
             
             DB::commit();
             
@@ -136,7 +155,8 @@ class OfertaAdopcionController extends Controller
                     'mascota_especie' => $mascota->especie,
                     'permisos' => [
                         'historial_medico' => $oferta->permiso_historial_medico,
-                        'contacto_tutor' => $oferta->permiso_contacto_tutor
+                        'contacto_tutor' => $oferta->permiso_contacto_tutor,
+                        'medios_contacto' => $oferta->medios_contacto_seleccionados // ✅ Incluir en respuesta
                     ],
                     'created_at' => $oferta->created_at
                 ]
@@ -260,7 +280,6 @@ class OfertaAdopcionController extends Controller
                     'edad_formateada' => $oferta->mascota->edadRelacion->edad_formateada
                 ] : null,
                 'edad_formateada' => $oferta->mascota->edad_formateada,
-                // ✅ INCLUIR UBICACIÓN CORRECTAMENTE
                 'ubicacion' => $ubicacionTutor,
                 'ubicacion_texto' => $ubicacionTexto
             ];
@@ -270,13 +289,73 @@ class OfertaAdopcionController extends Controller
                 'nombre' => $oferta->usuarioResponsable->nombre ?? 'Usuario',
             ];
             
+            // ✅ Obtener detalles de los medios de contacto seleccionados
+            $mediosDetalles = [];
+            if ($oferta->permiso_contacto_tutor && $oferta->medios_contacto_seleccionados) {
+                $contactoUsuario = $oferta->mascota->usuario->contacto;
+                if ($contactoUsuario) {
+                    $mediosSeleccionados = $oferta->medios_contacto_seleccionados;
+                    
+                    // Mapear IDs a medios reales
+                    $todosMedios = [];
+                    
+                    if (in_array(1, $mediosSeleccionados) && $contactoUsuario->telefono) {
+                        $todosMedios[] = [
+                            'id' => 1,
+                            'tipo' => 'WhatsApp',
+                            'valor' => $contactoUsuario->telefono,
+                            'icono' => '📱'
+                        ];
+                    }
+                    
+                    if (in_array(2, $mediosSeleccionados) && $contactoUsuario->email) {
+                        $todosMedios[] = [
+                            'id' => 2,
+                            'tipo' => 'Email',
+                            'valor' => $contactoUsuario->email,
+                            'icono' => '✉️'
+                        ];
+                    }
+                    
+                    if (in_array(3, $mediosSeleccionados) && $contactoUsuario->telegram_chat_id) {
+                        $todosMedios[] = [
+                            'id' => 3,
+                            'tipo' => 'Telegram',
+                            'valor' => $contactoUsuario->telegram_chat_id,
+                            'icono' => '📨'
+                        ];
+                    }
+                    
+                    $mediosDetalles = $todosMedios;
+                }
+            }
+            
             Log::info('Oferta cargada exitosamente', [
                 'oferta_id' => $oferta->id_oferta,
                 'mascota_id' => $oferta->mascota->id,
                 'fotos_count' => $fotos->count(),
                 'tiene_ubicacion' => !is_null($ubicacionTutor),
-                'ubicacion_incluida' => isset($datosMascota['ubicacion'])
+                'medios_contacto_count' => count($mediosDetalles)
             ]);
+
+            $historialMedico = null;
+            if ($oferta->permiso_historial_medico) {
+                // Solo cargar historial si tiene permiso
+                $historialMedico = $this->obtenerHistorialMedico($oferta->mascota->id);
+            }
+            
+            // ✅ Si NO tiene permiso de contacto, no incluir medios de contacto
+            $mediosDetalles = [];
+            if ($oferta->permiso_contacto_tutor && $oferta->medios_contacto_seleccionados) {
+                $contactoUsuario = $oferta->mascota->usuario->contacto;
+                if ($contactoUsuario) {
+                    $mediosSeleccionados = $oferta->medios_contacto_seleccionados;
+                    
+                    $todosMedios = [];
+                    // Mapear IDs a medios reales (tu código existente)
+                    // ...
+                }
+            }
             
             return response()->json([
                 'success' => true,
@@ -286,6 +365,7 @@ class OfertaAdopcionController extends Controller
                         'estado_oferta' => $oferta->estado_oferta,
                         'permiso_historial_medico' => $oferta->permiso_historial_medico,
                         'permiso_contacto_tutor' => $oferta->permiso_contacto_tutor,
+                        'medios_contacto' => $mediosDetalles, // ✅ Incluir medios con detalles
                         'created_at' => $oferta->created_at,
                     ],
                     'mascota' => $datosMascota,
@@ -303,6 +383,26 @@ class OfertaAdopcionController extends Controller
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno'
             ], 500);
         }
+    }
+
+    // Método auxiliar para obtener historial médico
+    private function obtenerHistorialMedico($mascotaId)
+    {
+        return [
+            'preventivo' => [
+                'vacunas' => Vacuna::where('mascota_id', $mascotaId)->get(),
+                'desparasitaciones' => Desparasitacion::where('mascota_id', $mascotaId)->get(),
+                'revisiones' => Revision::where('mascota_id', $mascotaId)->get(),
+                'alergias' => Alergia::where('mascota_id', $mascotaId)->get(),
+            ],
+            'clinico' => [
+                'cirugias' => Cirugia::where('mascota_id', $mascotaId)->get(),
+                'farmacos' => Farmaco::where('mascota_id', $mascotaId)->get(),
+                'terapias' => Terapia::where('mascota_id', $mascotaId)->get(),
+                'diagnosticos' => Diagnostico::where('mascota_id', $mascotaId)->get(),
+                'paliativos' => CuidadoPaliativo::where('mascota_id', $mascotaId)->get(),
+            ],
+        ];
     }
 
     /**
@@ -772,7 +872,7 @@ class OfertaAdopcionController extends Controller
                     
                     return [
                         'id_oferta' => $oferta->id_oferta,
-                        'mascota' => $datosMascota,
+                        'mascota' => $datosMascota, // Solo datos básicos de mascota
                         'usuario_responsable' => [
                             'id' => $oferta->usuarioResponsable->id ?? null,
                             'nombre' => $oferta->usuarioResponsable->nombre ?? 'Usuario',
@@ -781,6 +881,9 @@ class OfertaAdopcionController extends Controller
                             'historial_medico' => $oferta->permiso_historial_medico ?? false,
                             'contacto_tutor' => $oferta->permiso_contacto_tutor ?? false,
                         ],
+                        // ⚠️ IMPORTANTE: NO incluir historial médico aquí
+                        // El historial solo se carga en el show cuando tiene permiso
+                        
                         'estado_oferta' => $oferta->estado_oferta,
                         'created_at' => $oferta->created_at ? $oferta->created_at->format('d/m/Y H:i') : 'Fecha no disponible',
                         'distancia' => $ubicacionTutor['distancia_texto'] ?? null

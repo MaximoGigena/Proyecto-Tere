@@ -58,6 +58,9 @@ class ChatController extends Controller
                     $mascotaNombre = $chat->solicitud->mascota->nombre ?? null;
                 }
 
+                // Verificar si es favorito usando el método del modelo
+                $esFavorito = $chat->esFavoritoDe($user->id);
+
                 return [
                     'chat_id' => $chat->chat_id,
                     'usuario_id' => $otroUsuario->id,
@@ -68,8 +71,8 @@ class ChatController extends Controller
                     'mensajes_no_leidos' => $mensajesNoLeidos,
                     'solicitud_id' => $chat->solicitud_id,
                     'mascota_nombre' => $mascotaNombre,
-                    'online' => false, // Aquí implementarías lógica de presencia
-                    'favorito' => false // Implementar si es necesario
+                    'online' => false,
+                    'favorito' => $esFavorito
                 ];
             });
 
@@ -778,6 +781,131 @@ class ChatController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener estadísticas',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno'
+            ], 500);
+        }
+    }
+
+    /**
+     * Marcar/Desmarcar chat como favorito
+     */
+    public function toggleFavorite($chatId)
+    {
+        try {
+            $user = Auth::user();
+            
+            $chat = Chat::findOrFail($chatId);
+
+            // Verificar que el usuario sea participante del chat
+            if (!$chat->esParticipante($user->id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado para modificar este chat'
+                ], 403);
+            }
+
+            $nuevoEstado = $chat->toggleFavorito($user->id);
+
+            Log::info('Chat marcado como favorito', [
+                'chat_id' => $chatId,
+                'user_id' => $user->id,
+                'nuevo_estado' => $nuevoEstado,
+                'favoritos_actuales' => $chat->favoritos_por_usuario
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $nuevoEstado ? 'Chat agregado a favoritos' : 'Chat eliminado de favoritos',
+                'data' => [
+                    'favorito' => $nuevoEstado,
+                    'chat_id' => $chatId
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al toggle favorite:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar favorito',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener chats favoritos del usuario
+     */
+    public function getFavorites(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $perPage = $request->get('per_page', 20);
+            
+            $chats = Chat::chatsUsuario($user->id)
+                ->favoritosDeUsuario($user->id)
+                ->paginate($perPage);
+
+            // Formatear igual que en index()
+            $chatsFormateados = $chats->map(function($chat) use ($user) {
+                $otroUsuario = $chat->otroUsuario($user->id);
+                $userable = $otroUsuario->userable ?? null;
+                $ultimoMensaje = $chat->ultimoMensaje;
+
+                $nombre = 'Usuario';
+                $fotoUrl = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png';
+                
+                if ($userable instanceof \App\Models\Usuario) {
+                    $nombre = $userable->nombre ?? $otroUsuario->name ?? 'Usuario';
+                    
+                    if ($userable->fotos && $userable->fotos->isNotEmpty()) {
+                        $foto = $userable->fotos->first();
+                        $fotoUrl = asset('storage/' . $foto->ruta_foto);
+                    } elseif ($userable->foto_perfil) {
+                        $fotoUrl = asset('storage/' . $userable->foto_perfil);
+                    }
+                } else {
+                    $nombre = $otroUsuario->name ?? 'Usuario';
+                }
+
+                return [
+                    'chat_id' => $chat->chat_id,
+                    'usuario_id' => $otroUsuario->id,
+                    'nombre' => $nombre,
+                    'img' => $fotoUrl,
+                    'ultimo_mensaje' => $ultimoMensaje->contenido ?? null,
+                    'ultimo_mensaje_en' => $ultimoMensaje->created_at ?? null,
+                    'mensajes_no_leidos' => $chat->mensajesNoLeidos($user->id),
+                    'solicitud_id' => $chat->solicitud_id,
+                    'mascota_nombre' => $chat->solicitud->mascota->nombre ?? null,
+                    'favorito' => true,
+                    'online' => false
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'chats' => $chatsFormateados,
+                    'total' => $chats->total(),
+                    'per_page' => $chats->perPage(),
+                    'current_page' => $chats->currentPage(),
+                    'last_page' => $chats->lastPage()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al obtener favoritos:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener favoritos',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno'
             ], 500);
         }

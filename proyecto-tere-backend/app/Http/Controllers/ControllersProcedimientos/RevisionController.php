@@ -6,6 +6,7 @@ namespace App\Http\Controllers\ControllersProcedimientos;
 use App\Models\ProcedimientosMedicos\Revision;
 use App\Models\ProcesoMedico;
 use App\Http\Requests\StoreRevisionRequest;
+use App\Http\Requests\UpdateRevisionRequest;
 use App\Models\Mascota;
 use App\Models\TiposProcedimientos\TipoRevision;
 use App\Models\CentroVeterinario;
@@ -286,33 +287,13 @@ class RevisionController extends Controller
     /**
      * Actualizar una revisión existente
      */
-    public function update(Request $request, $mascotaId, $revisionId): JsonResponse
+    public function update(UpdateRevisionRequest $request, $mascotaId, $revisionId): JsonResponse // CAMBIA Request por UpdateRevisionRequest
     {
         try {
-            // ✅ ACEPTAR TANTO JSON COMO FORMDATA
-            $datos = $request->all();
+            // ✅ AHORA LA VALIDACIÓN YA SE HIZO EN EL REQUEST
+            $validated = $request->validated();
             
-            Log::info('🔄 ACTUALIZAR REVISIÓN - DATOS RECIBIDOS RAW', $datos);
-            Log::info('🔄 Content-Type:', ['type' => $request->header('Content-Type')]);
-
-            // ✅ VALIDACIÓN CORREGIDA - ACEPTAR STRING JSON O ARRAY
-            $validated = $request->validate([
-                'tipo_revision_id' => 'required|exists:tipos_revision,id',
-                'fecha_revision' => 'required|date',
-                'nivel_urgencia' => 'required|in:rutinaria,preventiva,urgencia,emergencia',
-                'motivo_consulta' => 'nullable|string|max:500',
-                'diagnostico' => 'nullable|string|max:500',
-                'fecha_proxima_revision' => 'nullable|date',
-                'indicaciones_medicas' => 'nullable|string',
-                'recomendaciones_tutor' => 'nullable|string',
-                'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-                'observaciones' => 'nullable|string|max:500',
-                'costo' => 'nullable|numeric|min:0',
-                'medio_envio' => 'nullable|in:email,telegram,whatsapp',
-                'diagnosticos_ids' => 'nullable', // ✅ Cambiado de 'array' a nullable
-            ]);
-
-            Log::info('✅ DATOS VALIDADOS:', $validated);
+            Log::info('🔄 ACTUALIZAR REVISIÓN - DATOS VALIDADOS', $validated);
 
             // ✅ Buscar la revisión
             $revision = Revision::with(['procesoMedico'])
@@ -361,27 +342,17 @@ class RevisionController extends Controller
                     foreach ($request->file('archivos_nuevos') as $archivo) {
                         if ($archivo->isValid()) {
                             $path = $archivo->store('revisiones/' . $revision->id, 'public');
+                            // Aquí puedes guardar la referencia en tu tabla de archivos
                         }
                     }
                 }
 
                 // ✅ 4. Manejar diagnosticos_ids si existe
                 if (isset($validated['diagnosticos_ids']) && !empty($validated['diagnosticos_ids'])) {
-                    // Convertir de string JSON a array si es necesario
-                    if (is_string($validated['diagnosticos_ids'])) {
-                        try {
-                            $diagnosticosIds = json_decode($validated['diagnosticos_ids'], true);
-                            if (json_last_error() === JSON_ERROR_NONE && is_array($diagnosticosIds)) {
-                                // Aquí puedes guardar los IDs en tu base de datos si tienes una relación
-                                Log::info('📋 Diagnosticos IDs procesados:', $diagnosticosIds);
-                            }
-                        } catch (\Exception $e) {
-                            Log::warning('Error al decodificar diagnosticos_ids', [
-                                'error' => $e->getMessage(),
-                                'diagnosticos_ids' => $validated['diagnosticos_ids']
-                            ]);
-                        }
-                    }
+                    // Tu lógica para diagnosticos_ids
+                    Log::info('📋 Diagnosticos IDs procesados:', [
+                        'diagnosticos_ids' => $validated['diagnosticos_ids']
+                    ]);
                 }
             });
 
@@ -395,6 +366,9 @@ class RevisionController extends Controller
                 'data' => $revision
             ]);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Esta excepción ya será manejada por el FormRequest
+            throw $e;
         } catch (\Exception $e) {
             Log::error('❌ ERROR AL ACTUALIZAR REVISIÓN', [
                 'error' => $e->getMessage(),

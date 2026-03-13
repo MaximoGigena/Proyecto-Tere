@@ -129,16 +129,6 @@ class User extends Authenticatable
         return null;
     }
 
-   // En App\Models\User.php
-    /**
-     * Obtener las notificaciones del usuario
-     */
-    public function notificaciones()
-    {
-        return $this->hasMany(Notificacion::class, 'usuario_id') // ← Especificar la columna
-                    ->activas()
-                    ->orderBy('created_at', 'desc');
-    }
 
     /**
      * Obtener notificaciones no leídas
@@ -272,6 +262,16 @@ class User extends Authenticatable
     public function getUbicacionAttribute()
     {
         return $this->ubicacionActual;
+    }
+
+    /**
+     * Obtener las notificaciones del usuario
+     */
+    public function notificaciones()
+    {
+        return $this->hasMany(Notificacion::class, 'user_id') // Cambiado a user_id
+                    ->activas()
+                    ->orderBy('created_at', 'desc');
     }
 
     /**

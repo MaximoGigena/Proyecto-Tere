@@ -26,6 +26,7 @@ use App\Http\Controllers\ControllersProcedimientos\TerapiaController;
 use App\Http\Controllers\ControllersProcedimientos\FarmacoController;
 use App\Http\Controllers\ControllersProcedimientos\TipoProcedimientoController;
 use App\Http\Controllers\CentroVeterinarioController;
+use App\Http\Controllers\HistorialTutoresController;
 use App\Http\Controllers\VeterinarioProcedimientoController;
 use App\Http\Controllers\ControllersProcedimientos\VacunaController;
 use App\Http\Controllers\TelegramController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\SancionController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\ReporteUsuarioController;
 use App\Http\Controllers\FiltroGeocodingController;
+use App\Http\Controllers\UserFilterPreferenceController;
 use App\Models\OfertaAdopcion;
 use App\Http\Controllers\MetricasController;
 use App\Models\ContactoUsuario;
@@ -161,11 +163,16 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     // Ruta para obtener la ubicación del usuario autenticado
     Route::get('/user/location', [UserLocationController::class, 'show']);
 
+    // En routes/api.php
+    Route::get('/usuarios/{id}/contacto', [RegistrarUsuarioController::class, 'getContacto'])->middleware('auth:sanctum');
+
     // Rutas para la gestión de usuarios
     Route::post('/actualizar-datos-opcionales', [RegistrarUsuarioController::class, 'actualizarDatosOpcionales']);
     Route::post('/actualizar-datos-contacto', [RegistrarUsuarioController::class, 'actualizarDatosContacto']);
     Route::get('/usuarios/{id}', [RegistrarUsuarioController::class, 'show']);
     Route::post('/usuarios/{id}', [RegistrarUsuarioController::class, 'update']);
+
+    Route::get('/optional-data/status', [RegistrarUsuarioController::class, 'checkOptionalDataStatus']);
     
     // Ruta para cerrar sesión
     Route::post('/logout', [CerrarSesionController::class, 'logout']);
@@ -205,6 +212,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     Route::get('/mascotas/motivos/baja', [MascotaController::class, 'obtenerMotivosBaja']);
     Route::post('/mascotas/{id}/baja', [MascotaController::class, 'darDeBaja']);
 
+    Route::get('/mascotas/{id}/historial-tutores', [HistorialTutoresController::class, 'getHistorial']);
+
     Route::prefix('notificaciones')->group(function () {
         Route::get('/', [NotificacionController::class, 'index']);
         Route::get('/estadisticas', [NotificacionController::class, 'estadisticas']);
@@ -233,6 +242,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     Route::get('/solicitudes/recibidas', [SolicitudAdopcionController::class, 'solicitudesRecibidas']);
     Route::get('/solicitudes/todas-recibidas', [SolicitudAdopcionController::class, 'todasSolicitudesRecibidas']);
     Route::get('/solicitudes/pendientes/conteo', [SolicitudAdopcionController::class, 'conteoSolicitudesPendientes']);
+    Route::get('/solicitudes/verificar-activa/{mascotaId}', [SolicitudAdopcionController::class, 'verificarSolicitudActiva']);
     
     // Ruta para obtener una solicitud específica por ID
     Route::get('/solicitudes/{id}', [SolicitudAdopcionController::class, 'show']);
@@ -240,7 +250,9 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     // Ruta para aprobar/rechazar solicitud
     Route::put('/solicitudes/{id}/aprobar', [SolicitudAdopcionController::class, 'aprobar']);
     Route::put('/solicitudes/{id}/rechazar', [SolicitudAdopcionController::class, 'rechazar']);
-    
+
+    Route::post('/solicitudes/verificar-multiples', [SolicitudAdopcionController::class, 'verificarSolicitudesMultiples']);
+   
     // Ruta para guardar notas en una solicitud
     Route::put('/solicitudes/{id}/notas', [SolicitudAdopcionController::class, 'guardarNotas']);
 
@@ -253,6 +265,27 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     // Obtener especies disponibles
     Route::get('/filtros/especies-disponibles', [FiltrosMascotasController::class, 'obtenerEspeciesDisponibles']);
     
+    // Preferencias de filtros
+    Route::prefix('user/filters')->group(function () {
+        Route::get('/preferences', [UserFilterPreferenceController::class, 'index']);
+        Route::post('/preferences', [UserFilterPreferenceController::class, 'store']);
+        Route::get('/preferences/{id}', [UserFilterPreferenceController::class, 'show']);
+        Route::put('/preferences/{id}', [UserFilterPreferenceController::class, 'update']);
+        Route::delete('/preferences/{id}', [UserFilterPreferenceController::class, 'destroy']);
+
+        // 🔥 NUEVA RUTA PARA FILTROS AUTOMÁTICOS
+        Route::post('/preferences/automatic', [UserFilterPreferenceController::class, 'storeAutomatic']);
+        
+        // 🔥 RUTA PARA VER HISTORIAL
+        Route::get('/history', [UserFilterPreferenceController::class, 'historial']);
+
+        
+        // Rutas específicas para acciones
+        Route::post('/preferences/{id}/cargar', [UserFilterPreferenceController::class, 'cargar']);
+        Route::post('/preferences/{id}/activate', [UserFilterPreferenceController::class, 'setActive']);
+    });
+
+
     // Rutas para el filtro de geocoding
     Route::prefix('geocoding')->group(function () {
         Route::get('/geocode', [FiltroGeocodingController::class, 'geocode']);
@@ -277,6 +310,11 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         
         // Rutas para el sistema de swipe
         Route::get('/ofertas-para-swipe', [ManejarOfertasController::class, 'obtenerOfertasParaSwipe']);
+
+         Route::get('/ofertas-por-score', [ManejarOfertasController::class, 'obtenerOfertasPorScore']);
+         Route::get('/ofertas-hibridas', [ManejarOfertasController::class, 'obtenerOfertasHibridas']);
+         Route::get('/proximidad', [ManejarOfertasController::class, 'obtenerOfertasProximidad']);
+
         Route::post('/registrar-interaccion', [ManejarOfertasController::class, 'registrarInteraccion']);
         
         // ✅ Ruta de prueba
@@ -371,6 +409,12 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         Route::get('/mascota/{mascotaId}', [HistorialTransferenciaController::class, 'porMascota']);
         Route::get('/usuario', [HistorialTransferenciaController::class, 'porUsuario']);
         Route::get('/usuario/estadisticas', [HistorialTransferenciaController::class, 'estadisticasUsuario']);
+    });
+
+    // Rutas para historial de tutores
+    Route::prefix('mascotas/{mascotaId}/historial-tutores')->group(function () {
+        Route::get('/', [HistorialTutoresController::class, 'index']);
+        Route::get('/{usuarioId}', [HistorialTutoresController::class, 'tutorDetail']);
     });
 
     Route::get('/mis-procedimientos', [VeterinarioProcedimientoController::class, 'misProcedimientos']);
@@ -673,6 +717,9 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         Route::get('/{chatId}', [ChatController::class, 'show']); // Ver chat específico
         Route::delete('/{chatId}', [ChatController::class, 'destroy']); // Eliminar chat
         Route::post('/{chatId}/leido', [ChatController::class, 'marcarLeido']); // Marcar como leído
+
+        Route::post('/{chatId}/favorite', [ChatController::class, 'toggleFavorite']);
+        Route::get('/favoritos', [ChatController::class, 'getFavorites']);
 
         // Nueva ruta para obtener interacciones del chat
         Route::get('/{chatId}/interacciones', [ChatController::class, 'obtenerInteracciones']);

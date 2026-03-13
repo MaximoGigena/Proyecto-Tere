@@ -11,6 +11,7 @@ use App\Models\TiposProcedimientos\TipoDiagnostico;
 use App\Models\CentroVeterinario;
 use App\Models\ProcedimientoDiagnostico;
 use App\Http\Requests\StorePaliativoRequest;
+use App\Http\Requests\UpdatePaliativoRequest;
 use App\Models\ProcedimientosMedicos\Diagnostico;
 use App\Models\FarmacoAsociado;
 use Illuminate\Http\Request;
@@ -378,55 +379,30 @@ class PaliativoController extends Controller
     /**
      * Actualizar procedimiento paliativo
      */
-    public function update(Request $request, $mascotaId, $paliativoId): JsonResponse
+    public function update(UpdatePaliativoRequest $request, $mascotaId, $paliativoId): JsonResponse
     {
-            Log::info('Intentando actualizar paliativo', [
-                'request_data' => $request->all()
-            ]);
+        Log::info('Intentando actualizar paliativo', [
+            'request_data' => $request->all()
+        ]);
 
-             // Verifica todos los paliativos existentes
-            $todosPaliativos = CuidadoPaliativo::all();
-            Log::info('Paliativos existentes:', $todosPaliativos->pluck('id')->toArray());
-            
+        // Verifica todos los paliativos existentes
+        $todosPaliativos = CuidadoPaliativo::all();
+        Log::info('Paliativos existentes:', $todosPaliativos->pluck('id')->toArray());
 
         try {
-            $paliativo = CuidadoPaliativo::whereHas('procesoMedico', function($query) use ($mascotaId) {
-                $query->where('mascota_id', $mascotaId);
-            }) ->first();
+            // CORRECCIÓN IMPORTANTE: Buscar por ID y luego verificar la relación con mascota
+            $paliativo = CuidadoPaliativo::with('procesoMedico')->findOrFail($paliativoId);
+            
+            // Verificar que el paliativo pertenezca a la mascota
+            if ($paliativo->procesoMedico->mascota_id != $mascotaId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El procedimiento paliativo no pertenece a esta mascota'
+                ], 403);
+            }
 
-            $validated = $request->validate([
-                // Campos actualizables
-                'tipo_procedimiento_id' => 'sometimes|exists:tipos_paliativo,id',
-                'fecha_inicio' => 'sometimes|date',
-                'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-                'resultado' => 'sometimes|in:mejoria,alivio,estabilizacion,sin_cambio,empeoramiento',
-                'estado' => 'sometimes|in:estable,dolor_controlado,dolor_parcial,deterioro,critico',
-                'frecuencia_valor' => 'nullable|integer|min:1',
-                'frecuencia_unidad' => 'nullable|in:horas,dias,semanas,meses',
-                'fecha_control' => 'nullable|date',
-                'descripcion' => 'nullable|string|max:1000',
-                'medicacion_notas' => 'nullable|string|max:500',
-                'recomendaciones' => 'nullable|string|max:500',
-                
-                // Diagnosticos - IMPORTANTE: Cambiar a sometimes en lugar de required_with
-                'diagnosticos' => 'nullable|array', // Cambiado de required_with a nullable
-                'diagnosticos.*.id' => 'required_with:diagnosticos',
-                'diagnosticos.*.type' => 'required_with:diagnosticos',
-                
-                // Fármacos asociados
-                'farmacos_asociados' => 'nullable|array',
-                'farmacos_asociados.*.farmaco_id' => 'required_with:farmacos_asociados|exists:tipos_farmaco,id',
-                'farmacos_asociados.*.dosis' => 'required_with:farmacos_asociados|numeric|min:0.001',
-                'farmacos_asociados.*.frecuencia' => 'nullable|string',
-                'farmacos_asociados.*.duracion' => 'nullable|string',
-                'farmacos_asociados.*.observaciones' => 'nullable|string|max:1000',
-                'farmacos_asociados.*.momento_aplicacion' => 'required_with:farmacos_asociados|in:inicio,mantenimiento,rescue,final',
-                
-                // Archivos
-                'archivos.*' => 'nullable|file|max:10240',
-                'archivos_a_eliminar' => 'nullable|array',
-                'archivos_a_eliminar.*' => 'string',
-            ]);
+            // Los datos ya están validados por UpdatePaliativoRequest
+            $validated = $request->validated();
 
             DB::transaction(function () use ($validated, $paliativo, $request) {
                 // 1. Actualizar el paliativo
@@ -464,7 +440,7 @@ class PaliativoController extends Controller
                     $this->guardarFarmacosAsociados($paliativo, $validated['farmacos_asociados']);
                 }
 
-                // 4. Actualizar diagnósticos asociados (NUEVO - solo si se envía el array)
+                // 4. Actualizar diagnósticos asociados
                 if (isset($validated['diagnosticos'])) {
                     // Eliminar diagnósticos existentes
                     $paliativo->diagnosticosAsociados()->delete();
@@ -484,18 +460,19 @@ class PaliativoController extends Controller
                 }
             });
 
-            // Recargar relaciones - CORREGIDO: Quitar .diagnostico si causa problemas
+            // Recargar relaciones
             $paliativo->load([
                 'tipoPaliativo',
                 'procesoMedico.centroVeterinario',
                 'procesoMedico.veterinario',
                 'farmacosAsociados.tipoFarmaco',
-                'diagnosticosAsociados' // Sin .diagnostico por ahora
+                'diagnosticosAsociados.diagnostico'
             ]);
 
             Log::info('✅ Procedimiento paliativo actualizado exitosamente', [
                 'paliativo_id' => $paliativo->id,
                 'mascota_id' => $mascotaId,
+                'cambio_tipo' => isset($validated['tipo_procedimiento_id']) ? 'sí' : 'no',
                 'diagnosticos_count' => isset($validated['diagnosticos']) ? count($validated['diagnosticos']) : 0
             ]);
 
@@ -518,6 +495,8 @@ class PaliativoController extends Controller
             ], 500);
         }
     }
+
+
     /**
      * Eliminar procedimiento paliativo
      */

@@ -23,6 +23,12 @@ class Kernel extends ConsoleKernel
         // ->hourly()       // Cada hora
         // ->daily()        // Cada día a medianoche
         $schedule->command('sanciones:verificar-expiracion')->daily();
+
+          $schedule->command('notificaciones:recordatorios-vacunas')
+             ->dailyAt('08:00')
+             ->withoutOverlapping()
+             ->appendOutputTo(storage_path('logs/recordatorios-vacunas.log'));
+    
     }
 
     /**

@@ -14,6 +14,7 @@ use App\Models\FarmacoAsociado;
 use App\Services\Validaciones\CirugiaValidationService;
 use App\Models\ProcedimientoDiagnostico;
 use App\Http\Requests\StoreCirugiaRequest;
+use App\Http\Requests\UpdateCirugiaRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
@@ -330,49 +331,19 @@ class CirugiaController extends Controller
     /**
      * Actualizar cirugía
      */
-    public function update(Request $request, $mascotaId, $cirugiaId): JsonResponse
+    public function update(UpdateCirugiaRequest $request, $mascotaId, $cirugiaId): JsonResponse
     {
         try {
+            // Buscar la cirugía asegurando que pertenezca a la mascota
             $cirugia = Cirugia::whereHas('procesoMedico', function($query) use ($mascotaId) {
                 $query->where('mascota_id', $mascotaId);
             })->findOrFail($cirugiaId);
 
-            // CORRECCIÓN: Cambiar los nombres de validación para que coincidan con la vista Vue
-            $validated = $request->validate([
-                // Campos actualizables
-                'tipo_cirugia_id' => 'sometimes|exists:tipos_cirugia,id',
-                'fecha' => 'sometimes|date',
-                'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-                'resultado' => 'sometimes|in:satisfactorio,complicaciones,estable,critico',
-                'estado' => 'sometimes|in:recuperacion,alta,seguimiento,hospitalizado',
-                
-                // ✅ CORRECCIÓN: Cambiar nombres para coincidir con la vista Vue
-                'fecha_control' => 'nullable|date', // En la vista es fecha_control
-                'descripcion' => 'nullable|string|max:1000', // En la vista es descripcion
-                'medicacion_postquirurgica' => 'nullable|string',
-                'recomendaciones' => 'nullable|string|max:500', // En la vista es recomendaciones
-                
-                // Fármacos asociados
-                'farmacos_asociados' => 'nullable|array',
-                'farmacos_asociados.*.farmaco_id' => 'required_with:farmacos_asociados|exists:tipos_farmaco,id',
-                'farmacos_asociados.*.dosis' => 'required_with:farmacos_asociados|numeric|min:0.001',
-                'farmacos_asociados.*.frecuencia' => 'nullable|string',
-                'farmacos_asociados.*.duracion' => 'nullable|string',
-                'farmacos_asociados.*.observaciones' => 'nullable|string|max:1000',
-                'farmacos_asociados.*.etapa_aplicacion' => 'required_with:farmacos_asociados|in:prequirurgica,transquirurgica,postquirurgica_inmediata,postquirurgica_tardia',
-                'farmacos_asociados.*.es_dosis_unica' => 'boolean',
-                
-                // Archivos
-                'archivos.*' => 'nullable|file|max:10240',
-                'archivos_a_eliminar' => 'nullable|array',
-                'archivos_a_eliminar.*' => 'string',
-                
-                // Diagnósticos
-                'diagnosticos' => 'nullable|array',
-                'diagnosticos.*' => 'exists:tipos_diagnostico,id',
-            ]);
+            // Los datos ya vienen validados por UpdateCirugiaRequest
+            // incluyendo la validación cruzada del servicio
+            $validated = $request->validated();
 
-            DB::transaction(function () use ($validated, $cirugia, $request) {
+            DB::transaction(function () use ($validated, $cirugia, $request, $mascotaId) {
                 // 1. Actualizar la cirugía
                 $cirugia->update([
                     'tipo_cirugia_id' => $validated['tipo_cirugia_id'] ?? $cirugia->tipo_cirugia_id,
@@ -380,11 +351,16 @@ class CirugiaController extends Controller
                     'resultado' => $validated['resultado'] ?? $cirugia->resultado,
                     'estado_actual' => $validated['estado'] ?? $cirugia->estado_actual,
                     
-                    // ✅ CORRECCIÓN: Usar los nombres correctos
+                    // Campos opcionales con nombres corregidos
                     'fecha_control_estimada' => $validated['fecha_control'] ?? $cirugia->fecha_control_estimada,
                     'descripcion_procedimiento' => $validated['descripcion'] ?? $cirugia->descripcion_procedimiento,
                     'medicacion_postquirurgica' => $validated['medicacion_postquirurgica'] ?? $cirugia->medicacion_postquirurgica,
                     'recomendaciones_tutor' => $validated['recomendaciones'] ?? $cirugia->recomendaciones_tutor,
+                    
+                    // Actualizar diagnóstico_causa si se enviaron diagnósticos
+                    'diagnostico_causa' => isset($validated['diagnosticos']) 
+                        ? $this->procesarDiagnosticosCausa($validated['diagnosticos'])
+                        : $cirugia->diagnostico_causa,
                 ]);
 
                 // 2. Actualizar el proceso médico asociado
@@ -392,32 +368,36 @@ class CirugiaController extends Controller
                     $cirugia->procesoMedico->update([
                         'centro_veterinario_id' => $validated['centro_veterinario_id'] ?? $cirugia->procesoMedico->centro_veterinario_id,
                         'fecha_aplicacion' => $validated['fecha'] ?? $cirugia->fecha_cirugia,
-                        'observaciones' => $validated['descripcion'] ?? $cirugia->descripcion_procedimiento, // ✅ Usar descripcion
+                        'observaciones' => $validated['descripcion'] ?? $cirugia->descripcion_procedimiento,
                     ]);
                 }
 
-                // 3. Actualizar fármacos asociados
+                // 3. Actualizar fármacos asociados (si se enviaron)
                 if (isset($validated['farmacos_asociados'])) {
                     // Eliminar fármacos existentes
                     $cirugia->farmacosAsociados()->delete();
                     
-                    // Crear nuevos fármacos
-                    $this->guardarFarmacosAsociados($cirugia, $validated['farmacos_asociados']);
+                    // Crear nuevos fármacos (si hay datos)
+                    if (!empty($validated['farmacos_asociados'])) {
+                        $this->guardarFarmacosAsociados($cirugia, $validated['farmacos_asociados']);
+                    }
                 }
 
-                // 4. Actualizar diagnósticos asociados
+                // 4. Actualizar diagnósticos asociados (si se enviaron)
                 if (isset($validated['diagnosticos'])) {
                     // Eliminar diagnósticos existentes
                     ProcedimientoDiagnostico::where('procedimiento_id', $cirugia->id)
                         ->where('procedimiento_type', 'App\Models\ProcedimientosMedicos\Cirugia')
                         ->delete();
                     
-                    // Crear nuevos diagnósticos
-                    $this->guardarDiagnosticosAsociados($cirugia, $validated['diagnosticos']);
+                    // Crear nuevos diagnósticos (si hay datos)
+                    if (!empty($validated['diagnosticos'])) {
+                        $this->guardarDiagnosticosAsociados($cirugia, $validated['diagnosticos']);
+                    }
                 }
 
                 // 5. Manejar eliminación de archivos
-                if (isset($validated['archivos_a_eliminar'])) {
+                if (isset($validated['archivos_a_eliminar']) && !empty($validated['archivos_a_eliminar'])) {
                     $this->eliminarArchivos($cirugia, $validated['archivos_a_eliminar']);
                 }
 
@@ -425,9 +405,16 @@ class CirugiaController extends Controller
                 if ($request->hasFile('archivos')) {
                     $this->guardarArchivos($cirugia, $request->file('archivos'));
                 }
+
+                Log::info('✅ Transacción de actualización completada', [
+                    'cirugia_id' => $cirugia->id,
+                    'campos_actualizados' => array_keys(array_filter($validated, function($key) {
+                        return !in_array($key, ['archivos', 'archivos_a_eliminar']);
+                    }, ARRAY_FILTER_USE_KEY))
+                ]);
             });
 
-            // Recargar relaciones
+            // Recargar relaciones para la respuesta
             $cirugia->load([
                 'tipoCirugia',
                 'procesoMedico.centroVeterinario',
@@ -436,28 +423,59 @@ class CirugiaController extends Controller
                 'diagnosticosAsociados'
             ]);
 
+            // Registrar éxito en el log
             Log::info('✅ Cirugía actualizada exitosamente', [
                 'cirugia_id' => $cirugia->id,
                 'mascota_id' => $mascotaId,
-                'campos_opcionales' => [
-                    'fecha_control' => $validated['fecha_control'] ?? null,
-                    'descripcion' => $validated['descripcion'] ?? null,
-                    'recomendaciones' => $validated['recomendaciones'] ?? null,
-                ]
+                'usuario_id' => Auth::id(),
+                'tipo_cirugia_cambiado' => isset($validated['tipo_cirugia_id']),
+                'farmacos_actualizados' => isset($validated['farmacos_asociados']),
+                'diagnosticos_actualizados' => isset($validated['diagnosticos']),
+                'archivos_nuevos' => $request->hasFile('archivos') ? count($request->file('archivos')) : 0,
+                'archivos_eliminados' => count($validated['archivos_a_eliminar'] ?? [])
             ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Cirugía actualizada exitosamente',
-                'data' => $cirugia
+                'data' => [
+                    'cirugia' => $cirugia,
+                    'resumen' => [
+                        'tipo_cirugia' => $cirugia->tipoCirugia->nombre ?? 'No especificado',
+                        'fecha' => $cirugia->fecha_cirugia->format('d/m/Y H:i'),
+                        'resultado' => $this->getResultadoDisplay($cirugia->resultado),
+                        'estado' => $this->getEstadoDisplay($cirugia->estado_actual),
+                    ]
+                ]
+            ], 200);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('❌ Cirugía no encontrada', [
+                'cirugia_id' => $cirugiaId,
+                'mascota_id' => $mascotaId
             ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'La cirugía no existe o no pertenece a esta mascota'
+            ], 404);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Esta excepción ya es manejada por UpdateCirugiaRequest
+            // pero la dejamos por si acaso
+            return response()->json([
+                'success' => false,
+                'message' => 'Error de validación',
+                'errors' => $e->errors()
+            ], 422);
 
         } catch (\Exception $e) {
             Log::error('❌ Error al actualizar cirugía', [
                 'cirugia_id' => $cirugiaId,
+                'mascota_id' => $mascotaId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'request_data' => $request->all() // Agregar para debug
+                'request_data' => $request->except(['archivos']) // Excluir archivos del log
             ]);
 
             return response()->json([
@@ -466,6 +484,7 @@ class CirugiaController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Eliminar cirugía

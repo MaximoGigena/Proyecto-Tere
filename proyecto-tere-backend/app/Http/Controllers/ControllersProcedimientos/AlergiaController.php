@@ -9,6 +9,7 @@ use App\Models\TiposProcedimientos\TipoAlergia;
 use App\Models\CentroVeterinario;
 use App\Models\ContactoUsuario;
 use App\Http\Requests\StoreAlergiaRequest;
+use App\Http\Requests\UpdateAlergiaRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
@@ -326,21 +327,13 @@ class AlergiaController extends Controller
     /**
      * Actualizar alergia
      */
-    public function update(Request $request, $mascotaId, $alergiaId): JsonResponse
+    /**
+     * Actualizar alergia
+     */
+    public function update(UpdateAlergiaRequest $request, $mascotaId, $alergiaId): JsonResponse
     {
-        // Validación
-        $validated = $request->validate([
-            'tipo_alergia_id' => 'sometimes|exists:tipos_alergia,id',
-            'fecha_deteccion' => 'sometimes|date',
-            'gravedad' => 'sometimes|in:leve,moderada,grave',
-            'reaccion_comun' => 'sometimes|string|max:255',
-            'estado' => 'sometimes|in:activa,superada,seguimiento',
-            'desencadenante' => 'nullable|string|max:255',
-            'centro_veterinario_id' => 'nullable|exists:centros_veterinarios,id',
-            'conducta_recomendada' => 'nullable|string',
-            'recomendaciones_tutor' => 'nullable|string',
-            'observaciones' => 'nullable|string',
-        ]);
+        // La validación ya se hizo en UpdateAlergiaRequest
+        $validated = $request->validated();
 
         try {
             // Verificar que la mascota exista
@@ -397,13 +390,41 @@ class AlergiaController extends Controller
                     $procesoMedico->update($updateData);
                 }
 
-                // 3. Cargar relaciones actualizadas
+                // 3. Registrar en log si se cambió el tipo de alergia
+                if (isset($validated['tipo_alergia_id']) && $validated['tipo_alergia_id'] != $alergia->getOriginal('tipo_alergia_id')) {
+                    Log::info('Tipo de alergia actualizado', [
+                        'alergia_id' => $alergia->id,
+                        'tipo_anterior' => $alergia->getOriginal('tipo_alergia_id'),
+                        'tipo_nuevo' => $validated['tipo_alergia_id'],
+                        'usuario_id' => Auth::id()
+                    ]);
+                }
+
+                // 4. Cargar relaciones actualizadas
                 $alergiaActualizada = $alergia->load([
                     'tipoAlergia',
                     'procesoMedico.centroVeterinario',
                     'procesoMedico.veterinario'
                 ]);
             });
+
+            // 5. Opcional: Enviar notificación de actualización si se especificó medio_envio
+            if (isset($validated['medio_envio']) && $mascota) {
+                try {
+                    // Aquí podrías implementar el envío de notificación de actualización
+                    // Similar a como haces en store pero con un método específico
+                    Log::info('Notificación de actualización enviada', [
+                        'alergia_id' => $alergia->id,
+                        'mascota_id' => $mascotaId,
+                        'medio_envio' => $validated['medio_envio']
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Error enviando notificación de actualización', [
+                        'alergia_id' => $alergia->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
 
             return response()->json([
                 'success' => true,

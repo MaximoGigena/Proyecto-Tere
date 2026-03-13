@@ -25,6 +25,7 @@ class OfertaAdopcion extends Model
         'estado_oferta',
         'permiso_historial_medico',
         'permiso_contacto_tutor',
+        'medios_contacto_seleccionados',
     ];
 
     /**
@@ -35,6 +36,7 @@ class OfertaAdopcion extends Model
     protected $casts = [
         'permiso_historial_medico' => 'boolean',
         'permiso_contacto_tutor' => 'boolean',
+        'medios_contacto_seleccionados' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

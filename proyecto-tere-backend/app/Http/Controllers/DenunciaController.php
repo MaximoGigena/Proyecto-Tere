@@ -17,157 +17,166 @@ class DenunciaController extends Controller
     /**
      * Crear una nueva denuncia
      */
-    public function store(Request $request)
-    {
-        // Validación personalizada para oferta_id
-        $validator = Validator::make($request->all(), [
-            'mascota_id' => 'nullable|exists:mascotas,id',
-            'oferta_id' => [
-                'nullable',
-                function ($attribute, $value, $fail) {
-                    if (!OfertaAdopcion::where('id_oferta', $value)->exists()) {
-                        $fail('La oferta seleccionada no existe.');
-                    }
-                }
-            ],
-            'categoria' => 'required|string|in:' . implode(',', Denuncia::CATEGORIAS),
-            'subcategoria' => 'required|string',
-            'descripcion' => 'nullable|string|max:1000',
-        ], [
-            'mascota_id.exists' => 'La mascota seleccionada no existe.',
-            'categoria.in' => 'La categoría seleccionada no es válida.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error de validación',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        try {
-            // Obtener usuario autenticado
-            $usuario = Auth::user();
-            
-            Log::info('Usuario autenticado:', ['usuario_id' => $usuario->id]);
+      public function store(Request $request)
+        {
+            // Log para depuración
+            Log::info('=== INICIO CREACIÓN DENUNCIA ===');
+            Log::info('Usuario autenticado:', ['usuario_id' => Auth::id()]);
             Log::info('Datos recibidos:', $request->all());
 
-            // Determinar mascota y usuario denunciado
-            $mascota = null;
-            $usuarioDenunciado = null;
-            $oferta = null;
-
-            if ($request->filled('mascota_id')) {
-                Log::info('Buscando mascota con ID:', ['mascota_id' => $request->mascota_id]);
-                $mascota = Mascota::find($request->mascota_id);
-                
-                if (!$mascota) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'La mascota no existe'
-                    ], 404);
-                }
-                
-                $usuarioDenunciado = $mascota->usuario;
-                Log::info('Mascota encontrada:', ['mascota_id' => $mascota->id, 'usuario_denunciado' => $usuarioDenunciado?->id]);
-                
-            } elseif ($request->filled('oferta_id')) {
-                Log::info('Buscando oferta con ID:', ['oferta_id' => $request->oferta_id]);
-                
-                // Buscar la oferta
-                $oferta = OfertaAdopcion::where('id_oferta', $request->oferta_id)
-                    ->with('mascota')
-                    ->first();
-                
-                if (!$oferta) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'La oferta no existe'
-                    ], 404);
-                }
-                
-                Log::info('Oferta encontrada:', [
-                    'id_oferta' => $oferta->id_oferta,
-                    'id_mascota' => $oferta->id_mascota
-                ]);
-                
-                $mascota = $oferta->mascota;
-                $usuarioDenunciado = $mascota->usuario;
-                Log::info('Mascota de la oferta:', ['mascota_id' => $mascota->id]);
-                
-            } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Debe proporcionar mascota_id u oferta_id'
-                ], 400);
-            }
-
-            // Verificar que no se está denunciando a uno mismo
-            if ($usuarioDenunciado && $usuarioDenunciado->id === $usuario->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No puedes denunciar tu propia mascota'
-                ], 400);
-            }
-
-            // Verificar si ya existe una denuncia pendiente similar
-            $denunciaExistente = Denuncia::where('usuario_id', $usuario->id)
-                ->where('mascota_id', $mascota->id)
-                ->where('categoria', $request->categoria)
-                ->where('estado', 'pendiente')
-                ->first();
-
-            if ($denunciaExistente) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ya has realizado una denuncia similar para esta mascota'
-                ], 400);
-            }
-
-            // Crear la denuncia
-            $denunciaData = [
-                'usuario_id' => $usuario->id,
-                'mascota_id' => $mascota->id,
-                'usuario_denunciado_id' => $usuarioDenunciado?->id,
-                'categoria' => $request->categoria,
-                'subcategoria' => $request->subcategoria,
-                'descripcion' => $request->descripcion,
-                'estado' => 'pendiente'
+            // Validación dinámica según el tipo de denuncia
+            $rules = [
+                'tipo' => 'required|in:mascota,usuario,oferta',
+                'categoria' => 'required|string|in:' . implode(',', Denuncia::CATEGORIAS),
+                'subcategoria' => 'required|string',
+                'descripcion' => 'nullable|string|max:1000',
             ];
 
-            // CAMBIO AQUÍ: 'oferta_id' → 'id_oferta'
-            if ($oferta) {
-                $denunciaData['id_oferta'] = $oferta->id_oferta;  // CAMBIADO
+            // Agregar reglas según el tipo
+            if ($request->tipo === 'mascota') {
+                $rules['mascota_id'] = 'required|exists:mascotas,id';
+            } elseif ($request->tipo === 'usuario') {
+                $rules['usuario_denunciado_id'] = 'required|exists:users,id|different:usuario_id';
+            } elseif ($request->tipo === 'oferta') {
+                $rules['oferta_id'] = [
+                    'required',
+                    function ($attribute, $value, $fail) {
+                        if (!OfertaAdopcion::where('id_oferta', $value)->exists()) {
+                            $fail('La oferta seleccionada no existe.');
+                        }
+                    }
+                ];
             }
 
-            Log::info('Creando denuncia con datos:', $denunciaData);
-            
-            $denuncia = Denuncia::create($denunciaData);
-
-            Log::info('Denuncia creada exitosamente:', ['denuncia_id' => $denuncia->id]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Denuncia registrada correctamente. Se revisará en breve.',
-                'data' => $denuncia
-            ], 201);
-
-        } catch (\Exception $e) {
-            Log::error('Error al crear denuncia:', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request_data' => $request->all(),
-                'user_id' => Auth::id()
+            $validator = Validator::make($request->all(), $rules, [
+                'mascota_id.exists' => 'La mascota seleccionada no existe.',
+                'usuario_denunciado_id.exists' => 'El usuario denunciado no existe.',
+                'usuario_denunciado_id.different' => 'No puedes denunciarte a ti mismo.',
+                'categoria.in' => 'La categoría seleccionada no es válida.',
             ]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al registrar la denuncia',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno del servidor'
-            ], 500);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error de validación',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            try {
+                $usuario = Auth::user();
+                
+                // Verificar auto-denuncia para usuarios
+                if ($request->tipo === 'usuario' && $request->usuario_denunciado_id == $usuario->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No puedes denunciarte a ti mismo'
+                    ], 400);
+                }
+
+                // Variables para la denuncia
+                $mascotaId = null;
+                $usuarioDenunciadoId = null;
+                $idOferta = null;
+                $verificarDuplicado = [];
+
+                // Procesar según el tipo
+                if ($request->tipo === 'mascota') {
+                    $mascota = Mascota::find($request->mascota_id);
+                    $usuarioDenunciadoId = $mascota->usuario_id;
+                    $mascotaId = $mascota->id;
+                    $verificarDuplicado = ['mascota_id' => $mascotaId];
+                    
+                    // Verificar que no se denuncia propia mascota
+                    if ($usuarioDenunciadoId == $usuario->id) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'No puedes denunciar tu propia mascota'
+                        ], 400);
+                    }
+                    
+                } elseif ($request->tipo === 'oferta') {
+                    $oferta = OfertaAdopcion::where('id_oferta', $request->oferta_id)
+                        ->with('mascota')
+                        ->first();
+                    $mascota = $oferta->mascota;
+                    $usuarioDenunciadoId = $mascota->usuario_id;
+                    $mascotaId = $mascota->id;
+                    $idOferta = $oferta->id_oferta;
+                    $verificarDuplicado = ['mascota_id' => $mascotaId, 'id_oferta' => $idOferta];
+                    
+                    // Verificar que no se denuncia propia mascota
+                    if ($usuarioDenunciadoId == $usuario->id) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'No puedes denunciar tu propia mascota'
+                        ], 400);
+                    }
+                    
+                } elseif ($request->tipo === 'usuario') {
+                    $usuarioDenunciadoId = $request->usuario_denunciado_id;
+                    $verificarDuplicado = ['usuario_denunciado_id' => $usuarioDenunciadoId];
+                }
+
+                // Verificar si ya existe una denuncia pendiente similar
+                $consultaDuplicado = Denuncia::where('usuario_id', $usuario->id)
+                    ->where('categoria', $request->categoria)
+                    ->where('estado', 'pendiente');
+
+                foreach ($verificarDuplicado as $campo => $valor) {
+                    $consultaDuplicado->where($campo, $valor);
+                }
+
+                $denunciaExistente = $consultaDuplicado->first();
+
+                if ($denunciaExistente) {
+                    $mensaje = $request->tipo === 'usuario' 
+                        ? 'Ya has realizado una denuncia similar para este usuario'
+                        : 'Ya has realizado una denuncia similar';
+                    
+                    return response()->json([
+                        'success' => false,
+                        'message' => $mensaje
+                    ], 400);
+                }
+
+                // Crear la denuncia
+                $denunciaData = [
+                    'usuario_id' => $usuario->id,
+                    'mascota_id' => $mascotaId,
+                    'usuario_denunciado_id' => $usuarioDenunciadoId,
+                    'id_oferta' => $idOferta,
+                    'categoria' => $request->categoria,
+                    'subcategoria' => $request->subcategoria,
+                    'descripcion' => $request->descripcion,
+                    'estado' => 'pendiente'
+                ];
+
+                Log::info('Creando denuncia:', $denunciaData);
+                
+                $denuncia = Denuncia::create($denunciaData);
+
+                Log::info('Denuncia creada:', ['id' => $denuncia->id]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Denuncia registrada correctamente. Se revisará en breve.',
+                    'data' => $denuncia
+                ], 201);
+
+            } catch (\Exception $e) {
+                Log::error('Error al crear denuncia:', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error al registrar la denuncia',
+                    'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno del servidor'
+                ], 500);
+            }
         }
-    }
 
     /**
      * Obtener las categorías y subcategorías de denuncias

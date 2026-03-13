@@ -1153,4 +1153,112 @@ class SolicitudAdopcionController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Verificar si el usuario actual tiene una solicitud activa para una mascota específica
+     */
+    public function verificarSolicitudActiva($mascotaId)
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            $solicitudActiva = SolicitudAdopcion::where('idUsuarioSolicitante', $user->id)
+                ->where('idMascota', $mascotaId)
+                ->whereIn('estadoSolicitud', ['pendiente', 'aprobada'])
+                ->first();
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'tieneSolicitudActiva' => !is_null($solicitudActiva),
+                    'solicitud' => $solicitudActiva ? [
+                        'id' => $solicitudActiva->idSolicitud,
+                        'estado' => $solicitudActiva->estadoSolicitud,
+                        'fecha' => $solicitudActiva->fechaSolicitud
+                    ] : null
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al verificar solicitud activa:', [
+                'error' => $e->getMessage(),
+                'mascota_id' => $mascotaId
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al verificar solicitud',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Error interno'
+            ], 500);
+        }
+    }
+
+    /**
+     * Verificar solicitudes activas para múltiples mascotas
+     */
+    // Versión aún más optimizada con JOIN directo
+    public function verificarSolicitudesMultiples(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            $validator = Validator::make($request->all(), [
+                'mascotas_ids' => 'required|array',
+                'mascotas_ids.*' => 'integer|exists:mascotas,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $mascotasIds = $request->mascotas_ids;
+            $userId = $user->id;
+            
+            // 🔥 VERSIÓN CON ELOQUENT (más compatible)
+            $solicitudes = SolicitudAdopcion::where('idUsuarioSolicitante', $userId)
+                ->whereIn('idMascota', $mascotasIds)
+                ->whereIn('estadoSolicitud', ['pendiente', 'aprobada'])
+                ->get()
+                ->keyBy('idMascota'); // Indexar por ID de mascota
+
+            $resultados = [];
+            foreach ($mascotasIds as $mascotaId) {
+                $solicitud = $solicitudes->get($mascotaId);
+                $resultados[$mascotaId] = [
+                    'mascotaId' => (int) $mascotaId,
+                    'tieneSolicitudActiva' => !is_null($solicitud),
+                    'solicitud' => $solicitud ? [
+                        'id' => $solicitud->idSolicitud,
+                        'estado' => $solicitud->estadoSolicitud,
+                        'fecha' => $solicitud->fechaSolicitud
+                    ] : null
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'resultados' => $resultados,
+                    'total_con_solicitud' => $solicitudes->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al verificar solicitudes'
+            ], 500);
+        }
+    }
 }
