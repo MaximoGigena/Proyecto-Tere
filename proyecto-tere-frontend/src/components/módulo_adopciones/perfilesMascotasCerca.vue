@@ -1,7 +1,7 @@
 <!-- perfilesMascotasCerca.vue -->
 <template>
   <div class="flex flex-col h-screen bg-white relative">
-    <!-- Header fijo -->
+    <!-- Header fijo (sin cambios) -->
     <div class="sticky top-0 z-30 bg-white px-4 py-1 flex items-center justify-between shadow-sm">
       <h1 class="text-2xl font-bold text-gray-800">Mascotas cerca de ti</h1>
       <button
@@ -36,25 +36,7 @@
       </div>
       
       <!-- SI NO ESTÁ CARGANDO Y NO HAY ERROR -->
-      <div v-else>
-        <!-- Filtros activos (siempre visible cuando hay filtros) -->
-        <div v-if="filtrosActivos" class="mb-4 p-3 bg-blue-50 rounded-lg">
-          <div class="flex items-center justify-between">
-            <div class="flex flex-wrap gap-2">
-              <span v-for="(value, key) in filtrosActuales" :key="key" 
-                    class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
-                {{ key }}: {{ Array.isArray(value) ? value.join(', ') : value }}
-                <button @click="removerFiltro(key)" class="ml-2 text-blue-600 hover:text-blue-800">
-                  ×
-                </button>
-              </span>
-            </div>
-            <button @click="limpiarTodosFiltros" class="text-sm text-blue-600 hover:text-blue-800">
-              Limpiar todos
-            </button>
-          </div>
-        </div>
-        
+      <div v-else>        
         <!-- No results state -->
         <div v-if="ofertas.length === 0" class="text-center p-8">
           <p class="text-gray-500">No hay mascotas disponibles para adopción en este momento</p>
@@ -68,22 +50,33 @@
           <div
             v-for="(oferta) in ofertas"
             :key="oferta.id_oferta"
-            class="text-center"
+            class="text-center relative"
+            :data-mascota-id="oferta.mascota.id"
           >
+            <!-- 🔥 BADGE DE SOLICITUD ACTIVA -->
+            <div 
+              v-if="solicitudesActivasMap.get(oferta.mascota.id)?.tieneSolicitudActiva"
+              class="absolute -top-2 -right-2 z-10 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg animate-pulse"
+            >
+              ¡Solicitud enviada!
+            </div>
+            
             <router-link :to="{
               path: `/explorar/cerca/${oferta.id_oferta}`,
               query: { 
                 from: 'cerca',
                 mascota_id: oferta.mascota.id,
-                oferta_id: oferta.id_oferta
+                oferta_id: oferta.id_oferta,
+                tiene_solicitud: solicitudesActivasMap.get(oferta.mascota.id)?.tieneSolicitudActiva ? '1' : '0'
               }
             }" class="block group">
               <!-- Imagen de la mascota -->
               <div class="relative overflow-hidden rounded-lg shadow group-hover:shadow-lg transition-shadow duration-200">
                 <img
-                  :src="oferta.mascota.foto_principal_url || 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg'"
+                  :src="obtenerFotoMascota(oferta.mascota)"
                   :alt="oferta.mascota.nombre"
                   class="w-[220px] h-[220px] object-cover transform group-hover:scale-105 transition-transform duration-300"
+                  @error="manejarErrorImagen"
                 />
                 <!-- Badge de especie -->
                 <div class="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full">
@@ -94,9 +87,9 @@
               </div>
               
               <!-- Información de la mascota -->
-              <div class="mt-3">
+              <div class="mt-3" v-if="oferta.mascota.edad_relacion">
                 <p class="text-sm text-gray-800">
-                  {{ oferta.mascota.rango_etario }} / 
+                  {{ determinarRangoEtario(oferta.mascota.especie, oferta.mascota.edad_relacion.dias) }} / 
                   {{ oferta.mascota.sexo === 'macho' ? 'Macho' : 'Hembra' }}
                 </p>
                 <p class="text-lg font-semibold text-gray-900 mt-1">{{ oferta.mascota.nombre }}</p>
@@ -106,25 +99,25 @@
         </div>
       </div>
     </div>
+    
     <!-- Overlay de filtros -->
-    <transition name="fade">
+    <transition name="fade-overlay">
       <div 
-        v-if="mostrarOverlay" 
+        v-show="mostrarOverlay" 
         class="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4"
-        @click.self="mostrarOverlay = false"
+        @click.self="cerrarOverlayFondo"
       >
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
           <div class="p-4 max-w-xl mx-auto">
             <div class="flex justify-between items-center mb-4">
               <h2 class="text-xl font-bold text-gray-800">Filtrar Mascotas</h2>
-              <button @click="mostrarOverlay = false" class="text-gray-500 hover:text-gray-700">
+              <button @click="cerrarOverlay" class="text-gray-500 hover:text-gray-700">
                 <font-awesome-icon :icon="['fas', 'times']" class="text-3xl" />
               </button>
             </div>
             <!-- Componente de filtros -->
             <FiltrosComponente 
-              v-if="mostrarOverlay"  
-              @cerrar="cerrarOverlaySuave" 
+              @cerrar="cerrarOverlay" 
               @filtrar="aplicarFiltros"
               :key="overlayKey"  
             />
@@ -132,14 +125,11 @@
         </div>
       </div>
     </transition>
-    
-     <!-- Overlay para mostrar el perfil de la mascota -->
-    <!-- Eliminamos este overlay porque se maneja con router -->
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import FiltrosComponente from './filtrosAdopciones.vue'
@@ -154,6 +144,14 @@ const filtrosActuales = ref({})
 const ubicacionUsuario = ref(null)
 const ubicacionCargada = ref(false)
 
+// 🔥 NUEVO: Mapa de solicitudes activas
+const solicitudesActivasMap = ref(new Map())
+const verificandoSolicitudes = ref(false)
+
+// Cache para solicitudes
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
+const solicitudesCache = ref(new Map())
+
 // Computed para verificar si hay filtros activos
 const filtrosActivos = computed(() => {
   return Object.keys(filtrosActuales.value).length > 0
@@ -163,26 +161,186 @@ const filtrosActivos = computed(() => {
 const endpointAAUsar = computed(() => {
   const filtros = filtrosActuales.value;
   
-  console.log('📍 Determinando endpoint basado en filtros:', filtros);
-  
-  // Si hay latitud y longitud en los filtros, usar jerarquía de ubicación
   if (filtros.latitud && filtros.longitud) {
-    console.log('📍 Usando JERARQUÍA DE UBICACIÓN (hay ubicación específica)');
     return '/api/adopciones/jerarquia-ubicacion';
   }
   
-  // Si no hay ubicación específica pero el usuario tiene ubicación, usar proximidad
   if (ubicacionCargada.value) {
-    console.log('📍 Usando PROXIMIDAD (ubicación del usuario)');
     return '/api/adopciones/proximidad';
   }
   
-  // Si no hay ubicación del usuario, usar ofertas normales
-  console.log('📍 Usando OFERTAS NORMALES (sin ubicación)');
   return '/api/adopciones/ofertas-disponibles';
 });
 
-// Función para obtener la ubicación del usuario
+// ============================================
+// 🔥 FUNCIÓN PRINCIPAL: Verificar solicitudes en lote
+// ============================================
+async function verificarSolicitudesEnLote(mascotasIds) {
+  if (!mascotasIds.length || verificandoSolicitudes.value) return
+  
+  console.log('🔍 Verificando solicitudes para', mascotasIds.length, 'mascotas')
+  
+  // Filtrar IDs que no están en cache o están expirados
+  const ahora = Date.now()
+  const idsAVerificar = mascotasIds.filter(id => {
+    const cache = solicitudesCache.value.get(id)
+    return !cache || (ahora - cache.timestamp) > CACHE_DURATION
+  })
+  
+  if (!idsAVerificar.length) {
+    console.log('✅ Usando datos en cache para todas las mascotas')
+    return
+  }
+  
+  console.log('🔄 Verificando', idsAVerificar.length, 'mascotas nuevas')
+  
+  try {
+    verificandoSolicitudes.value = true
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    
+    const response = await axios.post('/api/solicitudes/verificar-multiples',
+      { mascotas_ids: idsAVerificar },
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    )
+    
+    if (response.data.success) {
+      const resultados = response.data.data.resultados
+      
+      // Actualizar cache y mapa
+      const nuevoMapa = new Map(solicitudesActivasMap.value)
+      
+      Object.values(resultados).forEach(resultado => {
+        nuevoMapa.set(resultado.mascotaId, {
+          ...resultado,
+          timestamp: Date.now()
+        })
+        
+        // Actualizar cache
+        solicitudesCache.value.set(resultado.mascotaId, {
+          ...resultado,
+          timestamp: Date.now()
+        })
+      })
+      
+      solicitudesActivasMap.value = nuevoMapa
+      console.log('✅ Mapa de solicitudes actualizado:', solicitudesActivasMap.value.size)
+    }
+  } catch (error) {
+    console.error('❌ Error verificando solicitudes en lote:', error)
+  } finally {
+    verificandoSolicitudes.value = false
+  }
+}
+
+// ============================================
+// 🔥 MODIFICAR cargarOfertas para incluir verificación
+// ============================================
+const cargarOfertas = async () => {
+  cargando.value = true
+  error.value = null
+  
+  try {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    
+    if (!token) {
+      throw new Error('No hay token de autenticación')
+    }
+    
+    console.log('📍 Cargando ofertas...')
+    console.log('📍 Filtros actuales:', filtrosActuales.value)
+    
+    const endpoint = endpointAAUsar.value;
+    let params = { ...filtrosActuales.value };
+    
+    const response = await axios.get(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      },
+      params: params
+    })
+    
+    if (response.data.success) {
+      ofertas.value = response.data.data || []
+      console.log(`✅ Cargadas ${ofertas.value.length} ofertas`)
+      
+      // 🔥 DESPUÉS DE CARGAR OFERTAS, VERIFICAR SOLICITUDES
+      if (ofertas.value.length > 0) {
+        const mascotasIds = ofertas.value
+          .map(oferta => oferta.mascota?.id)
+          .filter(id => id && id !== 'demo-burro')
+        
+        await verificarSolicitudesEnLote(mascotasIds)
+      }
+    } else {
+      throw new Error(response.data.message || 'Error al cargar ofertas')
+    }
+  } catch (err) {
+    console.error('❌ Error al cargar ofertas:', err)
+    error.value = err.response?.data?.message || err.message || 'Error al cargar las ofertas'
+  } finally {
+    cargando.value = false
+  }
+}
+
+// ============================================
+// 🔥 NUEVO: Verificar cuando el usuario hace scroll (opcional)
+// ============================================
+const scrollContainer = ref(null)
+let scrollTimeout = null
+
+function handleScroll() {
+  if (scrollTimeout) clearTimeout(scrollTimeout)
+  
+  scrollTimeout = setTimeout(() => {
+    if (!scrollContainer.value || ofertas.value.length === 0) return
+    
+    // Encontrar elementos visibles
+    const elementos = document.querySelectorAll('[data-mascota-id]')
+    const idsVisibles = []
+    
+    elementos.forEach(el => {
+      const rect = el.getBoundingClientRect()
+      const isVisible = rect.top < window.innerHeight && rect.bottom > 0
+      
+      if (isVisible) {
+        const mascotaId = el.dataset.mascotaId
+        if (mascotaId && !solicitudesActivasMap.value.has(mascotaId)) {
+          idsVisibles.push(parseInt(mascotaId))
+        }
+      }
+    })
+    
+    if (idsVisibles.length > 0) {
+      verificarSolicitudesEnLote(idsVisibles)
+    }
+  }, 200)
+}
+
+// ============================================
+// 🔥 FUNCIÓN PARA ACTUALIZAR DESPUÉS DE CREAR SOLICITUD
+// ============================================
+function actualizarSolicitud(mascotaId, tieneSolicitud) {
+  const nuevoMapa = new Map(solicitudesActivasMap.value)
+  nuevoMapa.set(mascotaId, {
+    mascotaId,
+    tieneSolicitudActiva: tieneSolicitud,
+    solicitud: tieneSolicitud ? { id: Date.now() } : null,
+    timestamp: Date.now()
+  })
+  solicitudesActivasMap.value = nuevoMapa
+  
+  // Actualizar cache
+  solicitudesCache.value.set(mascotaId, {
+    mascotaId,
+    tieneSolicitudActiva: tieneSolicitud,
+    timestamp: Date.now()
+  })
+}
+
+// ============================================
+// FUNCIONES EXISTENTES (sin cambios)
+// ============================================
 const obtenerUbicacionUsuario = async () => {
   try {
     const token = localStorage.getItem('token') || sessionStorage.getItem('token')
@@ -193,16 +351,10 @@ const obtenerUbicacionUsuario = async () => {
     
     console.log('📍 Intentando obtener ubicación del usuario...')
     
-    // PRIMERO: Intentar con la ruta correcta
     try {
       const response = await axios.get('/api/user/location', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       })
-      
-      console.log('📍 Respuesta de /api/user/location:', response.data)
       
       if (response.data.success && response.data.data) {
         ubicacionUsuario.value = {
@@ -212,25 +364,17 @@ const obtenerUbicacionUsuario = async () => {
           state: response.data.data.state,
           country: response.data.data.country
         }
-        
         ubicacionCargada.value = true
-        console.log('📍 Ubicación obtenida:', ubicacionUsuario.value)
         return true
       }
     } catch (err) {
-      console.log('📍 /api/user/location falló, intentando alternativa...', err.message)
+      console.log('📍 /api/user/location falló, intentando alternativa...')
     }
     
-    // SEGUNDO: Intentar directamente desde el perfil del usuario
     try {
       const userResponse = await axios.get('/api/user', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       })
-      
-      console.log('📍 Respuesta de /api/user:', userResponse.data)
       
       if (userResponse.data && userResponse.data.ubicacionActual) {
         ubicacionUsuario.value = {
@@ -240,9 +384,7 @@ const obtenerUbicacionUsuario = async () => {
           state: userResponse.data.ubicacionActual.state,
           country: userResponse.data.ubicacionActual.country
         }
-        
         ubicacionCargada.value = true
-        console.log('📍 Ubicación obtenida del perfil:', ubicacionUsuario.value)
         return true
       }
     } catch (err) {
@@ -250,14 +392,12 @@ const obtenerUbicacionUsuario = async () => {
     }
     
     return false
-    
   } catch (err) {
     console.warn('⚠️ Error general obteniendo ubicación:', err.message)
     return false
   }
 }
 
-// Función para solicitar permisos de ubicación
 const solicitarPermisosUbicacion = () => {
   if (!navigator.geolocation) {
     console.error('Geolocalización no soportada por el navegador')
@@ -273,17 +413,12 @@ const solicitarPermisosUbicacion = () => {
         const token = localStorage.getItem('token') || sessionStorage.getItem('token')
         const { latitude, longitude, accuracy } = position.coords
         
-        console.log('📍 Ubicación obtenida del navegador:', { latitude, longitude, accuracy })
-        
-        // Obtener nombre de la ubicación usando reverse geocoding
         let locationName = {}
         try {
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`
           )
           const data = await response.json()
-          
-          console.log('📍 Datos de geocoding:', data)
           
           locationName = {
             city: data.address?.city || data.address?.town || data.address?.village,
@@ -292,8 +427,6 @@ const solicitarPermisosUbicacion = () => {
             country_code: data.address?.country_code
           }
         } catch (e) {
-          console.warn('📍 No se pudo obtener nombre de ubicación:', e.message)
-          // Datos por defecto para Córdoba
           locationName = {
             city: 'Tanti',
             state: 'Córdoba',
@@ -302,7 +435,6 @@ const solicitarPermisosUbicacion = () => {
           }
         }
         
-        // Guardar ubicación en el backend usando la ruta existente
         const ubicacionData = {
           latitude,
           longitude,
@@ -310,15 +442,10 @@ const solicitarPermisosUbicacion = () => {
           ...locationName
         }
         
-        console.log('📍 Enviando datos de ubicación:', ubicacionData)
-        
         await axios.post('/api/guardar-ubicacion', ubicacionData, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         
-        console.log('✅ Ubicación guardada en backend')
-        
-        // Actualizar cache local
         ubicacionUsuario.value = {
           latitude,
           longitude,
@@ -331,9 +458,7 @@ const solicitarPermisosUbicacion = () => {
         localStorage.setItem('user_location_timestamp', new Date().getTime().toString())
         ubicacionCargada.value = true
         
-        // Recargar ofertas con la nueva ubicación
         await cargarOfertas()
-        
       } catch (err) {
         console.error('❌ Error al guardar ubicación:', err)
         error.value = 'Error al guardar la ubicación: ' + err.message
@@ -346,20 +471,18 @@ const solicitarPermisosUbicacion = () => {
       switch(error.code) {
         case error.PERMISSION_DENIED:
           mensajeError += 'Permiso denegado por el usuario.'
-          break;
+          break
         case error.POSITION_UNAVAILABLE:
           mensajeError += 'La información de ubicación no está disponible.'
-          break;
+          break
         case error.TIMEOUT:
           mensajeError += 'La solicitud de ubicación expiró.'
-          break;
+          break
         default:
           mensajeError += 'Error desconocido: ' + error.message
       }
       
       error.value = mensajeError
-      
-      // Intentar cargar ofertas sin ubicación
       cargarOfertas()
     },
     {
@@ -372,263 +495,212 @@ const solicitarPermisosUbicacion = () => {
   return true
 }
 
-const cargarOfertas = async () => {
-  cargando.value = true
-  error.value = null
-  
-  try {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-    
-    if (!token) {
-      throw new Error('No hay token de autenticación')
-    }
-    
-    console.log('📍 Cargando ofertas...')
-    console.log('📍 Filtros actuales:', filtrosActuales.value)
-    
-    // Determinar el endpoint basado en los filtros
-    const endpoint = endpointAAUsar.value;
-    console.log('📍 Endpoint seleccionado:', endpoint)
-    
-    // Preparar parámetros según el endpoint
-    let params = { ...filtrosActuales.value };
-    
-    if (endpoint === '/api/adopciones/proximidad') {
-      // Para proximidad: eliminar parámetros de ubicación específica
-      delete params.latitud;
-      delete params.longitud;
-      delete params.ubicacion;
-      delete params.ciudad;
-      delete params.provincia;
-      delete params.radio_km;
-      
-      // Solo enviar distancia máxima si está especificada
-      if (!params.distancia_maxima) {
-        delete params.distancia_maxima;
-      }
-      
-      console.log('📍 Parámetros para proximidad:', params)
-      
-    } else if (endpoint === '/api/adopciones/jerarquia-ubicacion') {
-      // Para jerarquía de ubicación: incluir parámetro para mostrar ofertas cerca del usuario
-      params.incluir_cerca_usuario = true;
-      
-      console.log('📍 Parámetros para jerarquía:', params)
-      
-    } else {
-      // Para ofertas normales: limpiar parámetros innecesarios
-      console.log('📍 Parámetros para ofertas normales:', params)
-    }
-    
-    // Hacer la petición
-    const response = await axios.get(endpoint, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
-      },
-      params: params
-    })
-    
-    console.log('📍 RESPUESTA API:', response.data)
-    
-    if (response.data.success) {
-      ofertas.value = response.data.data || []
-      console.log(`✅ CARGADAS ${ofertas.value.length} OFERTAS`)
-      
-      // Mostrar información de jerarquía si existe
-      if (response.data.jerarquia) {
-        console.log('📊 Jerarquía de ubicación:', response.data.jerarquia)
-        
-        // Mostrar información detallada de cada oferta
-        ofertas.value.forEach((oferta, index) => {
-          console.log(`📍 Oferta ${index}:`, {
-            nombre: oferta.mascota?.nombre,
-            distancia: oferta.distancia,
-            distancia_km: oferta.distancia_km,
-            ubicacion: oferta.mascota?.ubicacion_texto,
-            jerarquia: oferta.jerarquia?.label,
-            nivel: oferta.jerarquia?.nivel,
-            distancia_desde_seleccionada: oferta.jerarquia?.distancia_desde_seleccionada
-          })
-        })
-      } else if (response.data.estadisticas) {
-        console.log('📊 Estadísticas:', response.data.estadisticas)
-      }
-      
-      // Si no hay ofertas
-      if (ofertas.value.length === 0) {
-        let mensaje = 'No hay mascotas disponibles para adopción ';
-        
-        if (filtrosActuales.value.ubicacion) {
-          mensaje += `en ${filtrosActuales.value.ubicacion}`;
-        } else if (ubicacionCargada.value) {
-          mensaje += 'cerca de ti';
-        }
-        
-        mensaje += ' con los filtros actuales.';
-        error.value = mensaje;
-      }
-    } else {
-      throw new Error(response.data.message || 'Error al cargar ofertas')
-    }
-  } catch (err) {
-    console.error('❌ Error al cargar ofertas:', err)
-    console.error('Detalles:', err.response?.data)
-    
-    // Si la ruta de jerarquía no existe, intentar con proximidad
-    if (err.response?.status === 404 && endpointAAUsar.value === '/api/adopciones/jerarquia-ubicacion') {
-      console.log('📍 Ruta de jerarquía no encontrada, intentando con proximidad...')
-      // Intentar con proximidad como fallback
-      try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-        const params = { ...filtrosActuales.value };
-        delete params.latitud;
-        delete params.longitud;
-        delete params.ubicacion;
-        delete params.ciudad;
-        delete params.provincia;
-        delete params.radio_km;
-        
-        const response = await axios.get('/api/adopciones/proximidad', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json'
-          },
-          params: params
-        })
-        
-        if (response.data.success) {
-          ofertas.value = response.data.data || []
-          console.log(`✅ CARGADAS ${ofertas.value.length} OFERTAS (fallback a proximidad)`)
-          error.value = null
-        }
-      } catch (fallbackErr) {
-        error.value = fallbackErr.response?.data?.message || fallbackErr.message || 'Error al cargar las ofertas'
-      }
-    } else if (err.response?.status === 401) {
-      error.value = 'Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.'
-    } else {
-      error.value = err.response?.data?.message || err.message || 'Error al cargar las ofertas'
-    }
-  } finally {
-    cargando.value = false
-  }
-}
-
 const aplicarFiltros = (nuevosFiltros) => {
-  console.log('🎯 NUEVOS FILTROS RECIBIDOS:', nuevosFiltros)
-  
-  // Extraer valores REALES de los proxies de Vue
   const filtrosReales = {}
   
   for (const key in nuevosFiltros) {
     const valor = nuevosFiltros[key]
     
     if (Array.isArray(valor)) {
-      // Si es array (puede ser proxy), extraer valores
       filtrosReales[key] = [...valor]
     } else if (valor && typeof valor === 'object') {
-      // Si es objeto (proxy), extraer propiedades
       filtrosReales[key] = { ...valor }
     } else {
       filtrosReales[key] = valor
     }
   }
   
-  console.log('🎯 FILTROS REALES:', filtrosReales)
-  
-  // Actualizar filtros actuales con valores REALES, no proxies
   filtrosActuales.value = { ...filtrosReales }
-  
-  // Guardar filtros en localStorage para persistencia
-  localStorage.setItem('ultimos_filtros', JSON.stringify(filtrosActuales.value));
-  
-  // Recargar ofertas
+  localStorage.setItem('ultimos_filtros', JSON.stringify(filtrosActuales.value))
   cargarOfertas()
   mostrarOverlay.value = false
 }
 
 const removerFiltro = (filtro) => {
-  console.log('🗑️ Eliminando filtro:', filtro)
-  
-  // Eliminar el filtro específico
   const { [filtro]: _, ...restoFiltros } = filtrosActuales.value
   filtrosActuales.value = restoFiltros
-  
-  // Actualizar localStorage
-  localStorage.setItem('ultimos_filtros', JSON.stringify(filtrosActuales.value));
-  
-  console.log('📍 Filtros después de eliminar:', filtrosActuales.value)
-  
-  // Recargar ofertas
+  localStorage.setItem('ultimos_filtros', JSON.stringify(filtrosActuales.value))
   cargarOfertas()
 }
 
 const limpiarTodosFiltros = () => {
-  console.log('🗑️ Limpiando todos los filtros')
-  
   filtrosActuales.value = {}
-  localStorage.removeItem('ultimos_filtros');
-  
+  localStorage.removeItem('ultimos_filtros')
   cargarOfertas()
 }
 
-// Cargar filtros guardados al inicio
 const cargarFiltrosGuardados = () => {
   try {
-    const filtrosGuardados = localStorage.getItem('ultimos_filtros');
+    const filtrosGuardados = localStorage.getItem('ultimos_filtros')
     if (filtrosGuardados) {
-      filtrosActuales.value = JSON.parse(filtrosGuardados);
-      console.log('📋 Filtros cargados desde localStorage:', filtrosActuales.value);
+      filtrosActuales.value = JSON.parse(filtrosGuardados)
     }
   } catch (e) {
-    console.warn('⚠️ Error cargando filtros guardados:', e);
+    console.warn('⚠️ Error cargando filtros guardados:', e)
   }
 }
 
+const obtenerFotoMascota = (mascota) => {
+  if (!mascota) return 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg'
+  
+  if (mascota.foto_principal_url) {
+    return mascota.foto_principal_url
+  }
+  
+  if (mascota.foto_principal && mascota.foto_principal.url) {
+    return mascota.foto_principal.url
+  }
+  
+  if (mascota.fotos && mascota.fotos.length > 0) {
+    if (typeof mascota.fotos[0] === 'string') {
+      return mascota.fotos[0]
+    } else if (mascota.fotos[0].url) {
+      return mascota.fotos[0].url
+    }
+  }
+  
+  return 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg'
+}
+
+const manejarErrorImagen = (event) => {
+  event.target.src = 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg'
+}
+
+const determinarRangoEtario = (especie, dias) => {
+  if (dias === null || dias === undefined) return 'Edad no disponible'
+  
+  const especieLower = (especie || 'otro').toLowerCase()
+  
+  const rangos = {
+    'canino': {
+      'cachorro': { min: 0, max: 365 },
+      'joven': { min: 366, max: 1095 },
+      'adulto': { min: 1096, max: 3285 },
+      'abuelo': { min: 3286, max: 999999 }
+    },
+    'felino': {
+      'cachorro': { min: 0, max: 365 },
+      'joven': { min: 366, max: 1460 },
+      'adulto': { min: 1461, max: 3650 },
+      'abuelo': { min: 3651, max: 999999 }
+    },
+    'equino': {
+      'cachorro': { min: 0, max: 730 },
+      'joven': { min: 731, max: 1825 },
+      'adulto': { min: 1826, max: 5475 },
+      'abuelo': { min: 5476, max: 999999 }
+    }
+  }
+  
+  const rangosEspecie = rangos[especieLower] || {
+    'cachorro': { min: 0, max: 365 },
+    'joven': { min: 366, max: 1095 },
+    'adulto': { min: 1096, max: 3285 },
+    'abuelo': { min: 3286, max: 999999 }
+  }
+  
+  for (const [rango, limites] of Object.entries(rangosEspecie)) {
+    if (dias >= limites.min && dias <= limites.max) {
+      return rango.charAt(0).toUpperCase() + rango.slice(1)
+    }
+  }
+  
+  return 'Adulto'
+}
+
+const obtenerInfoEdad = (mascota) => {
+  if (mascota.edad_relacion) {
+    const edad = mascota.edad_relacion
+    const rango = determinarRangoEtario(mascota.especie, edad.dias)
+    
+    return {
+      formateada: edad.edad_formateada || 'Edad no disponible',
+      rango: rango,
+      dias: edad.dias,
+      años: edad.años,
+      meses: edad.meses
+    }
+  }
+  
+  return {
+    formateada: 'Edad no disponible',
+    rango: 'Desconocido',
+    dias: null
+  }
+}
+
+const cerrarOverlayFondo = () => {
+  mostrarOverlay.value = false
+  overlayKey.value++
+}
+
+const cerrarOverlay = () => {
+  mostrarOverlay.value = false
+  overlayKey.value++
+}
+
+const overlayKey = ref(0)
+
+// ============================================
+// LIFECYCLE HOOKS
+// ============================================
 onMounted(async () => {
   console.log('📍 Componente montado, iniciando carga...')
   
-  // Cargar filtros guardados
-  cargarFiltrosGuardados();
+  cargarFiltrosGuardados()
   
-  // Primero intentar obtener ubicación existente
   const tieneUbicacion = await obtenerUbicacionUsuario()
   
   if (!tieneUbicacion && !filtrosActuales.value.latitud) {
-    console.log('📍 No se obtuvo ubicación, preguntando al usuario...')
-    
-    // Esperar un momento antes de preguntar
     setTimeout(async () => {
       if (confirm('Para mostrar mascotas cerca de ti, necesitamos tu ubicación. ¿Quieres permitir el acceso a tu ubicación?')) {
-        console.log('📍 Usuario aceptó, solicitando permisos...')
         solicitarPermisosUbicacion()
       } else {
-        console.log('📍 Usuario rechazó, cargando ofertas sin ubicación...')
-        // Si no quiere, cargar ofertas sin filtro de proximidad
         await cargarOfertas()
       }
     }, 1000)
   } else {
-    console.log('📍 Ubicación obtenida o filtros existentes, cargando ofertas...')
-    // Si ya tiene ubicación o filtros, cargar ofertas
     await cargarOfertas()
+  }
+  
+  // Agregar listener de scroll para verificación bajo demanda
+  if (scrollContainer.value) {
+    scrollContainer.value.addEventListener('scroll', handleScroll)
   }
 })
 
-// Función para cerrar el overlay
-const cerrarOverlay = () => {
-  // Si estamos en una ruta con ID, volver a la lista
-  if (route.params.id) {
-    router.push('/explorar/cerca')
+// ============================================
+// WATCHERS
+// ============================================
+// 🔥 Escuchar eventos de creación de solicitudes
+watch(() => route.query, (newQuery) => {
+  if (newQuery.solicitud_creada === '1' && newQuery.mascota_id) {
+    actualizarSolicitud(parseInt(newQuery.mascota_id), true)
+    
+    // Limpiar query
+    router.replace({ query: { ...route.query, solicitud_creada: undefined } })
   }
-}
+}, { deep: true })
 
-// Función para cerrar overlay suavemente
-const cerrarOverlaySuave = () => {
-  mostrarOverlay.value = false
-}
-
-// Key para forzar recarga del componente de filtros
-const overlayKey = ref(0)
+// Exportar función para que otros componentes puedan usarla
+defineExpose({
+  actualizarSolicitud
+})
 </script>
+
+<style scoped>
+.fade-overlay-enter-active,
+.fade-overlay-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-overlay-enter-from,
+.fade-overlay-leave-to {
+  opacity: 0;
+}
+
+.fade-overlay-enter-to,
+.fade-overlay-leave-from {
+  opacity: 1;
+}
+</style>

@@ -7,25 +7,23 @@
    <div class="w-11/12 max-w-2xl bg-white h-screen shadow-lg relative flex flex-col">
       <!-- Contenido principal (siempre visible) -->
       <div class="relative w-full h-full">
-    <!-- Contenido principal (siempre visible) -->
-    <router-view v-slot="{ Component }">
-          <component :is="Component" />
-        </router-view>
+        <!-- Contenido principal (siempre visible) -->
+        <router-view v-slot="{ Component }">
+              <component :is="Component" />
+            </router-view>
 
-        <!-- Vista overlay -->
-        <router-view name="overlay" v-slot="{ Component, route }">
-          <transition name="fade">
-            <div v-if="Component" class="fixed inset-0 z-50 bg-black/55 flex justify-center items-center">
-              <!-- Wrapper que limita el ancho -->
-              <div class="w-11/12 max-w-2xl">
-                <component :is="Component" :key="route.fullPath" />
+            <!-- Vista overlay -->
+          <router-view name="overlay" v-slot="{ Component, route }">
+            <transition name="fade">
+              <div v-if="Component" class="fixed inset-0 z-50 bg-black/55 flex justify-center items-center">
+                <!-- Wrapper que limita el ancho -->
+                <div class="w-11/12 max-w-2xl">
+                  <component :is="Component" :key="route.fullPath" />
+                </div>
               </div>
-            </div>
-          </transition>
-        </router-view>
-
-
-  </div>
+            </transition>
+          </router-view>
+      </div>
 
       <!-- Navegación inferior -->
       <div class="absolute bottom-0 w-full bg-white border-t py-2 text-gray-600 flex justify-around z-20">
@@ -118,23 +116,51 @@ const { accessToken, isAuthenticated, setToken } = useAuthToken()
 const activo = ref('encuentros')
 const scrollContainer = ref(null)
 
-// Estado para controlar si ya solicitamos ubicación
-const hasRequestedLocation = ref(false)
+// 🔥 NUEVO: Variable para controlar si YA SOLICITAMOS ubicación en ESTA sesión
+const locationRequestedInSession = ref(false)
 const locationError = ref(null)
 const isSavingLocation = ref(false)
+const locationSaved = ref(false)
 
 // Verificar si hay token en la URL al montar el componente
 onMounted(async () => {
   await handleTokenFromUrl()
   initializeComponent()
+  
+  // 🔥 NUEVO: Verificar si ya tenemos ubicación guardada SOLO si no se ha solicitado antes
+  if (!locationRequestedInSession.value) {
+    await checkExistingLocation()
+  }
 })
 
-// También verificar cuando cambia la ruta
 watch(() => route.query, async (newQuery) => {
   if (newQuery.token) {
     await handleTokenFromUrl()
   }
 })
+
+// 🔥 FUNCIÓN MODIFICADA: Verificar si el usuario ya tiene ubicación guardada
+async function checkExistingLocation() {
+  if (!isAuthenticated.value || locationRequestedInSession.value) return;
+  
+  try {
+    const response = await axios.get('/api/ubicacion', {
+      headers: { Authorization: `Bearer ${accessToken.value}` }
+    });
+    
+    if (response.data.data) {
+      locationSaved.value = true;
+      // 🔥 IMPORTANTE: Marcar como ya solicitado en esta sesión
+      locationRequestedInSession.value = true;
+      console.log('📍 Ubicación ya existente (no se volverá a solicitar):', response.data.data);
+    }
+  } catch (error) {
+    // 404 significa que no tiene ubicación, está bien
+    if (error.response?.status !== 404) {
+      console.error('Error verificando ubicación:', error);
+    }
+  }
+}
 
 async function handleTokenFromUrl() {
   const token = route.query.token
@@ -158,20 +184,33 @@ async function handleTokenFromUrl() {
       const cleanUrl = window.location.pathname
       window.history.replaceState({}, document.title, cleanUrl)
       
-      // 🔥 SOLICITAR UBICACIÓN DESPUÉS DE AUTENTICAR
-      setTimeout(() => {
-        solicitarUbicacionInicial();
-      }, 1000);
+      // 🔥 MEJORADO: Verificar si ya tiene ubicación ANTES de solicitar
+      // PERO solo si no se ha solicitado antes en esta sesión
+      if (!locationRequestedInSession.value) {
+        await checkExistingLocation();
+        
+        // Solo solicitar si NO tiene ubicación guardada
+        if (!locationSaved.value) {
+          // Pequeño delay para mejor UX
+          setTimeout(() => {
+            pedirYGuardarUbicacionUnica();
+          }, 1000);
+        }
+      }
       
     } catch (error) {
       console.error('Error procesando token:', error)
       alert('Error en autenticación. Por favor intenta nuevamente.')
     }
-  } else if (isAuthenticated.value) {
-    // Si ya está autenticado por otro medio, también solicitar ubicación
-    setTimeout(() => {
-      solicitarUbicacionInicial();
-    }, 1000);
+  } else if (isAuthenticated.value && !locationRequestedInSession.value) {
+    // Si ya está autenticado pero no se ha solicitado ubicación en esta sesión
+    await checkExistingLocation();
+    
+    if (!locationSaved.value) {
+      setTimeout(() => {
+        pedirYGuardarUbicacionUnica();
+      }, 1000);
+    }
   }
 }
 
@@ -203,29 +242,19 @@ const isActive = (item) => {
   return route.path.startsWith(item.path.replace(/\/$/, ''))
 }
 
-// 🔥 FUNCIÓN PRINCIPAL: Solicitar ubicación inicial
-async function solicitarUbicacionInicial() {
-  // Evitar múltiples solicitudes
-  if (hasRequestedLocation.value || !isAuthenticated.value) {
+// 🔥 FUNCIÓN PRINCIPAL MODIFICADA: Solicitar ubicación UNA SOLA VEZ por sesión
+async function pedirYGuardarUbicacionUnica() {
+  // 🔥 CRUCIAL: Verificar si YA solicitamos en esta sesión
+  if (locationRequestedInSession.value || !isAuthenticated.value || locationSaved.value) {
+    console.log('📍 Ubicación ya solicitada en esta sesión o no necesaria - Omitiendo');
     return;
   }
   
-  console.log('📍 Iniciando solicitud de ubicación...');
-  
-  // Pequeño delay para mejor UX
-  setTimeout(async () => {
-    await pedirYGuardarUbicacion();
-  }, 1500);
-}
-
-// 🔥 FUNCIÓN MODIFICADA: Usar solicitud nativa del navegador
-async function pedirYGuardarUbicacion() {
-  if (hasRequestedLocation.value) return;
-  
-  hasRequestedLocation.value = true;
+  // Marcar INMEDIATAMENTE como solicitada para evitar múltiples llamadas
+  locationRequestedInSession.value = true;
   locationError.value = null;
   
-  console.log('📍 Iniciando proceso de ubicación...');
+  console.log('📍 INICIANDO SOLICITUD ÚNICA DE UBICACIÓN PARA ESTA SESIÓN...');
   
   // Verificar autenticación
   if (!isAuthenticated.value) {
@@ -235,75 +264,51 @@ async function pedirYGuardarUbicacion() {
 
   if (!navigator.geolocation) {
     locationError.value = 'Tu navegador no soporta geolocalización.';
-    alert('Tu navegador no soporta geolocalización.');
+    mostrarNotificacion('Tu navegador no soporta geolocalización.', 'error');
     return;
   }
 
   try {
-    // 1. Primero verificar el estado del permiso
+    // Verificar el estado del permiso
     const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
     console.log('Estado del permiso:', permissionStatus.state);
 
     if (permissionStatus.state === 'denied') {
-      // Si ya fue denegado, mostrar instrucciones
       mostrarInstruccionesUbicacion();
       return;
     }
 
-    if (permissionStatus.state === 'granted') {
-      // Si ya está permitido, obtener ubicación directamente
-      await obtenerYGuardarUbicacion();
-      return;
-    }
-
-    // 2. Si está en "prompt", usar la solicitud nativa del navegador
-    // Esta será la solicitud que aparece en el margen superior derecho
-    console.log('Solicitando permiso de ubicación...');
+    // Solicitar ubicación UNA VEZ
+    console.log('Solicitando permiso de ubicación (única vez)...');
     
     const position = await new Promise((resolve, reject) => {
-      // 🔥 ESTA LLAMADA ACTIVA LA SOLICITUD NATIVA DEL NAVEGADOR
       navigator.geolocation.getCurrentPosition(
         resolve,
         reject,
         {
           enableHighAccuracy: true,
           timeout: 15000,
-          maximumAge: 0 // Siempre obtener ubicación fresca
+          maximumAge: 0
         }
       );
     });
 
-    // 3. Si el usuario acepta la solicitud nativa, proceder
-    await obtenerYGuardarUbicacion(position);
+    await guardarUbicacionEnServidor(position);
 
   } catch (error) {
     console.error('Error al obtener ubicación:', error);
     manejarErrorUbicacion(error);
-  } finally {
-    hasRequestedLocation.value = false;
   }
 }
 
-// 🔥 FUNCIÓN PARA OBTENER Y GUARDAR UBICACIÓN
-async function obtenerYGuardarUbicacion(position = null) {
+// 🔥 FUNCIÓN PARA GUARDAR UBICACIÓN EN SERVIDOR (separada)
+async function guardarUbicacionEnServidor(position) {
+  if (locationSaved.value) return;
+  
   isSavingLocation.value = true;
   
   try {
-    let latitude, longitude, accuracy;
-    
-    if (position) {
-      // Usar la posición ya obtenida
-      ({ latitude, longitude, accuracy } = position.coords);
-    } else {
-      // Obtener nueva posición
-      const newPosition = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000
-        });
-      });
-      ({ latitude, longitude, accuracy } = newPosition.coords);
-    }
+    const { latitude, longitude, accuracy } = position.coords;
 
     console.log('Ubicación obtenida:', { latitude, longitude, accuracy });
 
@@ -312,7 +317,7 @@ async function obtenerYGuardarUbicacion(position = null) {
       withCredentials: true
     });
 
-    // Enviar ubicación al servidor con reverse geocoding
+    // Enviar ubicación al servidor
     console.log('Enviando ubicación al servidor...');
     const response = await axios.post('/api/guardar-ubicacion', {
       latitude,
@@ -328,14 +333,17 @@ async function obtenerYGuardarUbicacion(position = null) {
       }
     });
 
-    console.log('📍 Ubicación guardada con reverse geocoding:', response.data);
+    console.log('📍 Ubicación guardada exitosamente:', response.data);
+    
+    // 🔥 IMPORTANTE: Marcar como guardada
+    locationSaved.value = true;
     
     // Mostrar mensaje con la ciudad detectada
     const city = response.data.geo_data?.city || response.data.data?.city;
     if (city) {
-      //alert(`¡Perfecto! Ubicación guardada en ${city}. Ahora puedes ver mascotas cerca de ti.`);
+      mostrarNotificacion(`¡Ubicación guardada en ${city}!`, 'success');
     } else {
-      //alert('¡Ubicación guardada correctamente! Ahora puedes ver mascotas cerca de ti.');
+      mostrarNotificacion('¡Ubicación guardada correctamente!', 'success');
     }
 
   } catch (error) {
@@ -346,22 +354,52 @@ async function obtenerYGuardarUbicacion(position = null) {
   }
 }
 
+// 🔥 FUNCIÓN PARA REINTENTAR (SOLO si NO se ha solicitado antes)
+function reintentarUbicacion() {
+  if (!locationRequestedInSession.value) {
+    pedirYGuardarUbicacionUnica();
+  } else {
+    mostrarNotificacion('La ubicación ya fue solicitada en esta sesión', 'info');
+  }
+}
+
+// 🔥 NUEVO: Mostrar notificación no intrusiva
+function mostrarNotificacion(mensaje, tipo = 'info') {
+  // Crear elemento de notificación
+  const notificacion = document.createElement('div');
+  notificacion.className = `fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white ${
+    tipo === 'success' ? 'bg-emerald-500' : tipo === 'error' ? 'bg-red-500' : 'bg-blue-500'
+  } transition-opacity duration-500`;
+  notificacion.textContent = mensaje;
+  
+  document.body.appendChild(notificacion);
+  
+  // Eliminar después de 3 segundos
+  setTimeout(() => {
+    notificacion.style.opacity = '0';
+    setTimeout(() => {
+      document.body.removeChild(notificacion);
+    }, 500);
+  }, 3000);
+}
+
 // 🔥 FUNCIÓN PARA MANEJAR ERRORES
 function manejarErrorUbicacion(error) {
   console.error('Error completo:', error);
   
   if (error.code === 1 || error.code === error.PERMISSION_DENIED) {
-    // Permiso denegado por el usuario
-    mostrarInstruccionesUbicacion();
+    // Permiso denegado por el usuario - solo mostrar instrucciones UNA VEZ
+    if (!localStorage.getItem('location-permission-denied-shown')) {
+      mostrarInstruccionesUbicacion();
+      localStorage.setItem('location-permission-denied-shown', 'true');
+    }
   } else if (error.code === 2 || error.code === error.POSITION_UNAVAILABLE) {
-    alert('No se pudo obtener la ubicación. Verifica que el GPS esté activado.');
+    mostrarNotificacion('No se pudo obtener la ubicación. Verifica el GPS.', 'error');
   } else if (error.code === 3 || error.code === error.TIMEOUT) {
-    alert('Tiempo agotado al obtener la ubicación. Verifica tu conexión y GPS.');
+    mostrarNotificacion('Tiempo agotado al obtener la ubicación.', 'error');
   } else if (error.response?.status === 401) {
-    alert('Sesión expirada. Por favor inicia sesión nuevamente.');
+    mostrarNotificacion('Sesión expirada. Por favor inicia sesión nuevamente.', 'error');
     router.push('/login');
-  } else {
-    alert('Error al obtener tu ubicación. Intenta nuevamente.');
   }
 }
 
@@ -381,15 +419,8 @@ function mostrarInstruccionesUbicacion() {
   const continuar = confirm(mensaje + '\n\n¿Quieres continuar sin activar la ubicación?');
   
   if (!continuar) {
-    // Si el usuario quiere activarla, mostrar instrucciones más detalladas
     alert('Sigue las instrucciones anteriores para activar la ubicación, luego recarga la página.');
   }
-}
-
-// 🔥 FUNCIÓN PARA REINTENTAR (se puede llamar desde otro componente)
-function reintentarUbicacion() {
-  hasRequestedLocation.value = false;
-  pedirYGuardarUbicacion();
 }
 
 onUnmounted(() => {

@@ -54,31 +54,33 @@
       <!-- Notificación de chats -->
       <div class="flex items-center gap-12">
         <!-- Notificación de solicitudes con botón de filtro adentro -->
-        <div class="relative flex items-center justify-between border border-black rounded-full 
+        <div class="relative flex items-center justify-between border border-black rounded-full mt-4 
             bg-white text-black w-full px-4">
   
           <!-- Grupo izquierdo (sobre + texto) -->
           <div class="flex items-center gap-4">
-            <!-- Icono de sobre -->
+            <!-- Icono de sobre (igual) -->
             <div class="w-16 h-16 flex items-center -ml-4 justify-center rounded-full bg-black border-2 border-white">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M20 4H4C2.897 4 2 4.897 2 6v12c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V6c0-1.103-.897-2-2-2zm0 2v.511l-8 5-8-5V6h16zm-16 12V9.489l7.386 4.616a1 1 0 0 0 1.228 0L20 9.489V18H4z"/>
               </svg>
             </div>
 
-            <!-- Texto de notificación -->
-            <span class="text-lg font-semibold text-black">
-              {{ mensajeSolicitudes }}
-            </span>
+            <!-- Texto de notificación con contadores separados -->
+            <div class="flex flex-col">
+              <span class="text-lg font-semibold text-black">
+                {{ mensajeSolicitudes }}
+              </span>
+            </div>
           </div>
 
           <!-- Botón de filtro -->
           <div class="relative">
             <button
               @click="open = !open"
-              class="flex items-center gap-2 px-4 py-2 rounded-full 
-                    bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 
-                    text-white font-medium shadow-lg transition-transform duration-300 hover:scale-105"
+             class="flex items-center gap-2 px-4 py-2 rounded-full 
+              bg-gradient-to-r from-gray-400 via-gray-500 to-gray-600 
+              text-white font-medium shadow-lg transition-transform duration-300 hover:scale-105"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -118,7 +120,7 @@
 
       <!-- Lista de chats -->
       <div v-else>
-        <div v-for="(chat, index) in chats" :key="index" class="relative">
+        <div v-for="(chat, index) in chatsFiltrados" :key="index" class="relative">
           <div class="flex justify-between items-center gap-3 mb-2 min-h-[72px] transition duration-200 hover:bg-blue-100 rounded-xl">
             <router-link
               :to="{
@@ -159,7 +161,7 @@
             
             <button
               @click.stop="toggleFavorite(chat)"
-              class="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 p-2 transition duration-200"
+              class="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 p-2 transition duration-200 mt-2"
               :class="chat.favorito ? 'text-green-400' : 'text-gray-400 hover:text-gray-500'"
             >
               <font-awesome-icon :icon="['fas', 'star']" class="text-2xl"/>
@@ -188,94 +190,45 @@ import { useRouter } from 'vue-router';
 import axios from 'axios';
 import SolicitudesLista from '@/components/ElementosGraficos/ListadoDeSolicitudes.vue';
 import NotificationsOverlay from '@/components/módulo_usuario/NotificacionesOverlay.vue';
+import useNotificaciones from '@/composables/useNotificaciones';
 
 const router = useRouter();
 
+// Usar el composable de notificaciones
+const {
+  notificaciones,
+  estadisticas,
+  cargando: cargandoNotificaciones,
+  error: errorNotificaciones,
+  cargarNotificaciones,
+  hasMore
+} = useNotificaciones();
+
+// Variables locales
 const open = ref(false);
 const selectedFilter = ref(null);
-const filters = ref(["Todas", "Pendientes", "Aprobadas", "Rechazadas"]);
+const filters = ref(["Todos", "Favoritos"]);
 
 // Datos reactivos
 const solicitudesRecibidas = ref([]);
 const chats = ref([]);
 const loadingChats = ref(false);
 const loadingSolicitudes = ref(false);
-
-
-// AÑADE ESTAS NUEVAS PROPIEDADES
 const showNotifications = ref(false);
-const notificaciones = ref([]);
 
-const toggleNotifications = () => {
-  showNotifications.value = !showNotifications.value;
-  // Opcional: cargar notificaciones cuando se abre
-  if (showNotifications.value && notificaciones.value.length === 0) {
-    cargarNotificaciones();
-  }
-};
+// Variables para notificaciones (definidas localmente)
+const totalNoLeidas = ref(0);
 
-// Computed property para el total de notificaciones
+// Computed properties
 const totalNotificaciones = computed(() => {
+  if (estadisticas.value?.no_leidas > 0) return estadisticas.value.no_leidas;
   return notificaciones.value.length;
 });
 
-// Función para cargar notificaciones
-async function cargarNotificaciones() {
-  try {
-    console.log('Cargando notificaciones...');
-    
-    // Ejemplo de API - ajusta según tu backend
-    const response = await axios.get('/api/notificaciones', {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Accept': 'application/json'
-      }
-    });
+const totalChatsActivos = computed(() => {
+  return chats.value.length;
+});
 
-    if (response.data.success) {
-      notificaciones.value = response.data.data.notificaciones || [];
-      console.log(`Cargadas ${notificaciones.value.length} notificaciones`);
-    } else {
-      console.error('Error cargando notificaciones:', response.data);
-      // Datos de ejemplo
-      usarNotificacionesEjemplo();
-    }
-  } catch (err) {
-    console.error('Error cargando notificaciones:', err);
-    // Datos de ejemplo
-    usarNotificacionesEjemplo();
-  }
-}
-
-function usarNotificacionesEjemplo() {
-  console.log('Usando notificaciones de ejemplo');
-  notificaciones.value = [
-    {
-      id: 1,
-      titulo: 'Nueva solicitud de adopción',
-      mensaje: 'Juan ha enviado una solicitud para adoptar a Firulais',
-      tipo: 'info',
-      fecha: '2024-12-20T10:30:00'
-    },
-    {
-      id: 2,
-      titulo: 'Chat no respondido',
-      mensaje: 'Tienes un chat pendiente de respuesta desde hace 2 días',
-      tipo: 'advertencia',
-      fecha: '2024-12-19T15:45:00'
-    },
-    {
-      id: 3,
-      titulo: 'Solicitud aprobada',
-      mensaje: 'La solicitud para adoptar a Luna ha sido aprobada',
-      tipo: 'info',
-      fecha: '2024-12-18T09:15:00'
-    }
-  ];
-}
-
-// Computed properties - IDÉNTICO A LA VERSIÓN VIEJA
-// REEMPLAZA la computed property solicitudesRecibidasFormateadas con esto:
 const solicitudesRecibidasFormateadas = computed(() => {
   console.log('🔄 Formateando solicitudes para ListadoDeSolicitudes:', solicitudesRecibidas.value);
   
@@ -283,35 +236,17 @@ const solicitudesRecibidasFormateadas = computed(() => {
     return [];
   }
   
-  // Formatear EXACTAMENTE como espera ListadoDeSolicitudes.vue
   return solicitudesRecibidas.value.map(solicitud => {
-    console.log('Procesando solicitud:', {
-      id: solicitud.id,
-      solicitud_id: solicitud.solicitud_id,
-      solicitante_id: solicitud.solicitante_id,
-      nombre: solicitud.nombre
-    });
-    
     return {
-      // ID de la solicitud (no del usuario)
       id: solicitud.solicitud_id || solicitud.id,
-      // ID único de la solicitud
       solicitud_id: solicitud.solicitud_id || solicitud.id,
-      // ID del usuario solicitante
-      solicitante_id: solicitud.solicitante_id || solicitud.id, // Fallback
-      // Nombre del solicitante
+      solicitante_id: solicitud.solicitante_id || solicitud.id,
       nombre: solicitud.nombre,
-      // Foto del solicitante
       img: solicitud.img,
-      // ID de la mascota
       mascota_id: solicitud.mascota_id,
-      // Nombre de la mascota
       mascota_nombre: solicitud.mascota_nombre,
-      // Fecha de la solicitud
       fecha_solicitud: solicitud.fecha_solicitud,
-      // Estado
       estado: solicitud.estado,
-      // Clave única para evitar duplicados
       unique_key: `${solicitud.solicitante_id || solicitud.id}_${solicitud.mascota_id}_${solicitud.solicitud_id || solicitud.id}`
     };
   });
@@ -326,13 +261,40 @@ const totalSolicitudes = computed(() => {
 });
 
 const mensajeSolicitudes = computed(() => {
-  const count = totalSolicitudesPendientes.value;
-  if (count === 0) return 'No tienes solicitudes pendientes';
-  if (count === 1) return 'Tienes 1 solicitud de adopción';
-  return `Tienes ${count} solicitudes de adopción`;
+  const solicitudesCount = totalSolicitudesPendientes.value;
+  const chatsCount = totalChatsActivos.value;
+  
+  if (solicitudesCount === 0 && chatsCount === 0) {
+    return 'No tienes solicitudes ni chats activos';
+  }
+  
+  if (solicitudesCount === 0) {
+    return `No tienes solicitudes y ${chatsCount} ${chatsCount === 1 ? 'chat activo' : 'chats activos'}`;
+  }
+  
+  if (chatsCount === 0) {
+    return `${solicitudesCount} ${solicitudesCount === 1 ? 'solicitud' : 'solicitudes'} y 0 chats activos`;
+  }
+  
+  const solicitudText = solicitudesCount === 1 ? 'solicitud' : 'solicitudes';
+  const chatText = chatsCount === 1 ? 'chat activo' : 'chats activos';
+  
+  return `Tienes ${solicitudesCount} ${solicitudText} y ${chatsCount} ${chatText}`;
 });
 
-// Función para formatear fecha
+const chatsFiltrados = computed(() => {
+  if (!selectedFilter.value || selectedFilter.value === 'Todos') {
+    return chats.value;
+  }
+  
+  if (selectedFilter.value === 'Favoritos') {
+    return chats.value.filter(chat => chat.favorito === true);
+  }
+  
+  return chats.value;
+});
+
+// Funciones
 const formatFecha = (fecha) => {
   if (!fecha) return '';
   
@@ -350,7 +312,13 @@ const formatFecha = (fecha) => {
   }
 };
 
-// Funciones para chats
+const toggleNotifications = () => {
+  showNotifications.value = !showNotifications.value;
+  if (showNotifications.value && notificaciones.value.length === 0) {
+    cargarNotificaciones();
+  }
+};
+
 async function cargarChats() {
   try {
     loadingChats.value = true;
@@ -375,7 +343,7 @@ async function cargarChats() {
         mensajes_no_leidos: chat.mensajes_no_leidos || 0,
         solicitud_id: chat.solicitud_id,
         mascota_nombre: chat.mascota_nombre,
-        favorito: false,
+        favorito: chat.favorito || false,
         online: chat.online || false
       }));
       
@@ -393,7 +361,6 @@ async function cargarChats() {
 }
 
 function mantenerDatosEjemplo() {
-  // Datos de ejemplo como en la versión vieja
   console.log('Usando datos de ejemplo para chats');
   chats.value = [{
     id: 1,
@@ -408,15 +375,47 @@ function mantenerDatosEjemplo() {
 
 async function toggleFavorite(chat) {
   try {
+    const chatId = chat.chat_id || chat.id;
+    
+    if (!chatId) {
+      console.error('Error: El chat no tiene ID válido', chat);
+      return;
+    }
+    
+    console.log(`Enviando solicitud para chat ID: ${chatId}`);
+    
+    const estadoAnterior = chat.favorito;
     chat.favorito = !chat.favorito;
-    console.log(`${chat.nombre} favorito:`, chat.favorito);
+    
+    const baseURL = axios.defaults.baseURL || 'http://localhost:8000';
+    const url = `${baseURL}/api/chats/${chatId}/favorite`;
+    
+    console.log('URL completa:', url);
+    
+    const response = await axios.post(url, {}, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.data.success) {
+      chat.favorito = estadoAnterior;
+      console.error('Error en respuesta:', response.data);
+    }
   } catch (err) {
-    console.error('Error actualizando favorito:', err);
-    chat.favorito = !chat.favorito;
+    console.error('Error actualizando favorito:', {
+      mensaje: err.message,
+      status: err.response?.status,
+      data: err.response?.data,
+      config: err.config
+    });
+    
+    if (chat) chat.favorito = !chat.favorito;
   }
 }
 
-// Función para cargar solicitudes - VERSIÓN SIMPLIFICADA COMO LA VIEJA
 async function cargarSolicitudesRecibidas() {
   try {
     loadingSolicitudes.value = true;
@@ -434,18 +433,12 @@ async function cargarSolicitudesRecibidas() {
     if (response.data.success) {
       solicitudesRecibidas.value = response.data.data.solicitudes || [];
       console.log(`Cargadas ${solicitudesRecibidas.value.length} solicitudes:`);
-      
-      solicitudesRecibidas.value.forEach(s => {
-        console.log(`- ID: ${s.id}, Nombre: ${s.nombre}, Estado: ${s.estado}, Solicitante ID: ${s.solicitante_id}`);
-      });
     } else {
       console.error('Error en respuesta:', response.data);
-      // Datos de ejemplo
       usarDatosEjemplo();
     }
   } catch (err) {
     console.error('Error cargando solicitudes:', err);
-    // Datos de ejemplo
     usarDatosEjemplo();
   } finally {
     loadingSolicitudes.value = false;
@@ -489,15 +482,17 @@ function selectFilter(filter) {
   selectedFilter.value = filter;
   open.value = false;
   console.log('Filtrando por:', filter);
-  // Lógica de filtrado simple
-  if (filter === 'Todas') {
-    cargarSolicitudesRecibidas();
+  
+  if (filter === 'Favoritos') {
+    const favoritosCount = chats.value.filter(c => c.favorito).length;
+    if (favoritosCount === 0) {
+      console.log('No tienes chats favoritos');
+    }
   }
 }
 
 function abrirPerfilUsuario(userId) {
   console.log('Abriendo perfil de usuario desde padre:', userId);
-  // Esta función se mantiene simple, la navegación la maneja el componente hijo
 }
 
 // Ciclo de vida
@@ -505,8 +500,6 @@ onMounted(() => {
   console.log('✅ Componente Chats montado');
   cargarSolicitudesRecibidas();
   cargarChats();
-  // Opcional: cargar notificaciones al montar
-  // cargarNotificaciones();
 });
 </script>
 

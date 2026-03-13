@@ -439,8 +439,8 @@ const terapia = reactive({
   costo: null,
   fecha_fin: '',
   evolucion: '',
-  observaciones: '',
-  recomendaciones_tutor: '',
+  observaciones: '',  // Asegurar que sea string vacío, no null
+  recomendaciones_tutor: '',  // Asegurar que sea string vacío, no null
   medio_envio: ''
 })
 
@@ -696,20 +696,18 @@ const cargarTerapiaExistente = async () => {
     if (result.success && result.data) {
       const datos = result.data
       
-      // Actualizar el objeto terapia de manera más simple
-      Object.assign(terapia, {
-        tipo_terapia_id: datos.tipo_terapia_id,
-        fecha_inicio: datos.fecha_inicio?.split('T')[0] || '',
-        frecuencia: datos.frecuencia,
-        duracion_tratamiento: datos.duracion_tratamiento,
-        centro_veterinario_id: datos.centro_veterinario_id,
-        costo: datos.costo,
-        fecha_fin: datos.fecha_fin?.split('T')[0] || '',
-        evolucion: datos.evolucion,
-        observaciones: datos.observaciones || datos.proceso_medico?.observaciones || '',
-        recomendaciones_tutor: datos.recomendaciones_tutor,
-        medio_envio: datos.medio_envio || '',
-      })
+      // Actualizar el objeto terapia asegurando valores por defecto
+      terapia.tipo_terapia_id = datos.tipo_terapia_id || ''
+      terapia.fecha_inicio = datos.fecha_inicio?.split('T')[0] || ''
+      terapia.frecuencia = datos.frecuencia || ''
+      terapia.duracion_tratamiento = datos.duracion_tratamiento || ''
+      terapia.centro_veterinario_id = datos.centro_veterinario_id || null
+      terapia.costo = datos.costo || null
+      terapia.fecha_fin = datos.fecha_fin?.split('T')[0] || ''
+      terapia.evolucion = datos.evolucion || ''
+      terapia.observaciones = datos.observaciones || datos.proceso_medico?.observaciones || ''  // Siempre string
+      terapia.recomendaciones_tutor = datos.recomendaciones_tutor || ''  // Siempre string
+      terapia.medio_envio = datos.medio_envio || ''
       
       console.log('✅ Datos cargados en formulario:', { ...terapia })
       

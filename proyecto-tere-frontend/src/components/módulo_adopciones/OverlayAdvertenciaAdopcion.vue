@@ -1,4 +1,3 @@
-<!-- components/módulo_adopciones/OverlayAdvertenciaAdopcion.vue -->
 <template>
   <div 
     class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
@@ -97,37 +96,79 @@
                 Los posibles adoptantes podrán contactarte a través de:
               </p>
               
-              <!-- Lista de medios disponibles (solo visible si está activado) -->
-              <div v-if="permisos.compartirMediosContacto && mediosContacto.length > 0" class="mt-3 space-y-3">
-                <div
-                  v-for="medio in mediosContacto"
-                  :key="medio.id"
-                  class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                >
+              <!-- Lista de medios disponibles con iconos (solo visible si está activado) -->
+              <div v-if="permisos.compartirMediosContacto" class="mt-3 space-y-3">
+                <!-- WhatsApp -->
+                <div v-if="contacto.telefono" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-2" :class="mediosSeleccionados.includes(1) ? 'border-green-500 bg-green-50' : 'border-gray-200'">
                   <div class="flex items-center gap-3">
-                    <div class="p-2 bg-blue-100 rounded-lg">
-                      <span class="text-blue-600 font-medium">{{ medio.tipo }}</span>
+                    <div class="p-2 bg-green-100 rounded-lg">
+                      <span class="text-green-600 text-xl">📱</span>
                     </div>
                     <div>
-                      <p class="font-medium">{{ medio.valor }}</p>
-                      <p class="text-xs text-gray-500">{{ medio.descripcion }}</p>
+                      <p class="font-medium">WhatsApp</p>
+                      <p class="text-sm text-gray-600">{{ contacto.telefono }}</p>
                     </div>
                   </div>
                   <div class="flex items-center">
                     <input
                       type="checkbox"
-                      :id="'medio-' + medio.id"
                       v-model="mediosSeleccionados"
-                      :value="medio.id"
-                      class="w-4 h-4 text-blue-600 rounded"
+                      :value="1"
+                      class="w-5 h-5 text-green-600 rounded"
+                    >
+                  </div>
+                </div>
+
+                <!-- Email -->
+                <div v-if="contacto.email" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-2" :class="mediosSeleccionados.includes(2) ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
+                  <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-100 rounded-lg">
+                      <span class="text-blue-600 text-xl">✉️</span>
+                    </div>
+                    <div>
+                      <p class="font-medium">Email</p>
+                      <p class="text-sm text-gray-600">{{ contacto.email }}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center">
+                    <input
+                      type="checkbox"
+                      v-model="mediosSeleccionados"
+                      :value="2"
+                      class="w-5 h-5 text-blue-600 rounded"
+                    >
+                  </div>
+                </div>
+
+                <!-- Telegram -->
+                <div v-if="contacto.telegram_chat_id" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-2" :class="mediosSeleccionados.includes(3) ? 'border-blue-400 bg-blue-50' : 'border-gray-200'">
+                  <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-100 rounded-lg">
+                      <span class="text-blue-500 text-xl">📨</span>
+                    </div>
+                    <div>
+                      <p class="font-medium">Telegram</p>
+                      <p class="text-sm text-gray-600">{{ contacto.telegram_chat_id }}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center">
+                    <input
+                      type="checkbox"
+                      v-model="mediosSeleccionados"
+                      :value="3"
+                      class="w-5 h-5 text-blue-500 rounded"
                     >
                   </div>
                 </div>
               </div>
               
-              <div v-else-if="permisos.compartirMediosContacto && mediosContacto.length === 0" class="mt-3 p-4 bg-gray-50 rounded-lg text-center">
+              <!-- Mensaje si no hay medios de contacto -->
+              <div v-else-if="!tieneMediosContacto" class="mt-3 p-4 bg-gray-50 rounded-lg text-center">
                 <p class="text-gray-500 text-sm">
                   No tenés medios de contacto registrados.
+                </p>
+                <p class="text-xs text-gray-400 mt-1">
+                  Podés agregarlos en tu perfil de usuario
                 </p>
               </div>
             </label>
@@ -136,7 +177,7 @@
 
       </div>
 
-      <!-- Botones de acción - SIMPLIFICADO -->
+      <!-- Botones de acción -->
       <div class="p-6 border-t border-gray-200">
         <div class="flex gap-3">
           <button
@@ -147,7 +188,8 @@
           </button>
           <button
             @click="continuar"
-            class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-2"
+            :disabled="!puedeContinuar"
+            class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span>Continuar</span>
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -165,7 +207,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -181,7 +223,11 @@ const props = defineProps({
 const emit = defineEmits(['close', 'confirmar'])
 
 // Estados
-const mediosContacto = ref([])
+const contacto = ref({
+  telefono: null,
+  email: null,
+  telegram_chat_id: null
+})
 const mediosSeleccionados = ref([])
 
 // Permisos por defecto
@@ -190,12 +236,27 @@ const permisos = reactive({
   compartirMediosContacto: false
 })
 
-// Cargar medios de contacto del usuario
-async function cargarMediosContacto() {
+// Computed para verificar si hay medios de contacto
+const tieneMediosContacto = computed(() => {
+  return contacto.value.telefono || contacto.value.email || contacto.value.telegram_chat_id
+})
+
+// Computed para validar si se puede continuar
+const puedeContinuar = computed(() => {
+  // Si se activó compartir medios de contacto, debe haber al menos uno seleccionado
+  if (permisos.compartirMediosContacto) {
+    return mediosSeleccionados.value.length > 0
+  }
+  // Si no se activó, siempre se puede continuar
+  return true
+})
+
+// Cargar datos de contacto del usuario
+async function cargarContacto() {
   try {
     const usuarioId = localStorage.getItem('userId') || 1
     
-    const response = await fetch(`/api/usuarios/${usuarioId}/medios`, {
+    const response = await fetch(`/api/usuarios/${usuarioId}/contacto`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
         'Content-Type': 'application/json'
@@ -204,13 +265,19 @@ async function cargarMediosContacto() {
     
     if (response.ok) {
       const data = await response.json()
-      mediosContacto.value = data
+      contacto.value = {
+        telefono: data.telefono || null,
+        email: data.email || null,
+        telegram_chat_id: data.telegram_chat_id || null
+      }
       
-      // Seleccionar todos por defecto
-      mediosSeleccionados.value = data.map(medio => medio.id)
+      // Seleccionar todos por defecto cuando se active
+      if (contacto.value.telefono) mediosSeleccionados.value.push(1)
+      if (contacto.value.email) mediosSeleccionados.value.push(2)
+      if (contacto.value.telegram_chat_id) mediosSeleccionados.value.push(3)
     }
   } catch (error) {
-    console.error('Error cargando medios de contacto:', error)
+    console.error('Error cargando contacto:', error)
   }
 }
 
@@ -221,7 +288,10 @@ function handleMediosContactoChange() {
     mediosSeleccionados.value = []
   } else {
     // Si se activa, seleccionar todos por defecto
-    mediosSeleccionados.value = mediosContacto.value.map(medio => medio.id)
+    mediosSeleccionados.value = []
+    if (contacto.value.telefono) mediosSeleccionados.value.push(1)
+    if (contacto.value.email) mediosSeleccionados.value.push(2)
+    if (contacto.value.telegram_chat_id) mediosSeleccionados.value.push(3)
   }
 }
 
@@ -229,10 +299,11 @@ function handleMediosContactoChange() {
 function continuar() {
   // Preparar datos para pasar a la siguiente vista
   const datosOferta = {
-    mascota: props.mascota,  // <-- INCLUIR LA MASCOTA
+    mascota: props.mascota,
     mascotaId: props.mascota.id,
     permisos: {
-      ...permisos,
+      compartirHistorialMedico: permisos.compartirHistorialMedico,
+      compartirMediosContacto: permisos.compartirMediosContacto,
       mediosContactoSeleccionados: permisos.compartirMediosContacto ? mediosSeleccionados.value : []
     }
   }
@@ -247,9 +318,9 @@ function cerrar() {
   emit('close')
 }
 
-// Cargar medios de contacto al montar
+// Cargar contacto al montar
 onMounted(() => {
-  cargarMediosContacto()
+  cargarContacto()
 })
 </script>
 

@@ -192,6 +192,12 @@ const registrarVeterinario = async () => {
         formData.append(`foto${i}`, foto.archivo)
       }
     })
+
+    const tieneFotos = fotos.value.some(foto => foto.archivo !== null);
+      if (!tieneFotos) {
+        errorMessage.value = 'Debes subir al menos una foto';
+        return;
+      }
     
     // Enviar datos al backend
     const response = await fetch('http://localhost:8000/api/registrar-veterinario', {

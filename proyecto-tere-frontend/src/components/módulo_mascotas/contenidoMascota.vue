@@ -202,11 +202,16 @@
                     <font-awesome-icon :icon="['fas', 'comment']" class="text-black text-4xl hover:text-purple-400" />
                   </button>
                   <button 
-                    v-if="$route.path.startsWith('/explorar/cerca/')"
+                    v-if="$route.path.startsWith('/explorar/cerca/') && !tieneSolicitudActiva"
                     class="bg-white border border-black w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition duration-300"
                     @click="abrirAdvertencia"
+                    :disabled="verificandoSolicitud"
                   >
-                    <font-awesome-icon :icon="['fas','heart']" class="text-black text-4xl hover:text-green-400"/>
+                    <font-awesome-icon 
+                      :icon="['fas','heart']" 
+                      class="text-black text-4xl hover:text-green-400"
+                      :class="{'opacity-50 cursor-not-allowed': verificandoSolicitud}"
+                    />
                   </button>
 
                 <!-- En contenidoMascota.vue, modifica el BotonesSwipe -->
@@ -273,6 +278,9 @@ const route = useRoute()
 const ubicacionUsuario = ref(null)
 const cargandoUbicacion = ref(false)
 
+const tieneSolicitudActiva = ref(false)
+const verificandoSolicitud = ref(false)
+
 const { accessToken, isAuthenticated, checkAuth, obtenerUbicacionUsuario } = useAuth()
 
 const mascota = ref(null)
@@ -311,12 +319,12 @@ const props = defineProps({
     type: Object,
     default: null
   },
-  // Agrega este prop para manejar el id
-  id: {
-    type: [String, Number],
-    default: null
+  // NUEVO PROP
+  tieneSolicitudActiva: {
+    type: Boolean,
+    default: false
   }
-});
+})
 
 // Define emits para comunicar acciones al padre
 const emit = defineEmits(['like', 'dislike', 'close', 'next', 'prev', 'swipe-completed'])
@@ -482,38 +490,81 @@ const ubicacionDisplay = computed(() => {
     console.log('❌ Sin ubicación disponible')
     return 'Ubicación no disponible'
 })
-// Función para manejar el dislike
-async function onLike(data) {
-  console.log('Like recibido desde BotonesSwipe:', data)
-  
-  try {
-    // Registrar la interacción en la base de datos
-    await registrarInteraccion({
-      mascota_id: data.mascotaId,
-      oferta_id: data.ofertaId || props.ofertaActual?.id_oferta,
-      tipo_interaccion: 'like'
-    })
+
+// Función para verificar si ya existe una solicitud activa
+async function verificarSolicitudActiva() {
+    const mascotaId = mascotaComputed.value?.id
     
-    // Emitir evento al componente padre
-    emit('like', {
-      mascotaId: data.mascotaId,
-      ofertaId: data.ofertaId || props.ofertaActual?.id_oferta
-    })
-    
-    // Si estamos en "cerca de ti", abrir advertencia
-    if (route.path.startsWith('/explorar/cerca/')) {
-      abrirAdvertencia()
-    } 
-    // Si estamos en "encuentros", emitir evento para avanzar
-    else if (route.path.startsWith('/explorar/encuentros')) {
-      emit('next')  // Esto le dice al padre que avance
+    // Si es la mascota demo, no verificar
+    if (!mascotaId || mascotaId === 'demo-burro') {
+        tieneSolicitudActiva.value = false
+        return
     }
     
-  } catch (error) {
-    console.error('Error registrando like:', error)
-    mostrarNotificacion('Error al registrar tu interés', 'error')
-  }
+    try {
+        verificandoSolicitud.value = true
+        const response = await axios.get(`/api/solicitudes/verificar-activa/${mascotaId}`, {
+            headers: {
+                'Authorization': `Bearer ${accessToken.value}`
+            }
+        })
+        
+        if (response.data.success) {
+            tieneSolicitudActiva.value = response.data.data.tieneSolicitudActiva
+            console.log('✅ Verificación de solicitud:', {
+                mascotaId,
+                tieneSolicitudActiva: tieneSolicitudActiva.value,
+                solicitud: response.data.data.solicitud
+            })
+        }
+    } catch (error) {
+        console.error('Error verificando solicitud activa:', error)
+        tieneSolicitudActiva.value = false
+    } finally {
+        verificandoSolicitud.value = false
+    }
 }
+
+// Función para manejar el dislike
+async function onLike(data) {
+    console.log('Like recibido desde BotonesSwipe:', data)
+    
+    // Verificar si ya tiene solicitud activa (solo en vista cerca)
+    if (!route.path.startsWith('/explorar/encuentros') && tieneSolicitudActiva.value) {
+        console.log('⚠️ Ya existe una solicitud activa para esta mascota')
+        mostrarNotificacion('Ya has enviado una solicitud de adopción para esta mascota', 'info')
+        return
+    }
+    
+    try {
+        // Registrar la interacción en la base de datos
+        await registrarInteraccion({
+            mascota_id: data.mascotaId,
+            oferta_id: data.ofertaId || props.ofertaActual?.id_oferta,
+            tipo_interaccion: 'like'
+        })
+        
+        // Emitir evento al componente padre
+        emit('like', {
+            mascotaId: data.mascotaId,
+            ofertaId: data.ofertaId || props.ofertaActual?.id_oferta
+        })
+        
+        // Si estamos en "cerca de ti", abrir advertencia
+        if (route.path.startsWith('/explorar/cerca/')) {
+            abrirAdvertencia()
+        } 
+        // Si estamos en "encuentros", emitir evento para avanzar
+        else if (route.path.startsWith('/explorar/encuentros')) {
+            emit('next')
+        }
+        
+    } catch (error) {
+        console.error('Error registrando like:', error)
+        mostrarNotificacion('Error al registrar tu interés', 'error')
+    }
+}
+
 
 async function onDislike(data) {
   console.log('Dislike recibido desde BotonesSwipe:', data)
@@ -588,52 +639,43 @@ onMounted(async () => {
   }
 })
 
-function abrirAdvertencia() {
-  console.log('=== abrirAdvertencia llamado ===')
-  console.log('Ruta actual:', route.path)
-  console.log('Mascota computada:', mascotaComputed.value)
-
-  // Guardar posición actual de scroll
-  if (scrollContainer.value) {
-    scrollContainer.value.scrollTop = 0 // Ir al inicio
-  }
-
-  // Mostrar la advertencia con animación
-  mostrarAdvertencia.value = true
-  
-  // ESPERAR a que Vue actualice el DOM y monte el componente
-  setTimeout(() => {
-    console.log('advertenciaRef después de mostrar:', advertenciaRef.value)
+async function abrirAdvertencia() {
+    console.log('=== abrirAdvertencia llamado ===')
     
-    if (advertenciaRef.value && typeof advertenciaRef.value.open === 'function') {
-      console.log('Contexto: Vista cerca de ti')
-      console.log('ID de oferta:', route.params.id)
-      console.log('Query params:', route.query)
-      console.log('Mascota ID del query:', route.query.mascota_id)
-      
-      // OBTENER AMBOS IDs
-      const ofertaId = route.params.id
-      const mascotaId = route.query.mascota_id
-      
-      console.log('Pasando IDs al modal:', { ofertaId, mascotaId })
-      
-      // Pasar AMBOS IDs al modal
-      advertenciaRef.value.open(ofertaId, mascotaId)
-      
-      // Desplazar al usuario hacia el modal
-      setTimeout(() => {
-        const modalElement = document.querySelector('.advertencia-container')
-        if (modalElement) {
-          modalElement.scrollIntoView({ behavior: 'smooth', block: 'end' })
-        }
-      }, 100)
-    } else {
-      console.error('advertenciaRef no disponible o método open no encontrado')
-      console.error('advertenciaRef:', advertenciaRef.value)
-      mostrarNotificacion('Error al abrir formulario de adopción', 'error')
-      mostrarAdvertencia.value = false
+    // Verificar nuevamente antes de abrir (por si acaso)
+    if (tieneSolicitudActiva.value) {
+        console.log('⚠️ Ya existe una solicitud activa, no se puede abrir otra')
+        mostrarNotificacion('Ya has enviado una solicitud de adopción para esta mascota', 'info')
+        return
     }
-  }, 100) // Esperar 100ms para que Vue monte el componente
+    
+    // Guardar posición actual de scroll
+    if (scrollContainer.value) {
+        scrollContainer.value.scrollTop = 0
+    }
+
+    // Mostrar la advertencia con animación
+    mostrarAdvertencia.value = true
+    
+    setTimeout(() => {
+        if (advertenciaRef.value && typeof advertenciaRef.value.open === 'function') {
+            const ofertaId = route.params.id
+            const mascotaId = route.query.mascota_id || mascotaComputed.value?.id
+            
+            advertenciaRef.value.open(ofertaId, mascotaId)
+            
+            setTimeout(() => {
+                const modalElement = document.querySelector('.advertencia-container')
+                if (modalElement) {
+                    modalElement.scrollIntoView({ behavior: 'smooth', block: 'end' })
+                }
+            }, 100)
+        } else {
+            console.error('advertenciaRef no disponible')
+            mostrarNotificacion('Error al abrir formulario de adopción', 'error')
+            mostrarAdvertencia.value = false
+        }
+    }, 100)
 }
 
 watch(mostrarAdvertencia, (newVal) => {
@@ -652,50 +694,47 @@ watch(mostrarAdvertencia, (newVal) => {
 
 // En contenidoMascota.vue, actualiza onAdopcionSuccess
 async function onAdopcionSuccess(data) {
-  console.log('=== onAdopcionSuccess llamado ===')
-  console.log('Datos de adopción exitosa:', data)
-  mostrarNotificacion('¡Solicitud enviada con éxito!', 'success')
-  mostrarAdvertencia.value = false
-  
-  // Si estamos en la vista de swipe, completar el like
-  if (route.path.startsWith('/explorar/encuentros')) {
-    console.log('Completando flujo de swipe después de adopción')
+    console.log('=== onAdopcionSuccess llamado ===')
+    console.log('Datos de adopción exitosa:', data)
     
-    try {
-      // Registrar la interacción como like completado
-      const interaccionData = {
-        mascota_id: mascotaComputed.value?.id || null,
-        oferta_id: props.ofertaActual?.id_oferta || null,
-        tipo_interaccion: 'like'
-      }
-      
-      console.log('Registrando interacción final:', interaccionData)
-      
-      // Solo registrar si tenemos al menos un ID
-      if (interaccionData.mascota_id || interaccionData.oferta_id) {
-        await registrarInteraccion(interaccionData)
-        console.log('Interacción registrada correctamente')
-      }
-      
-      // Emitir eventos para avanzar
-      console.log('Emitiendo eventos para avanzar a siguiente oferta')
-      emit('swipe-completed', {
-        tipo: 'like',
-        data: data
-      })
-      emit('next')
-      
-    } catch (err) {
-      console.error('Error registrando interacción final:', err)
-      // Aún así avanzar aunque falle el registro
-      emit('swipe-completed', {
-        tipo: 'like',
-        data: data,
-        error: err.message
-      })
-      emit('next')
+    // Marcar que ahora tiene una solicitud activa
+    tieneSolicitudActiva.value = true
+    
+    mostrarNotificacion('¡Solicitud enviada con éxito!', 'success')
+    mostrarAdvertencia.value = false
+    
+    // Si estamos en la vista de swipe, completar el like
+    if (route.path.startsWith('/explorar/encuentros')) {
+        console.log('Completando flujo de swipe después de adopción')
+        
+        try {
+            const interaccionData = {
+                mascota_id: mascotaComputed.value?.id || null,
+                oferta_id: props.ofertaActual?.id_oferta || null,
+                tipo_interaccion: 'like'
+            }
+            
+            if (interaccionData.mascota_id || interaccionData.oferta_id) {
+                await registrarInteraccion(interaccionData)
+                console.log('Interacción registrada correctamente')
+            }
+            
+            emit('swipe-completed', {
+                tipo: 'like',
+                data: data
+            })
+            emit('next')
+            
+        } catch (err) {
+            console.error('Error registrando interacción final:', err)
+            emit('swipe-completed', {
+                tipo: 'like',
+                data: data,
+                error: err.message
+            })
+            emit('next')
+        }
     }
-  }
 }
 
 // Manejar cancelacion en adopción
@@ -756,15 +795,65 @@ const images = ref([
 ]);
 
 function goToHistorial() {
-  const query = {
-    ...route.query,
+  // ✅ Obtener el ID de la mascota
+  const mascotaId = mascotaComputed.value?.id;
+  
+  // ✅ Obtener el ID de la oferta de múltiples fuentes posibles
+  const ofertaId = props.ofertaActual?.id_oferta || // De props
+                   route.params.id ||                // De parámetros de ruta
+                   route.query.ofertaId ||           // De query params
+                   route.query.oferta_id;            // De query params alternativo
+  
+  // Validar que tenemos un ID de mascota válido
+  if (!mascotaId || mascotaId === 'demo-burro') {
+    console.error('❌ No se puede navegar al historial: ID de mascota no válido', mascotaId);
+    mostrarNotificacion('No se puede acceder al historial de esta mascota', 'error');
+    return;
+  }
+  
+  // Verificar si tenemos permisos de historial desde donde venimos
+  const tienePermisoHistorial = props.ofertaActual?.permisos?.historial_medico || 
+                               route.query.permisoHistorial === '1';
+  
+  // Si NO tenemos permiso de historial, mostrar advertencia
+  if (!tienePermisoHistorial) {
+    console.log('⚠️ No hay permiso para ver historial médico');
+    mostrarNotificacion('El tutor no ha compartido el historial médico de esta mascota', 'info');
+    // Podrías mostrar un modal informativo en lugar de bloquear
+    // return; // Descomentar si quieres bloquear la navegación
+  }
+  
+  console.log('🚀 Navegando a historial:', {
+    mascotaId,
+    ofertaId,
+    nombreMascota: mascotaComputed.value?.nombre,
+    tienePermisoHistorial,
+    puedeContactar: props.ofertaActual?.permisos?.contacto_tutor || false
+  });
+  
+  // Construir query params
+  const queryParams = {
     from: route.name,
-    originalParams: JSON.stringify(route.params) 
+    ofertaId: ofertaId || '',  // Incluir aunque sea vacío
+    permisoHistorial: tienePermisoHistorial ? '1' : '0',
+    puedeContactar: props.ofertaActual?.permisos?.contacto_tutor ? '1' : '0',
+    nombreMascota: mascotaComputed.value?.nombre || 'Mascota',
+    origen: ofertaId ? 'oferta' : 'mascota',
+    ts: Date.now()
   };
   
-  router.replace({
-    path: '/revisar/tutores',
-    query: query
+  // Limpiar undefined
+  Object.keys(queryParams).forEach(key => {
+    if (queryParams[key] === undefined || queryParams[key] === null) {
+      delete queryParams[key];
+    }
+  });
+  
+  // Navegar al historial
+  router.push({
+    name: 'tutores', // O la ruta correcta para tu historial
+    params: { id: mascotaId },
+    query: queryParams
   });
 }
 
@@ -941,22 +1030,26 @@ function onImgError(event) {
 
 // -------------- lifecycle --------------
 onMounted(async () => {
-  document.body.style.overflow = 'hidden'
-  
-  await nextTick()
-  showButtonsContainer.value = true
-  await nextTick()
-  
-  // Inicializar observer
-  if (botonesAnimados.value) {
-    initObserver()
-  }
-  
-  // Cargar datos
-  await Promise.all([
-    cargarMascota(),
-    cargarUbicacionUsuario() // Agregar esta llamada
-  ])
+    document.body.style.overflow = 'hidden'
+    
+    await nextTick()
+    showButtonsContainer.value = true
+    await nextTick()
+    
+    if (botonesAnimados.value) {
+        initObserver()
+    }
+    
+    await Promise.all([
+        cargarMascota(),
+        cargarUbicacionUsuario()
+    ])
+    
+    // Verificar solicitud activa después de cargar la mascota
+    // Solo en vista "cerca", NO en "encuentros"
+    if (!route.path.startsWith('/explorar/encuentros')) {
+        await verificarSolicitudActiva()
+    }
 })
 
 
@@ -1081,5 +1174,21 @@ watch(mostrarAdvertencia, async (newVal) => {
     }
   }
 })
+
+watch(() => mascotaComputed.value?.id, async (newId, oldId) => {
+    // Solo verificar si cambió y NO estamos en swipe
+    if (newId && newId !== oldId && !route.path.startsWith('/explorar/encuentros')) {
+        await verificarSolicitudActiva()
+    }
+})
+
+// En onMounted o cuando se asigna props.ofertaActual
+watch(() => props.ofertaActual, (newVal) => {
+  console.log('🔄 ofertaActual cambió:', {
+    id_oferta: newVal?.id_oferta,
+    permisos: newVal?.permisos,
+    tiene_permiso_historial: newVal?.permisos?.historial_medico
+  });
+}, { immediate: true });
 
 </script>

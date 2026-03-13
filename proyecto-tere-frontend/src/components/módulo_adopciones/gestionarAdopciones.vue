@@ -384,9 +384,8 @@ async function publicarOfertaAdopcion() {
 
     console.log('📤 Publicando oferta con datos:', datosOfertaCompleta.value);
     console.log('🆔 Mascota ID:', datosOfertaCompleta.value.mascotaId);
-    console.log('📝 Datos completos de mascota:', datosOfertaCompleta.value.mascota);
     
-    // Usar la ruta POST /api/adopciones
+    // ✅ USAR mascotaSeleccionadaParaAdopcion en lugar de datosOfertaCompleta.value.mascota
     const response = await fetch('/api/adopciones', {
       method: 'POST',
       headers: {
@@ -400,18 +399,13 @@ async function publicarOfertaAdopcion() {
     console.log('📥 Respuesta del servidor:', responseData);
     
     if (response.ok && responseData.success) {
-      // Cerrar el overlay de confirmación
       cerrarConfirmacionFinal()
       
-      // Usar el nombre de la mascota de los datos guardados
-      const nombreMascota = datosOfertaCompleta.value.mascota?.nombre || 'la mascota';
+      // ✅ CORREGIDO: Usar mascotaSeleccionadaParaAdopcion.value
+      const nombreMascota = mascotaSeleccionadaParaAdopcion.value?.nombre || 'la mascota';
       
-      // Mostrar mensaje de éxito
       alert(`¡Oferta de adopción creada exitosamente para ${nombreMascota}!`)
-      
-      // Recargar la lista de mascotas
       await cargarMascotasUsuario()
-      
     } else {
       throw new Error(responseData.message || 'Error al crear oferta')
     }
@@ -421,6 +415,7 @@ async function publicarOfertaAdopcion() {
     cerrarConfirmacionFinal()
   }
 }
+
 // Cargar datos al montar el componente
 onMounted(() => {
   cargarMascotasUsuario()

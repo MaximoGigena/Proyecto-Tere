@@ -6,62 +6,25 @@
         <label class="block text-sm font-medium mb-1">Especie</label>
         <button
           @click="mostrarTaxonomias = !mostrarTaxonomias"
-          class="w-full text-left bg-white border rounded p-2 hover:bg-gray-100"
+          class="w-full text-left bg-white border rounded p-2 hover:bg-gray-100 flex justify-between items-center"
         >
-          {{ filtros.especie.length ? filtros.especie.join(', ') : 'Seleccionar taxonomías' }}
+          <span>{{ filtros.especie.length ? filtros.especie.join(', ') : 'Seleccionar taxonomías' }}</span>
+          <span class="text-gray-500 text-lg transition-transform duration-300" :class="{ 'rotate-180': mostrarTaxonomias }">
+            ▼
+          </span>
         </button>
 
-        <!-- Selector de taxonomías (condicional) -->
+        <!-- Selector de taxonomías (condicional) con carrusel -->
         <div v-if="mostrarTaxonomias" class="mt-2 border rounded p-3 bg-gray-50">
-          <div class="grid gap-2">
-            <div
-              v-for="taxonomia in taxonomias"
-              :key="taxonomia"
-              class="flex items-center gap-2"
-            >
-              <input
-                type="checkbox"
-                :id="taxonomia"
-                :value="taxonomia"
-                v-model="filtros.especie"
-                class="accent-green-600"
-              />
-              <label :for="taxonomia" class="text-gray-800">{{ taxonomia }}</label>
-            </div>
-          </div>
+          <!-- Carrusel de especies -->
+          <SelectorEspecies
+            v-model="filtros.especie"
+            :especies="especiesCarrusel"
+            @update:modelValue="actualizarEspecies"
+          />
 
           <div class="flex justify-center mt-3">
             <button @click="mostrarTaxonomias = false" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all">
-              Listo
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Edad -->
-      <div class="md:col-span-2">
-        <label class="block text-sm font-medium mb-1">Edad (rango etario)</label>
-        <button
-          @click="mostrarEdad = !mostrarEdad"
-          class="w-full text-left bg-white border rounded p-2 hover:bg-gray-100"
-        >
-          {{ filtros.edad.length ? filtros.edad.join(', ') : 'Seleccionar edad' }}
-        </button>
-
-        <div v-if="mostrarEdad" class="mt-2 border rounded p-3 bg-gray-50">
-          <div v-for="opcion in opcionesEdad" :key="opcion" class="flex items-center gap-2 mb-1">
-            <input
-              type="checkbox"
-              :id="opcion"
-              :value="opcion"
-              v-model="filtros.edad"
-              class="accent-blue-600"
-            />
-            <label :for="opcion" class="text-sm text-gray-700">{{ opcion }}</label>
-          </div>
-
-          <div class="flex justify-center mt-3">
-            <button @click="mostrarEdad = false" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all">
               Listo
             </button>
           </div>
@@ -73,27 +36,52 @@
         <label class="block text-sm font-medium mb-1">Sexo</label>
         <button
           @click="mostrarSexo = !mostrarSexo"
-          class="w-full text-left bg-white border rounded p-2 hover:bg-gray-100"
+          class="w-full text-left bg-white border rounded p-2 hover:bg-gray-100 flex justify-between items-center"
         >
-          {{ filtros.sexo.length ? filtros.sexo.join(', ') : 'Seleccionar sexo' }}
+          <span>{{ obtenerTextoSeleccionSexo() }}</span>
+          <span class="text-gray-500 text-lg transition-transform duration-300" :class="{ 'rotate-180': mostrarSexo }">
+            ▼
+          </span>
         </button>
 
         <div v-if="mostrarSexo" class="mt-2 border rounded p-3 bg-gray-50">
-          <div v-for="opcion in opcionesSexo" :key="opcion" class="flex items-center gap-2 mb-1">
-            <input
-              type="checkbox"
-              :id="'sexo-' + opcion"
-              :value="opcion"
-              v-model="filtros.sexo"
-              class="accent-blue-600"
-            />
-            <label :for="'sexo-' + opcion" class="text-sm text-gray-700 capitalize">{{ opcion }}</label>
+          <!-- Opción Macho -->
+          <div 
+            @click="seleccionarSexoYCerrar('Macho')"
+            class="flex items-center p-2 rounded cursor-pointer transition-colors"
+            :class="filtros.sexo === 'Macho' ? 'bg-blue-100 border border-blue-300' : 'hover:bg-gray-100'"
+          >
+            <div class="w-5 h-5 mr-2 flex items-center justify-center">
+              <div v-if="filtros.sexo === 'Macho'" class="w-4 h-4 bg-blue-600 rounded-full"></div>
+              <div v-else class="w-4 h-4 border-2 border-gray-400 rounded-full"></div>
+            </div>
+            <span class="text-gray-800">Macho</span>
           </div>
-
-          <div class="flex justify-center mt-3">
-            <button @click="mostrarSexo = false" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all">
-              Listo
-            </button>
+          
+          <!-- Opción Hembra -->
+          <div 
+            @click="seleccionarSexoYCerrar('Hembra')"
+            class="flex items-center p-2 rounded cursor-pointer transition-colors mt-1"
+            :class="filtros.sexo === 'Hembra' ? 'bg-blue-100 border border-blue-300' : 'hover:bg-gray-100'"
+          >
+            <div class="w-5 h-5 mr-2 flex items-center justify-center">
+              <div v-if="filtros.sexo === 'Hembra'" class="w-4 h-4 bg-blue-600 rounded-full"></div>
+              <div v-else class="w-4 h-4 border-2 border-gray-400 rounded-full"></div>
+            </div>
+            <span class="text-gray-800">Hembra</span>
+          </div>
+          
+          <!-- Opción Macho y Hembra -->
+          <div 
+            @click="seleccionarSexoYCerrar('Macho y Hembra')"
+            class="flex items-center p-2 rounded cursor-pointer transition-colors mt-1"
+            :class="filtros.sexo === 'Macho y Hembra' ? 'bg-blue-100 border border-blue-300' : 'hover:bg-gray-100'"
+          >
+            <div class="w-5 h-5 mr-2 flex items-center justify-center">
+              <div v-if="filtros.sexo === 'Macho y Hembra'" class="w-4 h-4 bg-blue-600 rounded-full"></div>
+              <div v-else class="w-4 h-4 border-2 border-gray-400 rounded-full"></div>
+            </div>
+            <span class="text-gray-800">Macho y Hembra</span>
           </div>
         </div>
       </div>
@@ -103,9 +91,12 @@
         <label class="block text-sm font-medium mb-1">Ubicación</label>
         <button
           @click="mostrarUbicacion = !mostrarUbicacion"
-          class="w-full text-left bg-white border rounded p-2 hover:bg-gray-100"
+          class="w-full text-left bg-white border rounded p-2 hover:bg-gray-100 flex justify-between items-center"
         >
-          {{ filtros.ubicacion ? filtros.ubicacion : 'Seleccionar ubicación' }}
+          <span>{{ filtros.ubicacion ? filtros.ubicacion : 'Seleccionar ubicación' }}</span>
+          <span class="text-gray-500 text-lg transition-transform duration-300" :class="{ 'rotate-180': mostrarUbicacion }">
+            ▼
+          </span>
         </button>
 
         <div v-if="mostrarUbicacion" class="mt-2 border rounded p-3 bg-gray-50">
@@ -209,9 +200,10 @@
 </template>
 
 <script setup>
-import { reactive, ref, nextTick, computed, watch, onUnmounted } from 'vue' // <-- Agregar watch y onUnmounted
+import { reactive, ref, nextTick, computed, watch, onUnmounted, onMounted } from 'vue'
 import axios from 'axios'
-import { useAuth } from '@/composables/useAuth' // Ajusta la ruta según tu estructura
+import { useAuth } from '@/composables/useAuth'
+import SelectorEspecies from '@/components/ElementosGraficos/CarruselEspecieVeterinario.vue'
 
 // Usar el composable de autenticación
 const auth = useAuth()
@@ -259,6 +251,12 @@ const buscandoUbicacion = ref(false)
 const aplicandoFiltros = ref(false)
 const mostrandoResultados = ref(false)
 
+const mostrarModalGuardar = ref(false)
+const nombreFiltroGuardar = ref('')
+const guardandoFiltros = ref(false)
+const preferenciasGuardadas = ref([])
+const mostrandoListaPreferencias = ref(false)
+
 // Referencia al input
 const ubicacionInput = ref(null)
 
@@ -269,16 +267,23 @@ const indiceSeleccionado = ref(-1)
 const filtros = reactive({
   especie: [],
   edad: [],
-  sexo: [],
+  sexo: '',
   ubicacion: '',
   coordenadas: null,
   radio: 10
 })
 
-// Datos base
-const taxonomias = [
-  'Caninos', 'Felinos', 'Equinos', 'Bovinos', 'Aves', 'Peces', 'Otro'
+// Datos base para el carrusel de especies
+const especiesCarrusel = [
+  { value: 'caninos', label: 'Caninos', icon: ['fas', 'dog'] },
+  { value: 'felinos', label: 'Felinos', icon: ['fas', 'cat'] },
+  { value: 'equinos', label: 'Equinos', icon: ['fas', 'horse-head'] },
+  { value: 'bovinos', label: 'Bovinos', icon: ['fas', 'cow'] },
+  { value: 'aves', label: 'Aves', icon: ['fas', 'crow'] },
+  { value: 'peces', label: 'Peces', icon: ['fas', 'fish-fins'] },
+  { value: 'otro', label: 'Otro', icon: ['fas', 'paw'] }
 ]
+
 const opcionesEdad = ['Cachorro', 'Joven', 'Adulto', 'Abuelo']
 const opcionesSexo = ['Macho', 'Hembra']
 
@@ -295,6 +300,11 @@ onUnmounted(() => {
   isComponentMounted.value = false
   clearTimeout(timeoutId)
 })
+
+// Función para actualizar especies desde el carrusel
+function actualizarEspecies(nuevasEspecies) {
+  filtros.especie = nuevasEspecies
+}
 
 // Debounce para evitar muchas llamadas API
 function onUbicacionInput() {
@@ -353,6 +363,164 @@ function manejarTeclado(event) {
       break
   }
 }
+
+// Función para guardar filtros actuales
+async function guardarFiltros() {
+  if (!auth?.isAuthenticated?.value) {
+    alert('Por favor, inicia sesión para guardar filtros')
+    return
+  }
+
+  if (!nombreFiltroGuardar.value.trim()) {
+    alert('Por favor, ingresa un nombre para estos filtros')
+    return
+  }
+
+  guardandoFiltros.value = true
+
+  try {
+    // Preparar datos para guardar
+    const filtrosParaGuardar = {
+      nombre_filtro: nombreFiltroGuardar.value,
+      filtros: {
+        especie: filtros.especie,
+        sexo: filtros.sexo,
+        edad: filtros.edad,
+        ubicacion: filtros.ubicacion,
+        coordenadas: filtros.coordenadas,
+        radio: filtros.radio
+      }
+    }
+
+    const response = await axiosInstance.value.post('/api/user/filters/preferences', filtrosParaGuardar)
+
+    if (response.data.success) {
+      alert('Filtros guardados exitosamente')
+      mostrarModalGuardar.value = false
+      nombreFiltroGuardar.value = ''
+      await cargarPreferenciasGuardadas()
+    }
+  } catch (error) {
+    console.error('Error al guardar filtros:', error)
+    alert('Error al guardar los filtros. Intenta nuevamente.')
+  } finally {
+    guardandoFiltros.value = false
+  }
+}
+
+// Función para cargar preferencias guardadas
+async function cargarPreferenciasGuardadas() {
+  if (!auth?.isAuthenticated?.value) return
+
+  try {
+    const response = await axiosInstance.value.get('/api/user/filters/preferences')
+    
+    if (response.data.success) {
+      preferenciasGuardadas.value = response.data.data
+    }
+  } catch (error) {
+    console.error('Error al cargar preferencias:', error)
+  }
+}
+
+// Función para cargar una preferencia específica
+async function cargarPreferencia(id) {
+  try {
+    const response = await axiosInstance.value.post(`/api/user/filters/preferences/${id}/cargar`)
+    
+    if (response.data.success) {
+      const filtrosCargados = response.data.filtros
+      
+      // Aplicar filtros cargados
+      if (filtrosCargados.especie) {
+        filtros.especie = filtrosCargados.especie
+      }
+      
+      if (filtrosCargados.sexo) {
+        filtros.sexo = filtrosCargados.sexo
+      }
+      
+      if (filtrosCargados.edad) {
+        filtros.edad = filtrosCargados.edad
+      }
+      
+      if (filtrosCargados.ubicacion) {
+        filtros.ubicacion = filtrosCargados.ubicacion
+        filtros.coordenadas = filtrosCargados.coordenadas
+        filtros.radio = filtrosCargados.radio || 10
+      }
+      
+      mostrandoListaPreferencias.value = false
+      alert('Filtros cargados exitosamente')
+    }
+  } catch (error) {
+    console.error('Error al cargar preferencia:', error)
+    alert('Error al cargar los filtros')
+  }
+}
+
+// Función para eliminar una preferencia
+async function eliminarPreferencia(id) {
+  if (!confirm('¿Estás seguro de eliminar esta preferencia?')) return
+
+  try {
+    const response = await axiosInstance.value.delete(`/api/user/filters/preferences/${id}`)
+    
+    if (response.data.success) {
+      await cargarPreferenciasGuardadas()
+      alert('Preferencia eliminada')
+    }
+  } catch (error) {
+    console.error('Error al eliminar preferencia:', error)
+    alert('Error al eliminar la preferencia')
+  }
+}
+
+// Cargar preferencias al montar el componente
+// Modifica el onMounted existente
+onMounted(async () => {
+  if (auth?.isAuthenticated?.value) {
+    try {
+      // Cargar preferencias guardadas
+      const response = await axiosInstance.value.get('/api/user/filters/preferences')
+      
+      if (response.data.success && response.data.data.length > 0) {
+        // Buscar la preferencia activa o tomar la más reciente
+        const preferenciaActiva = response.data.data.find(p => p.es_activo) || response.data.data[0]
+        
+        if (preferenciaActiva && preferenciaActiva.filtros) {
+          const filtrosGuardados = preferenciaActiva.filtros
+          
+          // Cargar especies
+          if (filtrosGuardados.especie && filtrosGuardados.especie.length) {
+            filtros.especie = filtrosGuardados.especie
+          }
+          
+          // Cargar sexo
+          if (filtrosGuardados.sexo) {
+            filtros.sexo = filtrosGuardados.sexo
+          }
+          
+          // Cargar edad
+          if (filtrosGuardados.edad && filtrosGuardados.edad.length) {
+            filtros.edad = filtrosGuardados.edad
+          }
+          
+          // Cargar ubicación
+          if (filtrosGuardados.ubicacion && filtrosGuardados.coordenadas) {
+            filtros.ubicacion = filtrosGuardados.ubicacion
+            filtros.coordenadas = filtrosGuardados.coordenadas
+            filtros.radio = filtrosGuardados.radio || 10
+          }
+          
+          console.log('Preferencias cargadas automáticamente:', filtrosGuardados)
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar preferencias:', error)
+    }
+  }
+})
 
 async function buscarSugerenciasUbicacion() {
   if (!isComponentMounted.value || busquedaUbicacion.value.length < 3) return
@@ -494,23 +662,28 @@ function limpiarUbicacion() {
   mostrandoResultados.value = false
 }
 
+// Nueva función para seleccionar sexo y cerrar automáticamente
+function seleccionarSexoYCerrar(opcion) {
+  filtros.sexo = opcion
+  mostrarSexo.value = false
+}
+
 // Acciones
 function limpiarFiltros() {
   filtros.especie = []
   filtros.edad = []
-  filtros.sexo = []
+  filtros.sexo = ''
   limpiarUbicacion()
   
   // Aplicar filtros limpiados inmediatamente
   aplicarFiltros()
 }
 
-// Función auxiliar para extraer ciudad de la ubicación - MÁS ARRIBA
+// Función auxiliar para extraer ciudad de la ubicación
 function extraerCiudadDeUbicacion(ubicacionTexto) {
   if (!ubicacionTexto) return null;
   
   // Lógica simple para extraer ciudad
-  // Puedes mejorar esto según tus necesidades
   const partes = ubicacionTexto.split(',');
   
   // Tomar la primera parte que no sea vacía
@@ -534,44 +707,44 @@ async function aplicarFiltros() {
   
   console.log('Filtros aplicados:', { ...filtros })
   
-  // Preparar filtros para enviar a la API
+  // Preparar filtros para enviar al componente padre
   const filtrosParaEnviar = {}
   
-  // Especies: enviar como array explícito
-  if (filtros.especie.length) {
-    filtrosParaEnviar.especie = JSON.stringify(
-      filtros.especie.map(esp => esp.toLowerCase())
-    )
+  // Especies
+  if (filtros.especie && filtros.especie.length) {
+    filtrosParaEnviar.especie = filtros.especie
   }
   
-  // Sexo: también como array JSON
-  if (filtros.sexo.length) {
-    filtrosParaEnviar.sexo = JSON.stringify(
-      filtros.sexo.map(s => s.toLowerCase())
-    )
+  // Sexo
+  if (filtros.sexo) {
+    filtrosParaEnviar.sexo = filtros.sexo === 'Macho y Hembra' ? 'Macho y Hembra' : filtros.sexo
   }
   
-  // Edad: enviar como array JSON
-  if (filtros.edad.length) {
-    filtrosParaEnviar.rangos_edad = JSON.stringify(
-      filtros.edad.map(rango => rango.toLowerCase())
-    )
+  // Edad
+  if (filtros.edad && filtros.edad.length) {
+    filtrosParaEnviar.rangos_edad = filtros.edad.map(r => r.toLowerCase())
   }
   
-  // Ubicación y coordenadas
+  // ✅ CORRECCIÓN CRÍTICA: Enviar coordenadas con los nombres correctos
   if (filtros.coordenadas) {
+    filtrosParaEnviar.latitud = filtros.coordenadas.lat   // Cambiar de 'lat' a 'latitud'
+    filtrosParaEnviar.longitud = filtros.coordenadas.lon  // Cambiar de 'lon' a 'longitud'
     filtrosParaEnviar.ubicacion = filtros.ubicacion
-    filtrosParaEnviar.latitud = filtros.coordenadas.lat
-    filtrosParaEnviar.longitud = filtros.coordenadas.lon
-    filtrosParaEnviar.radio_km = filtros.radio
+    filtrosParaEnviar.radio_km = filtros.radio || 10      // Asegurar que se llama radio_km
+    
+    console.log('Ubicación enviada correctamente:', {
+      latitud: filtros.coordenadas.lat,
+      longitud: filtros.coordenadas.lon,
+      ubicacion: filtros.ubicacion,
+      radio_km: filtros.radio
+    })
   }
-
-  const ciudad = extraerCiudadDeUbicacion(filtros.ubicacion);
-    if (ciudad) {
-      filtrosParaEnviar.ciudad = ciudad;
-    }
 
   try {
+    // Guardar automáticamente los filtros aplicados
+    await guardarFiltrosAutomaticamente();
+    
+    // Emitir los filtros al componente padre
     emit('filtrar', filtrosParaEnviar);
     emit('cerrar');
   } catch (error) {
@@ -580,6 +753,52 @@ async function aplicarFiltros() {
   } finally {
     aplicandoFiltros.value = false;
   }
+}
+
+// 🔥 NUEVA FUNCIÓN: Guardar filtros automáticamente
+async function guardarFiltrosAutomaticamente() {
+  if (!auth?.isAuthenticated?.value) return;
+  
+  const hayFiltros = filtros.especie.length > 0 || 
+                     filtros.sexo || 
+                     filtros.edad.length > 0 || 
+                     filtros.coordenadas;
+  
+  if (!hayFiltros) return;
+  
+  try {
+    const filtrosParaGuardar = {
+      nombre_filtro: `Filtros aplicados ${new Date().toLocaleString()}`,
+      filtros: {
+        especie: filtros.especie,
+        sexo: filtros.sexo,
+        edad: filtros.edad,
+        ubicacion: filtros.ubicacion,
+        coordenadas: filtros.coordenadas,
+        radio: filtros.radio
+      }
+    }
+
+    await axiosInstance.value.post('/api/user/filters/preferences/automatic', filtrosParaGuardar);
+    
+    // Opcional: Marcar como activa la última preferencia guardada
+    // Esto requiere un endpoint adicional o modificar el storeAutomatic
+  } catch (error) {
+    console.error('Error al guardar filtros automáticos:', error);
+  }
+}
+
+function seleccionarSexo(opcion) {
+  filtros.sexo = opcion
+}
+
+function limpiarSexo() {
+  filtros.sexo = ''
+}
+
+function obtenerTextoSeleccionSexo() {
+  if (!filtros.sexo) return 'Seleccionar sexo'
+  return filtros.sexo
 }
 
 // Focus en el input cuando se abre el panel
@@ -593,3 +812,9 @@ watch(mostrarUbicacion, (nuevoValor) => {
   }
 })
 </script>
+
+<style scoped>
+.rotate-180 {
+  transform: rotate(180deg);
+}
+</style>

@@ -1,3 +1,4 @@
+<!-- historialClinico.vue modificado -->
 <template>
   <div class="flex flex-col h-[calc(100vh-140px)] w-full">
     <!-- Navbar de íconos -->
@@ -7,9 +8,10 @@
         :key="nav.name"
         :to="{
           name: nav.name,
+          params: { id: mascotaId },
           query: {
-            ...$route.query, // Mantiene from/originalParams
-            tab: nav.name // Opcional: para tracking
+            ...$route.query,
+            tab: nav.name
           }
         }"
         class="flex flex-col items-center p-2 rounded-full mx-2 text-gray-500 hover:text-blue-500 transition-all duration-200"
@@ -24,73 +26,113 @@
       </router-link>
     </nav>
 
-    <!-- Contenido dinámico con verificación de existencia -->
-    <div v-if="$route.matched.length" class="flex-1 overflow-y-auto p-4">
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
-          <component :is="Component" v-if="Component" />
-        </transition>
-      </router-view>
+    <!-- Contenido con verificación de permisos -->
+    <div class="flex-1 overflow-y-auto p-4">
+      <template v-if="tienePermisoHistorial">
+        <div v-if="$route.matched.length">
+          <router-view 
+            v-slot="{ Component }"
+            :mascotaId="mascotaId"
+            :ofertaId="ofertaId"
+            :tienePermisoHistorial="tienePermisoHistorial"
+            :nombreMascota="nombreMascota"
+            :puedeContactarTutor="puedeContactarTutor"
+          >
+            <transition name="fade" mode="out-in">
+              <component :is="Component" />
+            </transition>
+          </router-view>
+        </div>
+      </template>
+      
+      <template v-else>
+        <SinPermisoHistorial
+          tipo-historial="clínico"
+          :nombre-mascota="nombreMascota"
+          :puede-contactar="puedeContactarTutor"
+          :oferta-id="ofertaId"
+        />
+      </template>
     </div>
   </div>
 </template>
 
-
-<script>
+<script setup>
+import { ref, computed, onMounted, watch } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { useRoute } from 'vue-router'
+import SinPermisoHistorial from '@/components/ElementosGraficos/SinPermisoHistorial.vue'
 
-
-export default {
-  name: "HistorialClinico",
-  components: {
-    'font-awesome-icon': FontAwesomeIcon
+const props = defineProps({
+  mascotaId: {
+    type: [Number, String],
+    required: true
   },
-  data() {
-    // si queres dinamismo en las rutas hijas agregalas aca 
-    return {
-      navItems: [
-        { 
-          name: this.$route.meta.overlay ? 'veterinario-cirugias' : 'cirugias', 
-          icon: 'heart-pulse', 
-          label: 'Cirugías'
-        },
-        { 
-          name: this.$route.meta.overlay ? 'veterinario-farmacos' : 'farmacos', 
-          icon: 'prescription-bottle-medical', 
-          label: 'Fármacos'
-        },
-        { 
-          name: this.$route.meta.overlay ? 'veterinario-terapias' : 'terapias', 
-          icon: 'bandage', 
-          label: 'Terapias'
-        },
-        { 
-          name: this.$route.meta.overlay ? 'veterinario-diagnosticos' : 'diagnosticos', 
-          icon: 'microscope', 
-          label: 'Diagnósticos'
-        },
-        { 
-          name: this.$route.meta.overlay ? 'veterinario-paliativos' : 'paliativos', 
-          icon: 'staff-snake', 
-          label: 'Paliativos'
-        }
-      ]
-    }
+  ofertaId: {
+    type: [Number, String],
+    default: null
   },
-  computed: {
-    currentRouteName() {
-      return this.$route.name;
-    }
+  tienePermisoHistorial: {
+    type: Boolean,
+    default: true
   },
-  watch: {
-    '$route'(to) {
-      // Forzar recarga si cambia el ID de la mascota
-      if (to.params.id !== this.$route.params.id) {
-        this.$router.go(0); // Recarga suave
-      }
-    }
+  nombreMascota: {
+    type: String,
+    default: 'la mascota'
+  },
+  puedeContactarTutor: {
+    type: Boolean,
+    default: false
   }
-}
+})
+
+const route = useRoute()
+
+const navItems = computed(() => {
+  const isOverlay = route.meta.overlay
+  return [
+    { 
+      name: isOverlay ? 'veterinario-cirugias' : 'cirugias', 
+      icon: 'heart-pulse', 
+      label: 'Cirugías'
+    },
+    { 
+      name: isOverlay ? 'veterinario-farmacos' : 'farmacos', 
+      icon: 'prescription-bottle-medical', 
+      label: 'Fármacos'
+    },
+    { 
+      name: isOverlay ? 'veterinario-terapias' : 'terapias', 
+      icon: 'bandage', 
+      label: 'Terapias'
+    },
+    { 
+      name: isOverlay ? 'veterinario-diagnosticos' : 'diagnosticos', 
+      icon: 'microscope', 
+      label: 'Diagnósticos'
+    },
+    { 
+      name: isOverlay ? 'veterinario-paliativos' : 'paliativos', 
+      icon: 'staff-snake', 
+      label: 'Paliativos'
+    }
+  ]
+})
+
+onMounted(() => {
+  console.log('📋 HistorialClinico montado', {
+    mascotaId: props.mascotaId,
+    ofertaId: props.ofertaId,
+    tienePermiso: props.tienePermisoHistorial,
+    nombreMascota: props.nombreMascota,
+    puedeContactar: props.puedeContactarTutor
+  })
+})
+
+// Watch para debug
+watch(() => props.tienePermisoHistorial, (newVal) => {
+  console.log('🔄 HistorialClinico - Permiso cambiado:', newVal)
+})
 </script>
 
 <style scoped>

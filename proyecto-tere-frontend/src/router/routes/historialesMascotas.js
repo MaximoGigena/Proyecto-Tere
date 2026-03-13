@@ -17,42 +17,42 @@ import Alergias from '@/components/módulo_seguimiento/historiaPreventivos/alerg
 // Rutas comunes con nombres base
 const baseRoutes = [
   { 
-    path: 'tutores', 
+    path: 'tutores/:id?', 
     name: 'tutores', 
     component: propietarios,
     meta: { overlay: false },
     props: (route) => ({
-      id: route.params.id || route.query.id,
+      mascotaId: route.params.id, // ← Cambiado a mascotaId para coincidir con la prop
       isOverlay: route.meta?.overlay || false,
       ...route.query
     })
   },
   { 
-    path: 'episodios', 
+    path: 'episodios/:id?', 
     name: 'episodios', 
     component: Episodios,
     meta: { overlay: false },
     props: (route) => ({
-      id: route.params.id || route.query.id,
+      mascotaId: route.params.id,
       isOverlay: route.meta?.overlay || false,
       ...route.query
     })
   },
   { 
-    path: 'historialPreventivo',  
+    path: 'historialPreventivo/:id?',  
     component: vacunas,
     children: [
       { 
         path: '', // Ruta base para historialPreventivo
         name: 'historialPreventivo',
-        redirect: { name: 'vacunas' } 
+        redirect: { name: 'vacunas', params: { id: route => route.params.id } } 
       },
       { 
         path: 'vacunas',
         name: 'vacunas',
         component: Vacunas,
         props: (route) => ({
-          id: route.params.id || route.query.id,
+          mascotaId: route.params.id,
           isOverlay: route.meta?.overlay || false,
           ...route.query
         })
@@ -62,7 +62,7 @@ const baseRoutes = [
         name: 'desparasitaciones',
         component: Desparasitación,
         props: (route) => ({
-          id: route.params.id || route.query.id,
+          mascotaId: route.params.id,
           isOverlay: route.meta?.overlay || false,
           ...route.query
         })
@@ -72,7 +72,7 @@ const baseRoutes = [
         name: 'revisiones',
         component: Revisión,
         props: (route) => ({
-          id: route.params.id || route.query.id,
+          mascotaId: route.params.id,
           isOverlay: route.meta?.overlay || false,
           ...route.query
         })
@@ -82,7 +82,7 @@ const baseRoutes = [
         name: 'alergias',
         component: Alergias,
         props: (route) => ({
-          id: route.params.id || route.query.id,
+          mascotaId: route.params.id,
           isOverlay: route.meta?.overlay || false,
           ...route.query
         })
@@ -90,20 +90,20 @@ const baseRoutes = [
     ]
   },
   { 
-    path: 'historialClinico',
+    path: 'historialClinico/:id?',
     component: HistorialMedicoLayout,
     children: [
       { 
         path: '',
         name: 'historialClinico',
-        redirect: { name: 'cirugias' } 
+        redirect: { name: 'cirugias', params: { id: route => route.params.id } }
       },
       { 
         path: 'cirugias',
         name: 'cirugias',
         component: Procedimientos,
         props: (route) => ({
-          id: route.params.id || route.query.id,
+          mascotaId: route.params.id,
           isOverlay: route.meta?.overlay || false,
           ...route.query
         })
@@ -113,7 +113,7 @@ const baseRoutes = [
         name: 'farmacos',
         component: Fármacos,
         props: (route) => ({
-          id: route.params.id || route.query.id,
+          mascotaId: route.params.id,
           isOverlay: route.meta?.overlay || false,
           ...route.query
         })
@@ -123,7 +123,7 @@ const baseRoutes = [
         name: 'terapias',
         component: Terapias,
         props: (route) => ({
-          id: route.params.id || route.query.id,
+          mascotaId: route.params.id,
           isOverlay: route.meta?.overlay || false,
           ...route.query
         })
@@ -133,7 +133,7 @@ const baseRoutes = [
         name: 'diagnosticos',
         component: Diagnosticos,
         props: (route) => ({
-          id: route.params.id || route.query.id,
+          mascotaId: route.params.id,
           isOverlay: route.meta?.overlay || false,
           ...route.query
         })
@@ -143,7 +143,7 @@ const baseRoutes = [
         name: 'paliativos',
         component: Paliativos,
         props: (route) => ({
-          id: route.params.id || route.query.id,
+          mascotaId: route.params.id,
           isOverlay: route.meta?.overlay || false,
           ...route.query
         })
@@ -158,7 +158,7 @@ export const historialesMascotas = [
     path: '/revisar',
     component: historialLayout,
     children: [
-      { path: '', redirect: { name: 'tutores' } },
+      { path: '', redirect: { name: 'tutores', params: { id: ':id?' } } },
       ...baseRoutes
     ]
   }
@@ -193,7 +193,7 @@ export const overlayVeterinario = [
             component: propietarios,
             meta: { overlay: true },
             props: (route) => ({
-              id: route.params.id,
+              mascotaId: route.params.id,
               isOverlay: true,
               ...route.query
             })
@@ -204,7 +204,7 @@ export const overlayVeterinario = [
             component: Episodios,
             meta: { overlay: true },
             props: (route) => ({
-              id: route.params.id,
+              mascotaId: route.params.id,
               isOverlay: true,
               ...route.query
             })
@@ -225,7 +225,7 @@ export const overlayVeterinario = [
                 component: Vacunas,
                 meta: { overlay: true },
                 props: (route) => ({
-                  id: route.params.id,
+                  mascotaId: route.params.id,
                   isOverlay: true,
                   ...route.query
                 })
@@ -236,7 +236,7 @@ export const overlayVeterinario = [
                 component: Desparasitación,
                 meta: { overlay: true },
                 props: (route) => ({
-                  id: route.params.id,
+                  mascotaId: route.params.id,
                   isOverlay: true,
                   ...route.query
                 })
@@ -247,7 +247,7 @@ export const overlayVeterinario = [
                 component: Revisión,
                 meta: { overlay: true },
                 props: (route) => ({
-                  id: route.params.id,
+                  mascotaId: route.params.id,
                   isOverlay: true,
                   ...route.query
                 })
@@ -258,7 +258,7 @@ export const overlayVeterinario = [
                 component: Alergias,
                 meta: { overlay: true },
                 props: (route) => ({
-                  id: route.params.id,
+                  mascotaId: route.params.id,
                   isOverlay: true,
                   ...route.query
                 })
@@ -281,7 +281,7 @@ export const overlayVeterinario = [
                 component: Procedimientos,
                 meta: { overlay: true },
                 props: (route) => ({
-                  id: route.params.id,
+                  mascotaId: route.params.id,
                   isOverlay: true,
                   ...route.query
                 })
@@ -292,7 +292,7 @@ export const overlayVeterinario = [
                 component: Fármacos,
                 meta: { overlay: true },
                 props: (route) => ({
-                  id: route.params.id,
+                  mascotaId: route.params.id,
                   isOverlay: true,
                   ...route.query
                 })
@@ -303,7 +303,7 @@ export const overlayVeterinario = [
                 component: Terapias,
                 meta: { overlay: true },
                 props: (route) => ({
-                  id: route.params.id,
+                  mascotaId: route.params.id,
                   isOverlay: true,
                   ...route.query
                 })
@@ -314,7 +314,7 @@ export const overlayVeterinario = [
                 component: Diagnosticos,
                 meta: { overlay: true },
                 props: (route) => ({
-                  id: route.params.id,
+                  mascotaId: route.params.id,
                   isOverlay: true,
                   ...route.query
                 })
@@ -325,7 +325,7 @@ export const overlayVeterinario = [
                 component: Paliativos,
                 meta: { overlay: true },
                 props: (route) => ({
-                  id: route.params.id,
+                  mascotaId: route.params.id,
                   isOverlay: true,
                   ...route.query
                 })

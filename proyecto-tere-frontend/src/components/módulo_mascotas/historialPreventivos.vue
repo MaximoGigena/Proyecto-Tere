@@ -1,16 +1,17 @@
-<!-- historialPreventivos -->
+<!-- historialPreventivo.vue modificado -->
 <template>
   <div class="flex flex-col h-[calc(100vh-140px)] w-full min-w-[450px] max-w-[800px] mx-auto">
-    <!-- Navbar de íconos -->
+    <!-- Navbar de íconos (siempre visible) -->
     <nav class="flex justify-around items-center bg-white border-b border-gray-200 py-3 sticky top-0 z-20">
       <router-link 
         v-for="nav in navItems"
         :key="nav.name"
         :to="{
           name: nav.name,
+          params: { id: mascotaId },
           query: {
-            ...$route.query, // Mantiene from/originalParams
-            tab: nav.name // Agrega el nombre de la pestaña actual
+            ...$route.query,
+            tab: nav.name
           }
         }"
         class="flex flex-col items-center p-2 rounded-full mx-2 text-gray-500 hover:text-blue-500 transition-all duration-200"
@@ -25,68 +26,111 @@
       </router-link>
     </nav>
 
-    <!-- Contenido dinámico con verificación de existencia -->
-    <div v-if="$route.matched.length" class="flex-1 overflow-y-auto p-4 w-full">
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
-          <component :is="Component" v-if="Component" />
-        </transition>
-      </router-view>
+    <!-- Contenido dinámico con verificación de permisos -->
+    <div class="flex-1 overflow-y-auto p-4 w-full">
+      <template v-if="tienePermisoHistorial">
+        <!-- Si tiene permiso, mostrar el contenido normal -->
+        <div v-if="$route.matched.length" class="w-full">
+          <router-view 
+            v-slot="{ Component }"
+            :mascotaId="mascotaId"
+            :ofertaId="ofertaId"
+            :tienePermisoHistorial="tienePermisoHistorial"
+            :nombreMascota="nombreMascota"
+            :puedeContactarTutor="puedeContactarTutor"
+          >
+            <transition name="fade" mode="out-in">
+              <component :is="Component" />
+            </transition>
+          </router-view>
+        </div>
+      </template>
+      
+      <!-- Si NO tiene permiso, mostrar advertencia -->
+      <template v-else>
+        <SinPermisoHistorial
+          tipo-historial="preventivo"
+          :nombre-mascota="nombreMascota"
+          :puede-contactar="puedeContactarTutor"
+          :oferta-id="ofertaId"
+        />
+      </template>
     </div>
   </div>
 </template>
 
-
-<script>
+<script setup>
+import { ref, computed, onMounted, watch } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { useRoute } from 'vue-router'
+import SinPermisoHistorial from '@/components/ElementosGraficos/SinPermisoHistorial.vue'
 
-
-export default {
-  name: "HistorialVacunas",
-  components: {
-    'font-awesome-icon': FontAwesomeIcon
+const props = defineProps({
+  mascotaId: {
+    type: [Number, String],
+    required: true
   },
-  data() {
-    // si queres dinamismo en las rutas hijas agregalas aca 
-    return {
-      navItems: [
-        { 
-          name: this.$route.meta.overlay ? 'veterinario-vacunas' : 'vacunas', 
-          icon: 'syringe', 
-          label: 'Vacunas'
-        },
-        { 
-          name: this.$route.meta.overlay ? 'veterinario-desparasitaciones' : 'desparasitaciones', 
-          icon: 'eye-dropper', 
-          label: 'Desparasitaciones'
-        },
-        { 
-          name: this.$route.meta.overlay ? 'veterinario-revisiones' : 'revisiones', 
-          icon: 'file-medical', 
-          label: 'Revisiones'
-        },
-        { 
-          name: this.$route.meta.overlay ? 'veterinario-alergias' : 'alergias', 
-          icon: 'shield-virus', 
-          label: 'Alergias'
-        },
-      ]
-    }
+  ofertaId: {
+    type: [Number, String],
+    default: null
   },
-  computed: {
-    currentRouteName() {
-      return this.$route.name;
-    }
+  tienePermisoHistorial: {
+    type: Boolean,
+    default: true
   },
-  watch: {
-    '$route'(to) {
-      // Forzar recarga si cambia el ID de la mascota
-      if (to.params.id !== this.$route.params.id) {
-        this.$router.go(0); // Recarga suave
-      }
-    }
+  nombreMascota: {
+    type: String,
+    default: 'la mascota'
+  },
+  puedeContactarTutor: {
+    type: Boolean,
+    default: false
   }
-}
+})
+
+const route = useRoute()
+
+// Items de navegación
+const navItems = computed(() => {
+  const isOverlay = route.meta.overlay
+  return [
+    { 
+      name: isOverlay ? 'veterinario-vacunas' : 'vacunas', 
+      icon: 'syringe', 
+      label: 'Vacunas'
+    },
+    { 
+      name: isOverlay ? 'veterinario-desparasitaciones' : 'desparasitaciones', 
+      icon: 'eye-dropper', 
+      label: 'Desparasitaciones'
+    },
+    { 
+      name: isOverlay ? 'veterinario-revisiones' : 'revisiones', 
+      icon: 'file-medical', 
+      label: 'Revisiones'
+    },
+    { 
+      name: isOverlay ? 'veterinario-alergias' : 'alergias', 
+      icon: 'shield-virus', 
+      label: 'Alergias'
+    },
+  ]
+})
+
+onMounted(() => {
+  console.log('📋 HistorialPreventivo montado', {
+    mascotaId: props.mascotaId,
+    ofertaId: props.ofertaId,
+    tienePermiso: props.tienePermisoHistorial,
+    nombreMascota: props.nombreMascota,
+    puedeContactar: props.puedeContactarTutor
+  })
+})
+
+// Watch para debug
+watch(() => props.tienePermisoHistorial, (newVal) => {
+  console.log('🔄 HistorialPreventivo - Permiso cambiado:', newVal)
+})
 </script>
 
 <style scoped>
@@ -99,4 +143,3 @@ export default {
   opacity: 0;
 }
 </style>
-

@@ -19,16 +19,6 @@ export interface Notificacion {
   origen_formateado?: string;
 }
 
-export interface NotificacionesResponse {
-  success: boolean;
-  data: {
-    data: Notificacion[];
-    current_page: number;
-    last_page: number;
-    total: number;
-  };
-}
-
 export interface Estadisticas {
   total: number;
   no_leidas: number;
@@ -63,20 +53,41 @@ export default function useNotificaciones() {
     try {
       const params = {
         page,
-        per_page: 10,
-        leida: false // Primero las no leídas
+        per_page: 10
       };
 
-      const response = await api.get<NotificacionesResponse>('/notificaciones', { params });
+      const response = await api.get('/notificaciones', { params });
       
-      if (loadMore) {
-        notificaciones.value = [...notificaciones.value, ...response.data.data.data];
-      } else {
-        notificaciones.value = response.data.data.data;
+      // Verificar la estructura de la respuesta y extraer las notificaciones
+      let notificacionesData: Notificacion[] = [];
+      
+      if (response.data?.data?.notificaciones && Array.isArray(response.data.data.notificaciones)) {
+        // Estructura: { data: { notificaciones: [...], paginacion: {...} } }
+        notificacionesData = response.data.data.notificaciones;
+        currentPage.value = response.data.data.paginacion?.current_page || page;
+        lastPage.value = response.data.data.paginacion?.last_page || 1;
+      } else if (response.data?.data?.data && Array.isArray(response.data.data.data)) {
+        // Estructura: { data: { data: [...], current_page, last_page } } (paginación de Laravel)
+        notificacionesData = response.data.data.data;
+        currentPage.value = response.data.data.current_page || page;
+        lastPage.value = response.data.data.last_page || 1;
+      } else if (Array.isArray(response.data?.data)) {
+        // Estructura: { data: [...] }
+        notificacionesData = response.data.data;
+        currentPage.value = page;
+        lastPage.value = 1;
+      } else if (Array.isArray(response.data)) {
+        // Estructura: [...] (directo)
+        notificacionesData = response.data;
+        currentPage.value = page;
+        lastPage.value = 1;
       }
       
-      currentPage.value = response.data.data.current_page;
-      lastPage.value = response.data.data.last_page;
+      if (loadMore) {
+        notificaciones.value = [...notificaciones.value, ...notificacionesData];
+      } else {
+        notificaciones.value = notificacionesData;
+      }
       
       // Cargar estadísticas solo si es la primera página
       if (!loadMore) {
@@ -85,6 +96,10 @@ export default function useNotificaciones() {
     } catch (err: any) {
       error.value = err.response?.data?.message || 'Error al cargar notificaciones';
       console.error('Error al cargar notificaciones:', err);
+      // Asegurar que notificaciones sea siempre un array
+      if (!loadMore) {
+        notificaciones.value = [];
+      }
     } finally {
       cargando.value = false;
       cargandoMas.value = false;
@@ -99,22 +114,32 @@ export default function useNotificaciones() {
 
   const cargarEstadisticas = async () => {
     try {
-      const response = await api.get<{ success: boolean; data: Estadisticas }>('/notificaciones/estadisticas');
-      estadisticas.value = response.data.data;
+      const response = await api.get('/notificaciones/estadisticas');
+      if (response.data?.success && response.data?.data) {
+        estadisticas.value = response.data.data;
+      } else if (response.data?.data) {
+        estadisticas.value = response.data.data;
+      }
     } catch (err: any) {
       console.error('Error al cargar estadísticas:', err);
+      // No propagar el error para no bloquear la UI
     }
   };
 
   const marcarComoLeida = async (id: number) => {
     try {
-      // CAMBIA ESTO: usa PUT en lugar de POST
-      await api.put(`/notificaciones/${id}/leer`);
+      // Intentar con PUT primero, si falla probar con POST
+      try {
+        await api.put(`/notificaciones/${id}/leer`);
+      } catch (putError) {
+        // Si PUT falla, intentar con POST como fallback
+        await api.post(`/notificaciones/${id}/leer`);
+      }
       
       // Actualizar localmente
       const index = notificaciones.value.findIndex(n => n.id === id);
       if (index !== -1) {
-        // IMPORTANTE: Crea un nuevo array para reactividad
+        // Crear un nuevo array para reactividad
         const updatedNotifications = [...notificaciones.value];
         updatedNotifications[index] = {
           ...updatedNotifications[index],
@@ -125,7 +150,10 @@ export default function useNotificaciones() {
         
         // Actualizar estadísticas
         if (estadisticas.value && estadisticas.value.no_leidas > 0) {
-          estadisticas.value.no_leidas--;
+          estadisticas.value = {
+            ...estadisticas.value,
+            no_leidas: estadisticas.value.no_leidas - 1
+          };
         }
       }
       
@@ -143,14 +171,19 @@ export default function useNotificaciones() {
     try {
       await api.post('/notificaciones/marcar-todas-leidas');
       
-      // Actualizar localmente
-      notificaciones.value.forEach(n => {
-        n.leida = true;
-      });
+      // Actualizar localmente - crear nuevo array
+      notificaciones.value = notificaciones.value.map(n => ({
+        ...n,
+        leida: true,
+        fecha_lectura: n.fecha_lectura || new Date().toISOString()
+      }));
       
       // Actualizar estadísticas
       if (estadisticas.value) {
-        estadisticas.value.no_leidas = 0;
+        estadisticas.value = {
+          ...estadisticas.value,
+          no_leidas: 0
+        };
       }
     } catch (err: any) {
       console.error('Error al marcar todas como leídas:', err);
@@ -164,16 +197,21 @@ export default function useNotificaciones() {
     try {
       await api.delete(`/notificaciones/${id}`);
       
-      // Eliminar localmente
+      // Guardar la notificación eliminada para actualizar estadísticas
       const notificacionEliminada = notificaciones.value.find(n => n.id === id);
+      
+      // Eliminar localmente - crear nuevo array
       notificaciones.value = notificaciones.value.filter(n => n.id !== id);
       
       // Actualizar estadísticas
       if (estadisticas.value && notificacionEliminada) {
-        estadisticas.value.total--;
-        if (!notificacionEliminada.leida) {
-          estadisticas.value.no_leidas--;
-        }
+        estadisticas.value = {
+          ...estadisticas.value,
+          total: estadisticas.value.total - 1,
+          no_leidas: notificacionEliminada.leida 
+            ? estadisticas.value.no_leidas 
+            : estadisticas.value.no_leidas - 1
+        };
       }
     } catch (err: any) {
       console.error('Error al eliminar notificación:', err);

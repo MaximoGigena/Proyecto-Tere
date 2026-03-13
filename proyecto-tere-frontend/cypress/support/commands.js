@@ -119,3 +119,37 @@ Cypress.Commands.add('generateEmailUnico', () => {
   const random = Math.floor(Math.random() * 1000);
   return `test-${timestamp}-${random}@test.com`;
 });
+
+// Interceptar peticiones de registro de veterinario
+Cypress.Commands.add('interceptarPeticionesRegistroVeterinario', () => {
+  cy.intercept('POST', '**/api/registrar-veterinario').as('registrarVeterinario');
+});
+
+// Comando para registro rápido (útil para pruebas que necesitan un veterinario registrado)
+Cypress.Commands.add('registroRapidoVeterinario', (veterinario) => {
+  cy.visit('http://localhost:5173/registro/veterinario');
+  
+  // Completar datos obligatorios
+  cy.get('input[v-model="veterinario.nombre"]').type(veterinario.nombre);
+  cy.get('input[v-model="veterinario.email"]').type(veterinario.email);
+  cy.get('input[v-model="veterinario.matricula"]').type(veterinario.matricula);
+  
+  // Subir foto
+  cy.get('[class*="border-dashed"]').first().click();
+  cy.fixture('images/veterinario.jpg', 'base64').then(fileContent => {
+    const blob = Cypress.Blob.base64StringToBlob(fileContent, 'image/jpeg');
+    const file = new File([blob], 'veterinario.jpg', { type: 'image/jpeg' });
+    const event = { dataTransfer: { files: [file] } };
+    cy.get('input[type="file"]').first().trigger('change', event);
+  });
+  
+  cy.get('button[type="submit"]').click();
+  cy.wait('@registrarVeterinario');
+});
+
+// Generador de matrícula única
+Cypress.Commands.add('generateMatriculaUnica', () => {
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 1000);
+  return `VET-${timestamp}-${random}`;
+});

@@ -49,7 +49,7 @@
       </div>
 
       <!-- Vacío -->
-      <div v-else-if="notificaciones.length === 0"
+      <div v-else-if="notificacionesList.length === 0"
            class="text-gray-500 text-sm text-center py-8">
         <font-awesome-icon :icon="['far', 'bell']" class="text-3xl mb-3 text-gray-300" />
         <p>No tienes notificaciones</p>
@@ -58,7 +58,7 @@
       <!-- Lista -->
       <div v-else>
         <div
-          v-for="n in notificaciones"
+          v-for="n in notificacionesList"
           :key="n.id"
           class="p-3 mb-2 rounded-xl border flex gap-3
                  cursor-pointer transition-colors relative"
@@ -185,14 +185,49 @@
   </div>
 </template>
 
-
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import useNotificaciones, { type Notificacion } from '@/composables/useNotificaciones';
 
 const router = useRouter();
 const emit = defineEmits(['close']);
+
+// Props con valor por defecto seguro
+const props = defineProps({
+  notificaciones: {
+    type: Array,
+    default: () => []
+  }
+});
+
+/* =====================================================
+   Composable
+===================================================== */
+const {
+  notificaciones: notificacionesStore,
+  estadisticas,
+  cargando,
+  cargandoMas,
+  marcandoTodas,
+  error,
+  hasMore,
+  cargarNotificaciones,
+  cargarMas,
+  marcarComoLeida,
+  marcarTodasComoLeidas,
+  eliminarNotificacion
+} = useNotificaciones();
+
+// Computed que combina props y store, siempre asegurando que sea un array
+const notificacionesList = computed(() => {
+  // Si hay props y tienen elementos, úsalas
+  if (props.notificaciones && Array.isArray(props.notificaciones) && props.notificaciones.length > 0) {
+    return props.notificaciones;
+  }
+  // Si no, usa las del store (que siempre será array por el composable corregido)
+  return notificacionesStore.value || [];
+});
 
 /* =====================================================
    Accordion / Expand
@@ -200,28 +235,13 @@ const emit = defineEmits(['close']);
 const notificacionExpandidaId = ref<number | null>(null);
 
 const toggleExpand = async (id: number) => {
-  // Buscar la notificación
-  const notificacion = notificaciones.value.find(n => n.id === id);
+  // Buscar la notificación en la lista combinada
+  const notificacion = notificacionesList.value.find((n: Notificacion) => n.id === id);
   
   // Si la notificación existe y no está leída, marcarla como leída
   if (notificacion && !notificacion.leida) {
     try {
       await marcarComoLeida(id);
-      
-      // Actualizar la notificación localmente
-      const index = notificaciones.value.findIndex(n => n.id === id);
-      if (index !== -1) {
-        notificaciones.value[index] = {
-          ...notificaciones.value[index],
-          leida: true,
-          fecha_lectura: new Date().toISOString()
-        };
-      }
-      
-      // Actualizar estadísticas
-      if (estadisticas.value && estadisticas.value.no_leidas > 0) {
-        estadisticas.value.no_leidas--;
-      }
     } catch (error) {
       console.error('Error al marcar como leída:', error);
     }
@@ -236,24 +256,6 @@ const estaExpandida = (id: number) =>
   notificacionExpandidaId.value === id;
 
 /* =====================================================
-   Composable
-===================================================== */
-const {
-  notificaciones,
-  estadisticas,
-  cargando,
-  cargandoMas,
-  marcandoTodas,
-  error,
-  hasMore,
-  cargarNotificaciones,
-  cargarMas,
-  marcarComoLeida,
-  marcarTodasComoLeidas,
-  eliminarNotificacion
-} = useNotificaciones();
-
-/* =====================================================
    Iconos y estilos
 ===================================================== */
 const icono = (tipo: string) => {
@@ -263,6 +265,7 @@ const icono = (tipo: string) => {
     SISTEMA: ['fas', 'server'],
     MENSAJE: ['fas', 'envelope'],
     PROCEDIMIENTO: ['fas', 'clipboard-list'],
+    ADOPCION: ['fas', 'heart'],
     DENUNCIA: ['fas', 'flag'],
     OFERTA: ['fas', 'paw'],
     SOLICITUD: ['fas', 'handshake'],
@@ -274,6 +277,8 @@ const icono = (tipo: string) => {
 const iconoColor = (tipo: string) => {
   if (tipo === 'ADVERTENCIA' || tipo === 'SANCION') return 'text-red-500';
   if (tipo === 'OFERTA') return 'text-green-500';
+  if (tipo === 'ADOPCION') return 'text-pink-500';
+  if (tipo === 'PROCEDIMIENTO') return 'text-purple-500';
   if (tipo === 'MENSAJE') return 'text-blue-500';
   return 'text-gray-500';
 };
@@ -283,6 +288,8 @@ const badgeColor = (tipo: string) => {
     ADVERTENCIA: 'bg-red-100 text-red-800',
     SANCION: 'bg-red-100 text-red-800',
     OFERTA: 'bg-green-100 text-green-800',
+    ADOPCION: 'bg-pink-100 text-pink-800',
+    PROCEDIMIENTO: 'bg-purple-100 text-purple-800',
     MENSAJE: 'bg-blue-100 text-blue-800',
     DENUNCIA: 'bg-orange-100 text-orange-800',
     SISTEMA: 'bg-gray-100 text-gray-800'
@@ -368,7 +375,7 @@ let intervaloRefresco: number;
 
 onMounted(() => {
   intervaloRefresco = window.setInterval(() => {
-    if (!cargando) {
+    if (!cargando.value) {
       cargarNotificaciones(1, false);
     }
   }, 30000);
@@ -380,7 +387,6 @@ onUnmounted(() => {
   }
 });
 </script>
-
 
 <style scoped>
 .line-clamp-2 {

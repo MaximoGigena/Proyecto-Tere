@@ -1,0 +1,47 @@
+{
+  "veterinarioValido": {
+    "nombre": "Dr. Juan Pérez González",
+    "email": "juan.perez@veterinaria.com",
+    "matricula": "VET-2024-12345",
+    "especialidad": "Cirugía de pequeños animales",
+    "experiencia": 10,
+    "descripcion": "Veterinario especializado en cirugía de pequeños animales con más de 10 años de experiencia. Graduado de la Universidad Nacional con especialización en cirugía de tejidos blandos.",
+    "telefono": "+5491123456789",
+    "emailContacto": "contacto@veterinariaperez.com"
+  },
+  "veterinarioSinOpcionales": {
+    "nombre": "Dra. María López",
+    "email": "maria.lopez@veterinaria.com",
+    "matricula": "VET-2024-54321",
+    "especialidad": "Medicina general",
+    "experiencia": 5,
+    "descripcion": "",
+    "telefono": "",
+    "emailContacto": ""
+  },
+  "veterinarioMinimo": {
+    "nombre": "Dr. Carlos Rodríguez",
+    "email": "carlos.rodriguez@test.com",
+    "matricula": "VET-2024-67890",
+    "especialidad": "",
+    "experiencia": null,
+    "descripcion": null,
+    "telefono": null,
+    "emailContacto": null
+  },
+  "emailsInvalidos": [
+    "email-invalido",
+    "sin.arroba.com",
+    "@sinusuario.com",
+    "espacio en@email.com",
+    "sin.dominio@.",
+    "caracteres@especiales!#$%.com"
+  ],
+  "matriculasInvalidas": [
+    "",
+    "  ",
+    "ABC",
+    "12345678901234567890"
+  ],
+  "textoLargo": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+}

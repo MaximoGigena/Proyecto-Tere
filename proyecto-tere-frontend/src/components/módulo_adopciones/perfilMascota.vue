@@ -4,7 +4,6 @@
     <!-- Header sticky compacto -->
     <div class="sticky top-0 z-30 bg-white px-4 py-1 flex items-center justify-between border-b border-gray-100">
       <div class="text-xl font-bold text-gray-800 leading-tight">
-        <!-- ✅ Muestra información de ubicación si está disponible -->
         <template v-if="ubicacionCargada">
           Mascotas cerca de ti ({{ currentIndex + 1 }}/{{ ofertas.length }})
         </template>
@@ -157,7 +156,6 @@
               </button>
             </div>
             
-            <!-- ✅ Pasar evento para aplicar filtros y recargar -->
             <FiltrosComponente 
               @cerrar="mostrarFiltros = false" 
               @filtrar="aplicarFiltros"
@@ -170,7 +168,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ContenidoMascota from '@/components/módulo_mascotas/contenidoMascota.vue'
 import FiltrosComponente from './filtrosAdopciones.vue'
@@ -187,7 +185,10 @@ const ofertas = ref([])
 const currentIndex = ref(0)
 const cargando = ref(true)
 const procesando = ref(false)
-const ubicacionCargada = ref(false) // ✅ Nuevo estado para ubicación
+const ubicacionCargada = ref(false)
+
+// Cache de filtros actuales
+const filtrosActuales = ref({})
 
 // ✅ Función para obtener ubicación del usuario
 const obtenerUbicacionUsuario = async () => {
@@ -227,104 +228,23 @@ const obtenerUbicacionUsuario = async () => {
 
 // ✅ Cargar las ofertas ordenadas por proximidad
 const cargarOfertas = async () => {
-  try {
-    cargando.value = true;
-    ofertas.value = [];
-    
-    // Intentar obtener ubicación del usuario
-    const tieneUbicacion = await obtenerUbicacionUsuario();
-    
-    // Usar el endpoint de proximidad para obtener TODAS las ofertas ordenadas por cercanía
-    const endpoint = '/api/adopciones/proximidad';
-    console.log(`📍 Cargando ofertas desde: ${endpoint}`);
-    console.log(`📍 Usuario ${tieneUbicacion ? 'tiene' : 'NO tiene'} ubicación`);
-    
-    const response = await axios.get(endpoint, {
-      headers: { 'Authorization': `Bearer ${accessToken.value}` }
-    });
-
-    if (response.data.success && response.data.data) {
-      // ✅ Obtener todas las ofertas (ya vienen ordenadas por proximidad del controlador)
-      const todasLasOfertas = response.data.data;
-      
-      // ✅ Excluir ofertas ya vistas/interactuadas
-      // Primero obtener las mascotas ya interactuadas
-      const mascotasInteractuadasResponse = await axios.get('/api/adopciones/mis-interacciones', {
-        headers: { 'Authorization': `Bearer ${accessToken.value}` }
-      });
-      
-      let mascotasInteractuadas = [];
-      if (mascotasInteractuadasResponse.data.success) {
-        mascotasInteractuadas = mascotasInteractuadasResponse.data.data.map(i => i.mascota_id);
-        console.log(`📍 Mascotas ya interactuadas: ${mascotasInteractuadas.length}`);
-      }
-      
-      // Filtrar ofertas excluyendo las ya interactuadas
-      const ofertasFiltradas = todasLasOfertas.filter(oferta => 
-        !mascotasInteractuadas.includes(oferta.mascota.id)
-      );
-      
-      // Limitar a 20 ofertas para no sobrecargar
-      ofertas.value = ofertasFiltradas.slice(0, 20);
-      currentIndex.value = 0;
-      
-      console.log('📍 Ofertas para swipe cargadas por proximidad:');
-      console.log(`- Total encontradas: ${todasLasOfertas.length}`);
-      console.log(`- Interactuadas excluidas: ${mascotasInteractuadas.length}`);
-      console.log(`- Disponibles para swipe: ${ofertas.value.length}`);
-      
-      // Mostrar información de distancia en consola
-      ofertas.value.forEach((oferta, index) => {
-        console.log(`📍 Oferta ${index + 1}: ${oferta.mascota.nombre} - ${oferta.distancia || 'Sin ubicación'}`);
-      });
-      
-      // Si no hay ofertas, mostrar mensaje
-      if (ofertas.value.length === 0) {
-        console.log('📍 No hay ofertas nuevas disponibles');
-        // Podrías mostrar un mensaje al usuario aquí
-      }
-    } else {
-      console.error('Error en respuesta de ofertas por proximidad:', response.data.message);
-    }
-  } catch (error) {
-    console.error('Error cargando ofertas por proximidad:', error);
-    
-    // ✅ FALLBACK: Intentar con el endpoint original si falla
-    console.log('📍 Intentando con endpoint alternativo...');
-    try {
-      const fallbackResponse = await axios.get('/api/adopciones/ofertas-para-swipe', {
-        headers: { 'Authorization': `Bearer ${accessToken.value}` }
-      });
-      
-      if (fallbackResponse.data.success && fallbackResponse.data.data) {
-        ofertas.value = fallbackResponse.data.data;
-        currentIndex.value = 0;
-        console.log('📍 Ofertas cargadas por fallback:', ofertas.value.length);
-      }
-    } catch (fallbackError) {
-      console.error('Error en fallback también:', fallbackError);
-    }
-  } finally {
-    cargando.value = false;
-  }
-};
+  await cargarOfertasConFiltros(filtrosActuales.value)
+}
 
 // ✅ Función para recargar ofertas (cuando se llega al final)
 const recargarOfertas = async () => {
-  console.log('📍 Recargando ofertas...');
-  await cargarOfertas();
-};
+  console.log('📍 Recargando ofertas desde el inicio...')
+  await cargarOfertasConFiltros(filtrosActuales.value)
+}
 
 // Handlers para los eventos del componente ContenidoMascota
 const handleLike = (data) => {
   console.log('Like desde ContenidoMascota:', data)
-  // El componente hijo ya registró la interacción, solo avanzar
   moverSiguiente()
 }
 
 const handleDislike = (data) => {
   console.log('Dislike desde ContenidoMascota:', data)
-  // El componente hijo ya registró la interacción, solo avanzar
   moverSiguiente()
 }
 
@@ -335,7 +255,7 @@ const handleCardClose = () => {
 }
 
 const onSwipeCompleted = (action) => {
-  console.log('Swipe completado desde ContenidoMascota:', action)
+  console.log('Swipe completado:', action)
 }
 
 // Navegación
@@ -343,9 +263,7 @@ const moverSiguiente = () => {
   if (currentIndex.value < ofertas.value.length - 1) {
     currentIndex.value++
   } else {
-    // No hay más ofertas, recargar
-    console.log('📍 Última oferta alcanzada, recargando...');
-    recargarOfertas();
+    recargarOfertas()
   }
 }
 
@@ -355,9 +273,89 @@ const moverAnterior = () => {
   }
 }
 
+// ✅ Función para aplicar filtros
+const aplicarFiltros = async (filtros) => {
+  console.log('📍 Aplicando filtros:', filtros)
+  
+  // Guardar filtros actuales
+  filtrosActuales.value = filtros
+  
+  // Cerrar el modal
+  mostrarFiltros.value = false
+  
+  // Recargar ofertas
+  await cargarOfertasConFiltros(filtros)
+}
+
+// ✅ Función para cargar ofertas con filtros
+const cargarOfertasConFiltros = async (filtros) => {
+  try {
+    cargando.value = true
+    ofertas.value = []
+    currentIndex.value = 0
+    
+    // Construir parámetros
+    const params = new URLSearchParams()
+    
+    if (filtros) {
+      // Especie
+      if (filtros.especie && filtros.especie.length) {
+        params.append('especie', JSON.stringify(filtros.especie))
+      }
+      
+      // Sexo
+      if (filtros.sexo) {
+        params.append('sexo', JSON.stringify([filtros.sexo.toLowerCase()]))
+      }
+      
+      // Edad
+      if (filtros.rangos_edad && filtros.rangos_edad.length) {
+        params.append('rangos_edad', JSON.stringify(filtros.rangos_edad))
+      }
+      
+      // Ubicación
+      if (filtros.coordenadas) {
+        params.append('latitud', filtros.coordenadas.lat)
+        params.append('longitud', filtros.coordenadas.lon)
+        params.append('radio_km', filtros.radio || 10)
+        params.append('ubicacion', filtros.ubicacion || '')
+      }
+    }
+    
+    console.log('📍 Parámetros:', params.toString())
+    
+    // Usar endpoint de swipe
+    const url = `/api/adopciones/ofertas-para-swipe${params.toString() ? '?' + params.toString() : ''}`
+    
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${accessToken.value}` }
+    })
+    
+    if (response.data.success) {
+      ofertas.value = response.data.data
+      console.log(`📍 ${ofertas.value.length} ofertas cargadas`)
+    }
+    
+  } catch (error) {
+    console.error('Error cargando ofertas:', error)
+  } finally {
+    cargando.value = false
+  }
+}
+
 // Inicializar
-onMounted(() => {
+onMounted(async () => {
   if (isAuthenticated.value) {
+    // Obtener ubicación primero
+    await obtenerUbicacionUsuario()
+    // Cargar ofertas
+    await cargarOfertas()
+  }
+})
+
+// Watch para cuando el usuario vuelve a la vista
+watch(() => route.path, (newPath) => {
+  if (newPath === '/explorar/encuentros' && ofertas.value.length === 0) {
     cargarOfertas()
   }
 })

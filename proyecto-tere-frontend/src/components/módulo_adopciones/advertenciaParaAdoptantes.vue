@@ -77,8 +77,11 @@
         <!-- INFO MASCOTA -->
         <div v-if="mascota" class="bg-blue-50 p-3 rounded-lg mb-4">
           <div class="flex items-center gap-3">
-            <img :src="mascota.fotoPrincipal || burro" 
-                 class="w-14 h-14 rounded-full object-cover border-2 border-blue-200">
+            <img 
+              :src="mascota?.fotoPrincipal || mascota?.fotos?.[0]?.url || mascota?.foto_principal_url || burro" 
+              class="w-14 h-14 rounded-full object-cover border-2 border-blue-200"
+              @error="manejarErrorImagen"
+            >
             <div>
               <h3 class="font-bold text-base text-gray-800">{{ mascota.nombre }}</h3>
               <p class="text-sm text-gray-600">{{ mascota.edad_formateada || "Edad no disponible" }}</p>
@@ -399,6 +402,54 @@ async function open(ofertaIdParam = null, mascotaIdParam = null) {
   aceptoFinal.value = false
   estado.value = "inicial"
   mascota.value = null
+
+  const obtenerFotoMascota = () => {
+    if (!mascota.value) return burro
+    
+    // Opción 1: Si existe fotoPrincipal directamente
+    if (mascota.value.fotoPrincipal) {
+      return mascota.value.fotoPrincipal
+    }
+    
+    // Opción 2: Si las fotos están en un array
+    if (mascota.value.fotos && Array.isArray(mascota.value.fotos) && mascota.value.fotos.length > 0) {
+      // Si cada foto es un objeto con propiedad 'url'
+      if (typeof mascota.value.fotos[0] === 'object' && mascota.value.fotos[0].url) {
+        return mascota.value.fotos[0].url
+      }
+      // Si el array contiene strings directamente
+      if (typeof mascota.value.fotos[0] === 'string') {
+        return mascota.value.fotos[0]
+      }
+    }
+    
+    // Opción 3: Si hay una propiedad 'imagen' o 'foto'
+    if (mascota.value.imagen) {
+      return mascota.value.imagen
+    }
+    if (mascota.value.foto) {
+      return mascota.value.foto
+    }
+    
+    // Opción 4: Buscar en características o metadata
+    if (mascota.value.caracteristicas?.fotoPrincipal) {
+      return mascota.value.caracteristicas.fotoPrincipal
+    }
+    
+    // Si no encuentra nada, usar imagen por defecto
+    return burro
+  }
+
+  // Manejar error de carga de imagen
+  const manejarErrorImagen = (event) => {
+    event.target.src = burro
+  }
+
+  // También puedes agregar esto para depurar
+  const inspeccionarMascota = () => {
+    console.log('Estructura completa de mascota:', JSON.stringify(mascota.value, null, 2))
+    console.log('Propiedades disponibles:', Object.keys(mascota.value || {}))
+  }
   
   // Mostrar el modal
   visible.value = true
