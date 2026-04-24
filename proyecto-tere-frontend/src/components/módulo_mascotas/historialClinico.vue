@@ -27,16 +27,14 @@
     </nav>
 
     <!-- Contenido con verificación de permisos -->
-    <div class="flex-1 overflow-y-auto p-4">
-      <template v-if="tienePermisoHistorial">
-        <div v-if="$route.matched.length">
+    <div class="flex-1 overflow-y-auto p-4 w-full">
+      <!-- ✅ Usar mostrarBloqueo en lugar de !tienePermisoHistorial -->
+      <template v-if="!mostrarBloqueo">
+        <div v-if="$route.matched.length" class="w-full">
           <router-view 
             v-slot="{ Component }"
             :mascotaId="mascotaId"
-            :ofertaId="ofertaId"
-            :tienePermisoHistorial="tienePermisoHistorial"
-            :nombreMascota="nombreMascota"
-            :puedeContactarTutor="puedeContactarTutor"
+            :esTutor="esTutor"
           >
             <transition name="fade" mode="out-in">
               <component :is="Component" />
@@ -47,7 +45,7 @@
       
       <template v-else>
         <SinPermisoHistorial
-          tipo-historial="clínico"
+          tipo-historial="preventivo"
           :nombre-mascota="nombreMascota"
           :puede-contactar="puedeContactarTutor"
           :oferta-id="ofertaId"
@@ -74,13 +72,17 @@ const props = defineProps({
   },
   tienePermisoHistorial: {
     type: Boolean,
-    default: true
+    default: false  // Cambiar default a false por seguridad
   },
   nombreMascota: {
     type: String,
     default: 'la mascota'
   },
   puedeContactarTutor: {
+    type: Boolean,
+    default: false
+  },
+  esTutor: {  // ✅ NUEVA PROP
     type: Boolean,
     default: false
   }
@@ -117,6 +119,14 @@ const navItems = computed(() => {
       label: 'Paliativos'
     }
   ]
+})
+
+const mostrarBloqueo = computed(() => {
+  // Si es tutor, NUNCA mostrar bloqueo
+  if (props.esTutor) return false
+  
+  // Si no es tutor, mostrar bloqueo si no tiene permiso
+  return !props.tienePermisoHistorial
 })
 
 onMounted(() => {

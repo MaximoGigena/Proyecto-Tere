@@ -28,16 +28,13 @@
 
     <!-- Contenido dinámico con verificación de permisos -->
     <div class="flex-1 overflow-y-auto p-4 w-full">
-      <template v-if="tienePermisoHistorial">
-        <!-- Si tiene permiso, mostrar el contenido normal -->
+      <!-- ✅ Usar mostrarBloqueo en lugar de !tienePermisoHistorial -->
+      <template v-if="!mostrarBloqueo">
         <div v-if="$route.matched.length" class="w-full">
           <router-view 
             v-slot="{ Component }"
             :mascotaId="mascotaId"
-            :ofertaId="ofertaId"
-            :tienePermisoHistorial="tienePermisoHistorial"
-            :nombreMascota="nombreMascota"
-            :puedeContactarTutor="puedeContactarTutor"
+            :esTutor="esTutor"
           >
             <transition name="fade" mode="out-in">
               <component :is="Component" />
@@ -46,7 +43,6 @@
         </div>
       </template>
       
-      <!-- Si NO tiene permiso, mostrar advertencia -->
       <template v-else>
         <SinPermisoHistorial
           tipo-historial="preventivo"
@@ -76,13 +72,17 @@ const props = defineProps({
   },
   tienePermisoHistorial: {
     type: Boolean,
-    default: true
+    default: false  // Cambiar default a false por seguridad
   },
   nombreMascota: {
     type: String,
     default: 'la mascota'
   },
   puedeContactarTutor: {
+    type: Boolean,
+    default: false
+  },
+  esTutor: {  // ✅ NUEVA PROP
     type: Boolean,
     default: false
   }
@@ -115,6 +115,14 @@ const navItems = computed(() => {
       label: 'Alergias'
     },
   ]
+})
+
+const mostrarBloqueo = computed(() => {
+  // Si es tutor, NUNCA mostrar bloqueo
+  if (props.esTutor) return false
+  
+  // Si no es tutor, mostrar bloqueo si no tiene permiso
+  return !props.tienePermisoHistorial
 })
 
 onMounted(() => {

@@ -794,15 +794,15 @@ const images = ref([
   'https://cdn.pixabay.com/photo/2020/12/29/22/57/donkey-5871800_960_720.jpg'
 ]);
 
-function goToHistorial() {
+async function goToHistorial() {
   // ✅ Obtener el ID de la mascota
   const mascotaId = mascotaComputed.value?.id;
   
-  // ✅ Obtener el ID de la oferta de múltiples fuentes posibles
-  const ofertaId = props.ofertaActual?.id_oferta || // De props
-                   route.params.id ||                // De parámetros de ruta
-                   route.query.ofertaId ||           // De query params
-                   route.query.oferta_id;            // De query params alternativo
+  // ✅ Obtener el ID de la oferta
+  const ofertaId = props.ofertaActual?.id_oferta || 
+                   route.params.id || 
+                   route.query.ofertaId || 
+                   route.query.oferta_id;
   
   // Validar que tenemos un ID de mascota válido
   if (!mascotaId || mascotaId === 'demo-burro') {
@@ -811,32 +811,67 @@ function goToHistorial() {
     return;
   }
   
-  // Verificar si tenemos permisos de historial desde donde venimos
-  const tienePermisoHistorial = props.ofertaActual?.permisos?.historial_medico || 
-                               route.query.permisoHistorial === '1';
+  // ✅ VERIFICAR SI ES EL TUTOR
+  let esTutor = false;
+  let tienePermisoHistorial = false;
+  let puedeContactarTutor = false;
   
-  // Si NO tenemos permiso de historial, mostrar advertencia
-  if (!tienePermisoHistorial) {
-    console.log('⚠️ No hay permiso para ver historial médico');
-    mostrarNotificacion('El tutor no ha compartido el historial médico de esta mascota', 'info');
-    // Podrías mostrar un modal informativo en lugar de bloquear
-    // return; // Descomentar si quieres bloquear la navegación
+  try {
+    const response = await axios.get(`/api/mascotas/${mascotaId}/permisos-historial`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.value}`
+      }
+    });
+    
+    if (response.data.success) {
+      esTutor = response.data.es_tutor;
+      tienePermisoHistorial = response.data.tiene_permiso;
+      puedeContactarTutor = response.data.permiso_contacto || false;
+      
+      console.log('✅ Verificación de permisos:', { 
+        esTutor, 
+        tienePermisoHistorial,
+        puedeContactarTutor
+      });
+    }
+  } catch (error) {
+    console.error('Error verificando permisos:', error);
+    // Si hay error, usar valores de props
+    esTutor = false;
+    tienePermisoHistorial = props.ofertaActual?.permisos?.historial_medico || false;
+    puedeContactarTutor = props.ofertaActual?.permisos?.contacto_tutor || false;
+  }
+  
+  // ✅ SI ES TUTOR, TIENE PERMISO TOTAL
+  if (esTutor) {
+    tienePermisoHistorial = true;
+    puedeContactarTutor = true; // El tutor siempre puede "contactarse" consigo mismo
+  }
+  
+  // 🚫 NO BLOQUEAR LA NAVEGACIÓN - Siempre permitir ir al historial
+  // Solo mostrar advertencia informativa si no tiene permiso
+  if (!esTutor && !tienePermisoHistorial) {
+    console.log('ℹ️ Usuario no es tutor y no tiene permiso - Mostrando vista de bloqueo');
+    mostrarNotificacion('El tutor ha decidido no compartir el historial médico', 'info');
+    // ⚠️ NO HACER RETURN - Permitir navegación
   }
   
   console.log('🚀 Navegando a historial:', {
     mascotaId,
     ofertaId,
     nombreMascota: mascotaComputed.value?.nombre,
+    esTutor,
     tienePermisoHistorial,
-    puedeContactar: props.ofertaActual?.permisos?.contacto_tutor || false
+    puedeContactar: puedeContactarTutor
   });
   
   // Construir query params
   const queryParams = {
     from: route.name,
-    ofertaId: ofertaId || '',  // Incluir aunque sea vacío
+    ofertaId: ofertaId || '',
+    esTutor: esTutor ? '1' : '0',
     permisoHistorial: tienePermisoHistorial ? '1' : '0',
-    puedeContactar: props.ofertaActual?.permisos?.contacto_tutor ? '1' : '0',
+    puedeContactar: puedeContactarTutor ? '1' : '0',
     nombreMascota: mascotaComputed.value?.nombre || 'Mascota',
     origen: ofertaId ? 'oferta' : 'mascota',
     ts: Date.now()
@@ -849,9 +884,9 @@ function goToHistorial() {
     }
   });
   
-  // Navegar al historial
+  // ✅ SIEMPRE NAVEGAR al historial
   router.push({
-    name: 'tutores', // O la ruta correcta para tu historial
+    name: 'tutores',
     params: { id: mascotaId },
     query: queryParams
   });

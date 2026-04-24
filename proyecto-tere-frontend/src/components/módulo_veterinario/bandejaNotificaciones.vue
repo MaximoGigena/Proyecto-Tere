@@ -1,6 +1,9 @@
 <!-- views/VeterinarioNotificaciones.vue -->
 <template>
-  <div class="min-h-screen bg-gray-100 p-4">
+  <div class="min-h-screen bg-gray-100 p-4 relative">
+    <!-- Overlay Coming Soon - ahora relativo a este contenedor -->
+    <ComingSoonOverlay :show="showComingSoon" />
+    
     <h1 class="text-2xl font-bold mb-4">Notificaciones</h1>
 
     <div v-if="notificaciones.length === 0" class="text-gray-500">
@@ -55,6 +58,10 @@
 
 <script setup>
 import { ref } from "vue";
+import ComingSoonOverlay from "@/components/ElementosGraficos/ComingSoon.vue";
+
+// Control del overlay
+const showComingSoon = ref(true);
 
 const notificaciones = ref([
   {

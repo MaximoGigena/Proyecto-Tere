@@ -49,14 +49,11 @@
           class="w-16 h-16 object-cover rounded-full border"
         />
         
-        <!-- Contenedor principal -->
         <div class="flex-1">
           <p class="font-semibold">{{ mascota.nombre }}</p>
           <p class="text-sm text-gray-500">Especie: {{ mascota.especie }}</p>
-          <p class="text-sm text-gray-500">Tutor: {{ mascota.usuario?.nombre || 'N/A' }}</p>
-          <p class="text-sm text-gray-500">Email: {{ mascota.usuario?.contacto?.email || 'N/A' }}</p>
+          <p class="text-sm text-gray-500">Tutor: {{ getNombreTutor(mascota) }}</p>
 
-          <!-- Botón centrado debajo de los datos -->
           <div class="flex justify-center mt-3 mr-12">
             <button
               @click="verHistorial(mascota)"
@@ -88,7 +85,8 @@
 </template>
 
 <script>
-import { ref, watch, computed } from 'vue';
+import { ref, watch } from 'vue';
+import { storeToRefs } from 'pinia'; // ✅ IMPORTAR storeToRefs
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth'
 import { useBusquedaStore } from '@/stores/busquedaMascotasStore'
@@ -101,44 +99,48 @@ export default {
     const { accessToken, isAuthenticated, checkAuth } = useAuth()
     const busquedaStore = useBusquedaStore()
 
-    // Usar los valores del store directamente (sin .value)
-    const { busqueda, tipoBusqueda, mascotas } = busquedaStore
+    // ✅ USAR storeToRefs para mantener la reactividad
+    const { busqueda, tipoBusqueda, mascotas, cargando } = storeToRefs(busquedaStore)
     
-    // Para cargando, puedes mantenerlo local o moverlo al store
-    const cargando = ref(false)
+    // Obtener las funciones del store (no son refs)
+    const { setResultados, setBusqueda, setCargando, limpiarResultados } = busquedaStore
 
     // Debounce para búsquedas
     let timeoutId = null;
 
-    // Métodos dentro de setup
     const getPlaceholder = () => {
       const placeholders = {
         nombre: 'Buscar por nombre de mascota...',
         tutor: 'Buscar por nombre o email del tutor...', 
         especie: 'Buscar por especie (canino, felino...)...'
       };
-      return placeholders[tipoBusqueda];
+      return placeholders[tipoBusqueda.value];
+    };
+
+    const getNombreTutor = (mascota) => {
+      if (mascota.usuario?.nombre) {
+        return mascota.usuario.nombre;
+      }
+      if (mascota.tutor_nombre) {
+        return mascota.tutor_nombre;
+      }
+      return 'N/A';
     };
 
     const getMascotaFoto = (mascota) => {
-      // Si el backend ya devuelve la URL completa
       if (mascota.foto_principal_url) {
         return mascota.foto_principal_url;
       }
       
-      // Si no, usar la lógica actual
       if (!mascota.fotos || mascota.fotos.length === 0) {
         return 'https://via.placeholder.com/100?text=Sin+Foto';
       }
       
       const fotoPrincipal = mascota.fotos.find(foto => foto.es_principal);
       const primeraFoto = mascota.fotos[0];
-      
       const fotoSeleccionada = fotoPrincipal || primeraFoto;
       
-      // Asegurar que la ruta tenga el formato correcto
       if (fotoSeleccionada.ruta_foto) {
-        // Verificar si ya incluye 'storage/' o necesita el prefijo
         if (fotoSeleccionada.ruta_foto.startsWith('storage/')) {
           return `/${fotoSeleccionada.ruta_foto}`;
         } else {
@@ -151,11 +153,10 @@ export default {
 
     const buscarMascotas = async (termino, tipo) => {
       if (!termino || termino.length < 2) {
-        busquedaStore.setResultados([]);
+        setResultados([]);
         return;
       }
 
-      // Verificar autenticación
       if (!isAuthenticated.value) {
         console.error('Usuario no autenticado');
         await checkAuth();
@@ -166,7 +167,7 @@ export default {
       }
 
       try {
-        cargando.value = true;
+        setCargando(true);
         
         const params = new URLSearchParams({
           termino: termino.trim(),
@@ -197,26 +198,33 @@ export default {
 
         const result = await response.json();
         console.log('✅ Datos recibidos:', result);
+        console.log('📊 Cantidad de mascotas:', result.mascotas?.length || 0);
         
         // Guardar en el store
-        busquedaStore.setResultados(result.mascotas || []);
-        busquedaStore.setBusqueda(termino, tipo);
+        setResultados(result.mascotas || []);
+        setBusqueda(termino, tipo);
+        
+        // Debug: Verificar que se guardaron
+        console.log('💾 Store después de guardar:', {
+          mascotas_en_store: mascotas.value.length,
+          primer_elemento: mascotas.value[0]
+        });
         
       } catch (error) {
         console.error('❌ Error buscando mascotas:', error);
-        busquedaStore.setResultados([]);
+        setResultados([]);
         
         if (error.message.includes('No autorizado')) {
           console.error('🔐 No autorizado - redirigiendo a login');
           router.push('/login');
         }
       } finally {
-        cargando.value = false;
+        setCargando(false);
       }
     };
 
-    // Watch para búsqueda automática - IMPORTANTE: usar los valores del store directamente
-    watch([() => busqueda, () => tipoBusqueda], ([nuevoTermino, nuevoTipo]) => {
+    // Watch para búsqueda automática
+    watch([busqueda, tipoBusqueda], ([nuevoTermino, nuevoTipo]) => {
       if (timeoutId) clearTimeout(timeoutId);
       
       if (nuevoTermino.length >= 2) {
@@ -224,7 +232,7 @@ export default {
           buscarMascotas(nuevoTermino, nuevoTipo);
         }, 500);
       } else if (nuevoTermino.length === 0) {
-        busquedaStore.setResultados([]);
+        setResultados([]);
       }
     });
 
@@ -259,13 +267,14 @@ export default {
       abrirFiltro,
       getPlaceholder,
       getMascotaFoto,
+      getNombreTutor,
       buscarMascotas
     };
   }
 };
 </script>
 
-<style> 
+<style scoped>
 .slide-up-enter-active,
 .slide-up-leave-active {
   transition: transform 0.3s ease, opacity 0.3s ease;
@@ -283,7 +292,6 @@ export default {
   opacity: 1;
 }
 
-/* Spinner personalizado */
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

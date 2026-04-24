@@ -298,14 +298,15 @@ const cargarOfertasConFiltros = async (filtros) => {
     const params = new URLSearchParams()
     
     if (filtros) {
-      // Especie
+      // Especie - enviar como JSON string
       if (filtros.especie && filtros.especie.length) {
         params.append('especie', JSON.stringify(filtros.especie))
       }
       
-      // Sexo
+      // ✅ Sexo - CORRECCIÓN: Enviar como JSON string del array
       if (filtros.sexo) {
-        params.append('sexo', JSON.stringify([filtros.sexo.toLowerCase()]))
+        // filtros.sexo ya es un array con ['macho'] o ['hembra'] o ['macho', 'hembra']
+        params.append('sexo', JSON.stringify(filtros.sexo))
       }
       
       // Edad

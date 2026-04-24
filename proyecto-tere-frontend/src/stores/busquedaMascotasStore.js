@@ -9,10 +9,12 @@ export const useBusquedaStore = defineStore('busquedaMascotas', () => {
   const cargando = ref(false)
 
   function setResultados(resultados) {
+    console.log('🔄 Store: setResultados llamado con:', resultados);
     mascotas.value = resultados
   }
 
   function setBusqueda(termino, tipo) {
+    console.log('🔄 Store: setBusqueda llamado con:', { termino, tipo });
     busqueda.value = termino
     tipoBusqueda.value = tipo
   }
@@ -21,19 +23,14 @@ export const useBusquedaStore = defineStore('busquedaMascotas', () => {
     mascotas.value = []
     busqueda.value = ''
     tipoBusqueda.value = 'nombre'
+    cargando.value = false
   }
 
-  // En el store
-    function setResultados(resultados) {
-    console.log('🔄 Store: setResultados llamado con:', resultados);
-    mascotas.value = resultados
-    }
-
-    function setBusqueda(termino, tipo) {
-    console.log('🔄 Store: setBusqueda llamado con:', { termino, tipo });
-    busqueda.value = termino
-    tipoBusqueda.value = tipo
-    }
+  // ✅ AGREGAR ESTA FUNCIÓN
+  function setCargando(estado) {
+    console.log('🔄 Store: setCargando llamado con:', estado);
+    cargando.value = estado
+  }
 
   return {
     busqueda,
@@ -42,6 +39,7 @@ export const useBusquedaStore = defineStore('busquedaMascotas', () => {
     cargando,
     setResultados,
     setBusqueda,
-    limpiarResultados
+    limpiarResultados,
+    setCargando  // ✅ EXPORTARLA
   }
 })

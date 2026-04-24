@@ -41,6 +41,7 @@ import { esperaVeterinarios } from './routes/esperaVeterinaria.js'
 import { UsuarioSuspendido } from './routes/cuentaSuspendida.js'
 import { MotoresMetricas } from './routes/motoresMetricas.js'
 import { motorMetricasUsuarios } from './routes/motorMetricasUsuarios.js'
+import { UsuarioVeterinario } from './routes/perfilVeterinario.js'
  
 const routes = [
   ...homeRoutes,
@@ -86,6 +87,7 @@ const routes = [
   ...UsuarioSuspendido,
   ...MotoresMetricas,
   ...motorMetricasUsuarios,
+  ...UsuarioVeterinario
 ]
 
 const router = createRouter({

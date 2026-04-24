@@ -1,4 +1,4 @@
-<!-- Motor de Métricas de Usuarios -->
+<!-- Motor de Métricas de Usuarios - Versión Mejorada con Granularidad -->
 <template>
   <div class="metricas-contenido">
     <!-- Loading -->
@@ -6,6 +6,23 @@
       <div class="bg-white p-6 rounded-lg shadow-lg">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <p class="text-gray-700">Cargando métricas...</p>
+      </div>
+    </div>
+
+    <!-- Mensaje de error -->
+    <div v-if="error" class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-lg">
+      <div class="flex items-center">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <div class="ml-3">
+          <p class="text-sm text-red-700">{{ error }}</p>
+          <button @click="intentarCargarDatos" class="text-sm text-red-600 hover:text-red-800 font-medium mt-1">
+            Reintentar →
+          </button>
+        </div>
       </div>
     </div>
 
@@ -119,6 +136,22 @@
           </select>
         </div>
 
+        <!-- Granularidad (NUEVO) -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Granularidad</label>
+          <select 
+            v-model="filtros.granularidad"
+            @change="aplicarFiltros"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+          >
+            <option value="dia">Por día</option>
+            <option value="semana">Por semana</option>
+            <option value="mes">Por mes</option>
+            <option value="tipo_usuario">Por tipo de usuario</option>
+            <option value="ubicacion">Por ubicación</option>
+          </select>
+        </div>
+
         <!-- Botones de acción -->
         <div class="flex items-end gap-2">
           <button 
@@ -137,17 +170,19 @@
       </div>
     </div>
 
-    <!-- Resumen de KPIs según el reporte seleccionado -->
+    <!-- Resumen de KPIs según el reporte seleccionado (mejorado con click para desglose) -->
     <div class="kpis-resumen grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <div 
         v-for="kpi in kpisActuales" 
         :key="kpi.id" 
-        class="kpi-tarjeta bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 p-6 border border-gray-100"
+        class="kpi-tarjeta bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-6 border border-gray-100 cursor-pointer"
         :class="{ 
           'border-l-4 border-l-green-500': kpi.tendencia > 0,
           'border-l-4 border-l-red-500': kpi.tendencia < 0,
-          'border-l-4 border-l-gray-300': kpi.tendencia === 0
+          'border-l-4 border-l-gray-300': kpi.tendencia === 0,
+          'hover:scale-105': kpi.desglose
         }"
+        @click="mostrarDesgloseKPI(kpi)"
       >
         <div class="flex items-start justify-between">
           <div class="flex-1">
@@ -172,6 +207,12 @@
               </div>
             </div>
             <p class="text-xs text-gray-400 mt-2">{{ kpi.descripcion }}</p>
+            <!-- Indicador de desglose -->
+            <div v-if="kpi.desglose" class="mt-2">
+              <span class="text-xs text-blue-600 hover:text-blue-800">
+                Click para ver detalles →
+              </span>
+            </div>
           </div>
           
           <div class="kpi-icono ml-4">
@@ -289,8 +330,8 @@
           <tbody class="bg-white divide-y divide-gray-200">
             <tr 
               v-for="item in datosPaginados" 
-              :key="item.id"
-              class="hover:bg-gray-50 transition-colors duration-150"
+              :key="item.id || item.fecha || item.periodo"
+              class="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
               @click="seleccionarItem(item)"
             >
               <td 
@@ -377,7 +418,7 @@
       </div>
     </div>
 
-    <!-- Modal de detalles -->
+    <!-- Modal de detalles MEJORADO con desgloses granulares -->
     <div v-if="mostrarModal" class="fixed inset-0 z-50 overflow-y-auto">
       <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 transition-opacity" aria-hidden="true">
@@ -390,7 +431,7 @@
               <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                 <div class="flex justify-between items-center mb-4">
                   <h3 class="text-lg leading-6 font-medium text-gray-900">
-                    Detalles de Métricas - {{ modalTitulo }}
+                    {{ modalTitulo }}
                   </h3>
                   <button 
                     @click="cerrarModal"
@@ -401,13 +442,100 @@
                     </svg>
                   </button>
                 </div>
-                <div class="mt-2">
-                  <div v-if="itemSeleccionado" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="mt-2 max-h-96 overflow-y-auto">
+                  <!-- Desglose mejorado para KPIs -->
+                  <div v-if="itemSeleccionado && modalTipo === 'kpi_detalle'" class="space-y-6">
+                    <!-- Por tipo de usuario -->
+                    <div v-if="itemSeleccionado.por_tipo" class="bg-gray-50 rounded-lg p-4">
+                      <h4 class="font-semibold text-gray-800 mb-3">Distribución por Tipo de Usuario</h4>
+                      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div v-for="(count, tipo) in itemSeleccionado.por_tipo" :key="tipo" 
+                             class="bg-white rounded-lg p-3 text-center shadow-sm">
+                          <p class="text-sm text-gray-500 capitalize">{{ tipo }}</p>
+                          <p class="text-2xl font-bold text-gray-800">{{ formatearNumero(count) }}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Por estado -->
+                    <div v-if="itemSeleccionado.por_estado" class="bg-gray-50 rounded-lg p-4">
+                      <h4 class="font-semibold text-gray-800 mb-3">Distribución por Estado</h4>
+                      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div v-for="(count, estado) in itemSeleccionado.por_estado" :key="estado" 
+                             class="bg-white rounded-lg p-3 text-center shadow-sm">
+                          <span class="inline-block px-2 py-1 rounded-full text-xs font-semibold" 
+                                :class="getEstadoClase(estado)">
+                            {{ estado }}
+                          </span>
+                          <p class="text-2xl font-bold text-gray-800 mt-2">{{ formatearNumero(count) }}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Por fuente de registro -->
+                    <div v-if="itemSeleccionado.por_fuente" class="bg-gray-50 rounded-lg p-4">
+                      <h4 class="font-semibold text-gray-800 mb-3">Registro por Fuente</h4>
+                      <div class="space-y-3">
+                        <div v-for="(count, fuente) in itemSeleccionado.por_fuente" :key="fuente" class="flex items-center justify-between">
+                          <span class="text-sm text-gray-600 capitalize">{{ fuente }}</span>
+                          <div class="flex-1 mx-4">
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                              <div class="bg-blue-600 h-2 rounded-full transition-all duration-500" 
+                                   :style="{ width: `${(count / totalFuentes) * 100}%` }"></div>
+                            </div>
+                          </div>
+                          <span class="text-sm font-semibold text-gray-800">{{ formatearNumero(count) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Datos adicionales -->
+                    <div v-if="itemSeleccionado.datos_adicionales" class="bg-gray-50 rounded-lg p-4">
+                      <h4 class="font-semibold text-gray-800 mb-3">Información Adicional</h4>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div v-for="(value, key) in itemSeleccionado.datos_adicionales" :key="key" 
+                             class="bg-white rounded-lg p-3 shadow-sm">
+                          <p class="text-xs font-medium text-gray-500 uppercase">{{ key }}</p>
+                          <p class="text-lg font-semibold text-gray-800">{{ value }}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Tabla de datos detallados -->
+                    <div v-if="itemSeleccionado.datos" class="bg-gray-50 rounded-lg p-4">
+                      <h4 class="font-semibold text-gray-800 mb-3">Datos Detallados</h4>
+                      <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                          <thead class="bg-gray-100">
+                            <tr>
+                              <th v-for="col in Object.keys(itemSeleccionado.datos[0] || {})" 
+                                  :key="col"
+                                  class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                {{ col }}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody class="bg-white divide-y divide-gray-200">
+                            <tr v-for="(row, idx) in itemSeleccionado.datos" :key="idx" class="hover:bg-gray-50">
+                              <td v-for="col in Object.keys(row)" :key="col" 
+                                  class="px-4 py-2 text-sm text-gray-900">
+                                {{ row[col] }}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Vista normal de detalles de tabla -->
+                  <div v-else-if="itemSeleccionado && modalTipo === 'detalle'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div v-for="(value, key) in itemSeleccionado" :key="key" class="bg-gray-50 p-3 rounded-lg">
                       <p class="text-xs font-medium text-gray-500 uppercase">{{ key }}</p>
                       <p class="text-sm text-gray-900 mt-1">{{ value }}</p>
                     </div>
                   </div>
+                  
                   <div v-else class="text-sm text-gray-500">
                     Información detallada de las métricas {{ reporteSeleccionado }}
                   </div>
@@ -433,14 +561,13 @@
 <script>
 import { Chart, registerables } from 'chart.js';
 import axios from 'axios';
-import { useRoute, useRouter } from 'vue-router'
-import { useAuth } from '@/composables/useAuth';
+
+Chart.register(...registerables);
 
 export default {
   name: 'MetricasUsuarioContenido',
   
   props: {
-    // Prop para recibir el tipo de reporte inicial
     reporteInicial: {
       type: String,
       default: 'volumen'
@@ -457,12 +584,14 @@ export default {
       mostrarFiltrosAvanzados: true,
       cargando: false,
       error: null,
+      metadatos: null,
       filtros: {
         fecha_desde: fechaDesde,
         fecha_hasta: fechaHasta,
         tipo_usuario: '',
         estado: '',
         agrupacion: 'mensual',
+        granularidad: 'dia',
         reporte: this.reporteInicial
       },
       
@@ -480,14 +609,12 @@ export default {
       kpisComportamiento: [],
       kpisCalidad: [],
       
-      // Columnas (igual que antes)
       columnasVolumen: [
         { key: 'fecha', label: 'Fecha', ordenable: true, formato: 'fecha' },
         { key: 'total_usuarios', label: 'Total Usuarios', ordenable: true },
         { key: 'usuarios', label: 'Usuarios', ordenable: true },
         { key: 'veterinarios', label: 'Veterinarios', ordenable: true },
         { key: 'admins', label: 'Administradores', ordenable: true },
-        { key: 'ongs', label: 'ONGs', ordenable: true },
         { key: 'activos', label: 'Activos', ordenable: true },
         { key: 'verificados', label: 'Verificados', ordenable: true }
       ],
@@ -496,7 +623,6 @@ export default {
         { key: 'periodo', label: 'Período', ordenable: true },
         { key: 'nuevos_usuarios', label: 'Nuevos Usuarios', ordenable: true },
         { key: 'tasa_crecimiento', label: 'Tasa Crecimiento', ordenable: true, formato: 'porcentaje' },
-        { key: 'periodo_anterior', label: 'Período Anterior', ordenable: true },
         { key: 'variacion', label: 'Variación', ordenable: true, formato: 'porcentaje' }
       ],
       
@@ -546,7 +672,6 @@ export default {
   },
 
   computed: {
-    // Mantener todas las computed properties originales
     kpisActuales() {
       switch(this.reporteSeleccionado) {
         case 'volumen': return this.kpisVolumen;
@@ -614,11 +739,12 @@ export default {
     },
 
     datosOrdenados() {
+      if (!this.datosActuales.length) return [];
       return [...this.datosActuales].sort((a, b) => {
         let valorA = a[this.orden.por];
         let valorB = b[this.orden.por];
 
-        if (this.orden.por === 'fecha') {
+        if (this.orden.por === 'fecha' && valorA && valorB) {
           valorA = new Date(valorA);
           valorB = new Date(valorB);
         }
@@ -630,6 +756,7 @@ export default {
     },
 
     datosFiltrados() {
+      if (!this.datosOrdenados.length) return [];
       return this.datosOrdenados.filter(item => {
         if (this.filtros.tipo_usuario && item.tipo_usuario !== this.filtros.tipo_usuario) {
           return false;
@@ -682,6 +809,11 @@ export default {
       }
       
       return paginas;
+    },
+
+    totalFuentes() {
+      if (!this.itemSeleccionado?.por_fuente) return 0;
+      return Object.values(this.itemSeleccionado.por_fuente).reduce((a, b) => a + b, 0);
     }
   },
 
@@ -693,16 +825,7 @@ export default {
           this.filtros.reporte = newVal;
           this.cargarDatos();
         }
-      },
-      immediate: false
-    },
-    'paginaActual': {
-      handler() {
-        if (!this.cargando) {
-          this.cargarDatos();
-        }
-      },
-      immediate: false
+      }
     }
   },
 
@@ -717,6 +840,7 @@ export default {
         }, 300);
       });
       
+      this.iniciarActualizacionAutomatica();
     } catch (error) {
       console.error('Error en mounted():', error);
     }
@@ -728,10 +852,6 @@ export default {
   },
 
   methods: {
-    // Mantener todos los métodos originales aquí
-    // (copia exacta de los métodos del componente original)
-    // Solo quitar los relacionados con el encabezado
-    
     getAuthHeaders() {
       try {
         const token = localStorage.getItem('token') || 
@@ -748,18 +868,7 @@ export default {
           };
         }
         
-        console.warn('⚠️ No se encontró token en localStorage, intentando composable...');
-        
-        if (this.$auth?.accessToken) {
-          return {
-            'Authorization': `Bearer ${this.$auth.accessToken}`,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-          };
-        }
-        
-        console.warn('⚠️ No hay token de autenticación disponible');
+        console.warn('⚠️ No se encontró token en localStorage');
         return {};
         
       } catch (error) {
@@ -818,16 +927,13 @@ export default {
     },
 
     async cargarDatos() {
-      if (this.cargando) {
-        console.log('⏳ Ya se está cargando, omitiendo...');
-        return;
-      }
+      if (this.cargando) return;
       
       this.cargando = true;
       this.error = null;
       
       try {
-        console.log('📡 Iniciando carga de datos...');
+        console.log('📡 Cargando métricas granulares...');
         
         const params = {
           reporte: this.reporteSeleccionado,
@@ -836,38 +942,27 @@ export default {
           tipo_usuario: this.filtros.tipo_usuario,
           estado: this.filtros.estado,
           agrupacion: this.filtros.agrupacion,
-          limit: this.itemsPorPagina,
-          page: this.paginaActual
+          granularidad: this.filtros.granularidad
         };
         
-        const data = await this.apiGet('/api/metricas/usuarios', params);
+        const response = await this.apiGet('/api/metricas/usuarios/granulares', params);
         
-        console.log('✅ Respuesta API recibida correctamente');
-        
-        if (data?.success) {
-          this.actualizarDatosReporte(data.data.metricas, data.data.kpis);
+        if (response?.success) {
+          this.actualizarDatosReporteGranular(response.data.metricas, response.data.kpis);
+          this.metadatos = response.data.metadata;
           
           this.$nextTick(() => {
-            setTimeout(() => {
-              this.actualizarGraficos();
-            }, 100);
+            setTimeout(() => this.actualizarGraficos(), 100);
           });
-          
         } else {
-          console.error('❌ Error en la respuesta de la API:', data?.message);
-          this.error = data?.message || 'Error al cargar los datos';
-          
-          if (process.env.NODE_ENV === 'development') {
-            console.log('📊 Usando datos de prueba para desarrollo');
-            this.mostrarDatosDePrueba();
-          }
+          throw new Error(response?.message || 'Error al cargar datos');
         }
+        
       } catch (error) {
         console.error('❌ Error cargando métricas:', error);
-        this.error = error.message || 'Error al cargar los datos';
+        this.error = error.message;
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('📊 Usando datos de prueba por error de conexión');
+        if (process.env.NODE_ENV === 'development' && !this.datosActuales.length) {
           this.mostrarDatosDePrueba();
         }
       } finally {
@@ -875,7 +970,59 @@ export default {
       }
     },
 
-    // ... mantener todos los demás métodos (copia exacta)
+    actualizarDatosReporteGranular(metricas, kpis) {
+      const metricasCopy = JSON.parse(JSON.stringify(metricas || []));
+      const kpisCopy = JSON.parse(JSON.stringify(kpis || []));
+      
+      switch(this.reporteSeleccionado) {
+        case 'volumen':
+          this.metricasVolumen = metricasCopy;
+          this.kpisVolumen = this.mapearKPIsGranulares(kpisCopy, 'volumen');
+          break;
+        case 'crecimiento':
+          this.metricasCrecimiento = metricasCopy;
+          this.kpisCrecimiento = this.mapearKPIsGranulares(kpisCopy, 'crecimiento');
+          break;
+        case 'actividad':
+          this.metricasActividad = metricasCopy;
+          this.kpisActividad = this.mapearKPIsGranulares(kpisCopy, 'actividad');
+          break;
+        case 'comportamiento':
+          this.metricasComportamiento = metricasCopy;
+          this.kpisComportamiento = this.mapearKPIsGranulares(kpisCopy, 'comportamiento');
+          break;
+        case 'calidad':
+          this.metricasCalidad = metricasCopy;
+          this.kpisCalidad = this.mapearKPIsGranulares(kpisCopy, 'calidad');
+          break;
+      }
+    },
+
+    mapearKPIsGranulares(kpisBackend, tipo) {
+      if (!kpisBackend || !kpisBackend.length) return [];
+      
+      return kpisBackend.map((kpi, index) => ({
+        id: index + 1,
+        titulo: kpi.titulo || kpi.nombre,
+        valor: kpi.valor,
+        tendencia: kpi.tendencia,
+        descripcion: kpi.descripcion,
+        icono: this.getIconoTipo(tipo),
+        colorClase: this.getColorClase(index),
+        desglose: kpi.desglose,
+        detalleCompleto: kpi.detalleCompleto
+      }));
+    },
+
+    mostrarDesgloseKPI(kpi) {
+      if (kpi.desglose) {
+        this.modalTitulo = `📊 Detalles: ${kpi.titulo}`;
+        this.itemSeleccionado = kpi.desglose;
+        this.modalTipo = 'kpi_detalle';
+        this.mostrarModal = true;
+      }
+    },
+
     aplicarFiltros() {
       this.paginaActual = 1;
       this.cargarDatos();
@@ -892,6 +1039,7 @@ export default {
         tipo_usuario: '',
         estado: '',
         agrupacion: 'mensual',
+        granularidad: 'dia',
         reporte: this.reporteSeleccionado
       };
       
@@ -919,18 +1067,21 @@ export default {
     },
 
     convertirACSV(datos) {
+      if (!datos.length) return '';
       const headers = this.columnasTablaActuales.map(col => col.label);
       const rows = datos.map(item => 
-        this.columnasTablaActuales.map(col => item[col.key])
+        this.columnasTablaActuales.map(col => item[col.key] || '')
       );
       return [headers, ...rows].map(row => row.join(',')).join('\n');
     },
 
     formatearNumero(numero) {
+      if (numero === undefined || numero === null) return '0';
       return new Intl.NumberFormat('es-ES').format(numero);
     },
 
     formatearFecha(fecha) {
+      if (!fecha) return '';
       return new Date(fecha).toLocaleDateString('es-ES', {
         year: 'numeric',
         month: 'short',
@@ -940,31 +1091,31 @@ export default {
 
     getEstadoClase(estado) {
       const clases = {
-        'critico': 'bg-red-100 text-red-800',
-        'alerta': 'bg-yellow-100 text-yellow-800',
-        'estable': 'bg-blue-100 text-blue-800',
-        'bueno': 'bg-green-100 text-green-800',
-        'Completado': 'bg-green-100 text-green-800',
-        'En progreso': 'bg-blue-100 text-blue-800',
-        'Pendiente': 'bg-yellow-100 text-yellow-800',
-        'Fallido': 'bg-red-100 text-red-800',
         'activo': 'bg-green-100 text-green-800',
         'inactivo': 'bg-gray-100 text-gray-800',
+        'bloqueado': 'bg-red-100 text-red-800',
         'verificado': 'bg-blue-100 text-blue-800',
-        'bloqueado': 'bg-red-100 text-red-800'
+        'no_verificado': 'bg-yellow-100 text-yellow-800',
+        'pendiente': 'bg-yellow-100 text-yellow-800',
+        'aprobado': 'bg-green-100 text-green-800',
+        'rechazado': 'bg-red-100 text-red-800'
       };
       return clases[estado] || 'bg-gray-100 text-gray-800';
     },
 
     seleccionarItem(item) {
       this.itemSeleccionado = item;
+      this.modalTipo = 'detalle';
+      this.modalTitulo = 'Detalles del Registro';
       this.abrirModal('detalle');
     },
 
     abrirModal(tipo) {
       this.mostrarModal = true;
-      this.modalTipo = tipo;
-      this.modalTitulo = this.tituloGraficoEvolucion;
+      if (tipo !== 'kpi_detalle') {
+        this.modalTipo = tipo;
+        this.modalTitulo = this.tituloGraficoEvolucion;
+      }
     },
 
     cerrarModal() {
@@ -972,51 +1123,6 @@ export default {
       this.modalTipo = '';
       this.modalTitulo = '';
       this.itemSeleccionado = null;
-    },
-
-    // ... todos los demás métodos gráficos y de actualización
-    actualizarDatosReporte(metricas, kpis) {
-      const metricasCopy = Array.isArray(metricas) ? [...metricas] : [];
-      const kpisCopy = Array.isArray(kpis) ? [...kpis] : [];
-      
-      switch(this.reporteSeleccionado) {
-        case 'volumen':
-          this.metricasVolumen = metricasCopy;
-          this.kpisVolumen = this.mapearKPIs(kpisCopy, 'volumen');
-          break;
-        case 'crecimiento':
-          this.metricasCrecimiento = metricasCopy;
-          this.kpisCrecimiento = this.mapearKPIs(kpisCopy, 'crecimiento');
-          break;
-        case 'actividad':
-          this.metricasActividad = metricasCopy;
-          this.kpisActividad = this.mapearKPIs(kpisCopy, 'actividad');
-          break;
-        case 'comportamiento':
-          this.metricasComportamiento = metricasCopy;
-          this.kpisComportamiento = this.mapearKPIs(kpisCopy, 'comportamiento');
-          break;
-        case 'calidad':
-          this.metricasCalidad = metricasCopy;
-          this.kpisCalidad = this.mapearKPIs(kpisCopy, 'calidad');
-          break;
-      }
-    },
-
-    mapearKPIs(kpisBackend, tipo) {
-      return kpisBackend.map((kpi, index) => {
-        const baseKPI = {
-          id: index + 1,
-          titulo: kpi.nombre || kpi.titulo || 'KPI',
-          valor: kpi.valor || 0,
-          tendencia: kpi.tendencia || null,
-          descripcion: kpi.descripcion || '',
-          icono: this.getIconoTipo(tipo),
-          colorClase: this.getColorClase(index)
-        };
-        
-        return baseKPI;
-      });
     },
 
     getIconoTipo(tipo) {
@@ -1054,26 +1160,12 @@ export default {
       try {
         this.graficoEvolucion = new Chart(this.$refs.graficoEvolucion, {
           type: 'line',
-          data: {
-            labels: [],
-            datasets: []
-          },
+          data: { labels: [], datasets: [] },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            animation: {
-              duration: 0
-            },
-            plugins: {
-              legend: {
-                position: 'top'
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true
-              }
-            }
+            plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true } }
           }
         });
       } catch (error) {
@@ -1083,26 +1175,12 @@ export default {
       try {
         this.graficoDistribucion = new Chart(this.$refs.graficoDistribucion, {
           type: 'bar',
-          data: {
-            labels: [],
-            datasets: []
-          },
+          data: { labels: [], datasets: [] },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            animation: {
-              duration: 0
-            },
-            plugins: {
-              legend: {
-                position: 'top'
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true
-              }
-            }
+            plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true } }
           }
         });
       } catch (error) {
@@ -1114,6 +1192,7 @@ export default {
       if (!this.graficoEvolucion || !this.graficoDistribucion) return;
 
       const datosActuales = this.datosActuales;
+      if (!datosActuales.length) return;
       
       switch(this.reporteSeleccionado) {
         case 'volumen':
@@ -1136,14 +1215,15 @@ export default {
 
     actualizarGraficoVolumen(datos) {
       const ultimos15 = datos.slice(-15);
+      if (!ultimos15.length) return;
       
       this.graficoEvolucion.data.labels = ultimos15.map(d => 
-        new Date(d.fecha).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
+        d.fecha ? new Date(d.fecha).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }) : ''
       );
       this.graficoEvolucion.data.datasets = [
         {
           label: 'Total Usuarios',
-          data: ultimos15.map(d => d.total_usuarios),
+          data: ultimos15.map(d => d.total_usuarios || 0),
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           borderWidth: 2,
@@ -1152,7 +1232,7 @@ export default {
         },
         {
           label: 'Usuarios Activos',
-          data: ultimos15.map(d => d.activos),
+          data: ultimos15.map(d => d.activos || 0),
           borderColor: 'rgb(16, 185, 129)',
           backgroundColor: 'rgba(16, 185, 129, 0.1)',
           borderWidth: 2,
@@ -1160,27 +1240,117 @@ export default {
         }
       ];
       
-      const tipos = ['Adoptantes', 'Veterinarios', 'Administradores', 'ONGs'];
+      const tipos = ['usuarios', 'veterinarios', 'admins'];
       const valores = tipos.map(tipo => {
-        const key = tipo.toLowerCase().replace('s', 's');
-        return datos.reduce((sum, d) => sum + (d[key] || 0), 0) / datos.length;
+        return datos.reduce((sum, d) => sum + (d[tipo] || 0), 0) / datos.length;
       });
       
-      this.graficoDistribucion.data.labels = tipos;
+      this.graficoDistribucion.data.labels = ['Usuarios', 'Veterinarios', 'Administradores'];
       this.graficoDistribucion.data.datasets = [{
         label: 'Promedio',
         data: valores,
-        backgroundColor: [
-          'rgba(59, 130, 246, 0.7)',
-          'rgba(16, 185, 129, 0.7)',
-          'rgba(139, 92, 246, 0.7)',
-          'rgba(245, 158, 11, 0.7)'
-        ],
-        borderRadius: 6,
-        borderSkipped: false
+        backgroundColor: ['rgba(59, 130, 246, 0.7)', 'rgba(16, 185, 129, 0.7)', 'rgba(139, 92, 246, 0.7)'],
+        borderRadius: 6
       }];
       
       this.graficoEvolucion.update();
+      this.graficoDistribucion.update();
+    },
+
+    actualizarGraficoCrecimiento(datos) {
+      this.graficoEvolucion.data.labels = datos.map(d => d.periodo || '');
+      this.graficoEvolucion.data.datasets = [
+        {
+          label: 'Nuevos Usuarios',
+          data: datos.map(d => d.nuevos_usuarios || 0),
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderWidth: 2,
+          tension: 0.4,
+          fill: true
+        }
+      ];
+      
+      this.graficoDistribucion.data.labels = datos.map(d => d.periodo || '');
+      this.graficoDistribucion.data.datasets = [{
+        label: 'Variación %',
+        data: datos.map(d => parseFloat(d.variacion || 0)),
+        backgroundColor: datos.map(d => 
+          parseFloat(d.variacion || 0) >= 0 ? 'rgba(16, 185, 129, 0.7)' : 'rgba(239, 68, 68, 0.7)'
+        ),
+        borderRadius: 6
+      }];
+      
+      this.graficoEvolucion.update();
+      this.graficoDistribucion.update();
+    },
+
+    actualizarGraficoActividad(datos) {
+      const ultimos15 = datos.slice(-15);
+      if (!ultimos15.length) return;
+      
+      this.graficoEvolucion.data.labels = ultimos15.map(d => 
+        d.fecha ? new Date(d.fecha).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }) : ''
+      );
+      this.graficoEvolucion.data.datasets = [
+        {
+          label: 'DAU',
+          data: ultimos15.map(d => d.dau || 0),
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderWidth: 2,
+          tension: 0.4,
+          fill: true
+        },
+        {
+          label: 'MAU',
+          data: ultimos15.map(d => d.mau || 0),
+          borderColor: 'rgb(139, 92, 246)',
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          borderWidth: 2,
+          tension: 0.4
+        }
+      ];
+      
+      this.graficoDistribucion.update();
+      this.graficoEvolucion.update();
+    },
+
+    actualizarGraficoComportamiento(datos) {
+      this.graficoDistribucion.data.labels = datos.map(d => d.segmento || '');
+      this.graficoDistribucion.data.datasets = [{
+        label: 'Tasa de Conversión',
+        data: datos.map(d => d.llegan_adopcion || 0),
+        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+        borderRadius: 6
+      }];
+      
+      this.graficoEvolucion.data.labels = datos.map(d => d.segmento || '');
+      this.graficoEvolucion.data.datasets = [{
+        label: 'Funnel de Conversión',
+        data: datos.map(d => d.funnel_adopcion || 0),
+        borderColor: 'rgb(16, 185, 129)',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        borderWidth: 2,
+        tension: 0.4
+      }];
+      
+      this.graficoEvolucion.update();
+      this.graficoDistribucion.update();
+    },
+
+    actualizarGraficoCalidad(datos) {
+      this.graficoDistribucion.data.labels = datos.map(d => d.categoria || '');
+      this.graficoDistribucion.data.datasets = [{
+        label: 'Porcentaje',
+        data: datos.map(d => d.porcentaje || 0),
+        backgroundColor: datos.map((_, i) => {
+          const colores = ['rgba(59, 130, 246, 0.7)', 'rgba(16, 185, 129, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(245, 158, 11, 0.7)'];
+          return colores[i % colores.length];
+        }),
+        borderRadius: 6
+      }];
+      
       this.graficoDistribucion.update();
     },
 
@@ -1221,11 +1391,8 @@ export default {
       this.detenerActualizacionAutomatica();
       
       this.refreshInterval = setInterval(() => {
-        const auth = this.$auth || useAuth?.();
-        if (auth?.isAuthenticated?.value) {
-          console.log('🔄 Actualizando datos automáticamente...');
-          this.cargarDatos();
-        }
+        console.log('🔄 Actualizando datos automáticamente...');
+        this.cargarDatos();
       }, 600000);
     },
 
@@ -1234,99 +1401,6 @@ export default {
         clearInterval(this.refreshInterval);
         this.refreshInterval = null;
       }
-    },
-
-    // Métodos adicionales para gráficos de otros reportes
-    actualizarGraficoCrecimiento(datos) {
-      this.graficoEvolucion.data.labels = datos.map(d => d.periodo);
-      this.graficoEvolucion.data.datasets = [
-        {
-          label: 'Nuevos Usuarios',
-          data: datos.map(d => d.nuevos_usuarios),
-          borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          borderWidth: 2,
-          tension: 0.4,
-          fill: true
-        },
-        {
-          label: 'Tasa Crecimiento',
-          data: datos.map(d => parseFloat(d.tasa_crecimiento)),
-          borderColor: 'rgb(16, 185, 129)',
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-          borderWidth: 2,
-          tension: 0.4,
-          yAxisID: 'y1'
-        }
-      ];
-      
-      this.graficoDistribucion.data.labels = datos.map(d => d.periodo);
-      this.graficoDistribucion.data.datasets = [{
-        label: 'Variación %',
-        data: datos.map(d => parseFloat(d.variacion || 0)),
-        backgroundColor: datos.map(d => 
-          parseFloat(d.variacion || 0) >= 0 
-            ? 'rgba(16, 185, 129, 0.7)' 
-            : 'rgba(239, 68, 68, 0.7)'
-        ),
-        borderRadius: 6,
-        borderSkipped: false
-      }];
-      
-      this.graficoEvolucion.update();
-      this.graficoDistribucion.update();
-    },
-
-    actualizarGraficoActividad(datos) {
-      const ultimos15 = datos.slice(-15);
-      
-      this.graficoEvolucion.data.labels = ultimos15.map(d => 
-        new Date(d.fecha).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
-      );
-      this.graficoEvolucion.data.datasets = [
-        {
-          label: 'DAU',
-          data: ultimos15.map(d => d.dau),
-          borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          borderWidth: 2,
-          tension: 0.4,
-          fill: true
-        },
-        {
-          label: 'MAU',
-          data: ultimos15.map(d => d.mau),
-          borderColor: 'rgb(139, 92, 246)',
-          backgroundColor: 'rgba(139, 92, 246, 0.1)',
-          borderWidth: 2,
-          tension: 0.4
-        }
-      ];
-      
-      const categorias = ['DAU', 'MAU', 'Inactivos >30d', 'Acciones/Promedio'];
-      const valores = [
-        ultimos15.reduce((sum, d) => sum + d.dau, 0) / ultimos15.length,
-        ultimos15.reduce((sum, d) => sum + d.mau, 0) / ultimos15.length,
-        ultimos15.reduce((sum, d) => sum + d.inactivos_30d, 0) / ultimos15.length,
-        ultimos15.reduce((sum, d) => sum + parseFloat(d.acciones_promedio), 0) / ultimos15.length
-      ];
-      
-      this.graficoDistribucion.data.labels = categorias;
-      this.graficoDistribucion.data.datasets = [{
-        label: 'Promedio',
-        data: valores,
-        backgroundColor: [
-          'rgba(59, 130, 246, 0.7)',
-          'rgba(139, 92, 246, 0.7)',
-          'rgba(245, 158, 11, 0.7)',
-          'rgba(16, 185, 129, 0.7)'
-        ],
-        borderRadius: 6,
-        borderSkipped: false
-      }];
-      
-      this.graficoEvolucion.update();
-      this.graficoDistribucion.update();
     },
 
     mostrarDatosDePrueba() {
@@ -1346,7 +1420,6 @@ export default {
           usuarios: Math.floor(Math.random() * 700) + 300,
           veterinarios: Math.floor(Math.random() * 100) + 50,
           admins: Math.floor(Math.random() * 10) + 5,
-          ongs: Math.floor(Math.random() * 50) + 20,
           activos: Math.floor(Math.random() * 800) + 400,
           verificados: Math.floor(Math.random() * 600) + 300
         });
@@ -1358,16 +1431,28 @@ export default {
         {
           id: 1,
           titulo: 'Total Usuarios',
-          valor: datosPrueba.reduce((sum, item) => sum + item.total_usuarios, 0) / datosPrueba.length,
+          valor: Math.round(datosPrueba.reduce((sum, item) => sum + item.total_usuarios, 0) / datosPrueba.length),
           tendencia: 12.5,
           descripcion: 'Usuarios totales en promedio',
           icono: 'usuarios',
-          colorClase: 'bg-blue-50 text-blue-600'
+          colorClase: 'bg-blue-50 text-blue-600',
+          desglose: {
+            por_tipo: {
+              usuarios: 450,
+              veterinarios: 75,
+              administradores: 8
+            },
+            por_estado: {
+              activo: 420,
+              inactivo: 85,
+              bloqueado: 28
+            }
+          }
         },
         {
           id: 2,
           titulo: 'Usuarios Activos',
-          valor: datosPrueba.reduce((sum, item) => sum + item.activos, 0) / datosPrueba.length,
+          valor: Math.round(datosPrueba.reduce((sum, item) => sum + item.activos, 0) / datosPrueba.length),
           tendencia: 8.3,
           descripcion: 'Usuarios activos diariamente',
           icono: 'actividad',
@@ -1393,8 +1478,6 @@ export default {
         }
       ];
       
-      this.totalRegistros = datosPrueba.length;
-      
       setTimeout(() => {
         this.actualizarGraficos();
       }, 500);
@@ -1407,3 +1490,26 @@ export default {
   }
 };
 </script>
+
+<style scoped>
+.kpi-tarjeta {
+  transition: all 0.2s ease;
+}
+
+.kpi-tarjeta:hover {
+  transform: translateY(-2px);
+}
+
+.rotate-180 {
+  transform: rotate(180deg);
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+/* Animación para las barras de progreso */
+.bg-blue-600 {
+  transition: width 0.5s ease-in-out;
+}
+</style>

@@ -1,5 +1,9 @@
+<!-- views/VeterinarioRendimiento.vue -->
 <template>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 relative">
+    <!-- Overlay Coming Soon - ahora relativo a este contenedor -->
+    <ComingSoonOverlay :show="showComingSoon" />
+    
     <!-- Encabezado -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
       <div>
@@ -247,6 +251,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import Chart from 'chart.js/auto'
+import ComingSoonOverlay from "@/components/ElementosGraficos/ComingSoon.vue";
+
+// Control del overlay
+const showComingSoon = ref(true);
 
 const activeChart = ref('pacientes')
 const chartColors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444']

@@ -73,6 +73,10 @@ const props = defineProps({
   ofertaId: {
     type: [Number, String],
     default: null
+  },
+  esTutor: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -80,6 +84,10 @@ const router = useRouter()
 const contactando = ref(false)
 
 const mensaje = computed(() => {
+  if (props.esTutor) {
+    return 'Como tutor, deberías tener acceso completo al historial. Si ves este mensaje, hay un error en el sistema.'
+  }
+  
   const mensajes = {
     preventivo: 'La información sobre vacunas, desparasitaciones y otros cuidados preventivos no está disponible.',
     clínico: 'Los registros de cirugías, fármacos, terapias y diagnósticos no están disponibles.',

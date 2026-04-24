@@ -47,14 +47,14 @@
         </div>
 
         <h3 class="text-lg font-bold text-gray-700 mb-2">{{ alergia.nombre }}</h3>
-        <p class="text-gray-600"><strong>Tipo:</strong> {{ alergia.tipo || 'No especificado' }}</p>
-        <p class="text-gray-600"><strong>Severidad:</strong> {{ alergia.severidad || 'No especificada' }}</p>
-        <p class="text-gray-600"><strong>Diagnosticado:</strong> {{ formatFecha(alergia.fecha_diagnostico) }}</p>
-        
-        <!-- Síntomas -->
-        <div v-if="alergia.sintomas" class="mt-2">
-          <p class="text-gray-600"><strong>Síntomas:</strong></p>
-          <p class="text-sm text-gray-500 mt-1">{{ alergia.sintomas }}</p>
+        <p class="text-gray-600"><strong>Tipo:</strong> {{ alergia.tipo_alergia || 'No especificado' }}</p>
+        <p class="text-gray-600"><strong>Gravedad:</strong> {{ alergia.gravedad_label || alergia.gravedad || 'No especificada' }}</p>
+        <p class="text-gray-600"><strong>Fecha detección:</strong> {{ formatFecha(alergia.fecha_deteccion) }}</p>
+
+        <!-- Reacción común -->
+        <div v-if="alergia.reaccion_comun" class="mt-2">
+          <p class="text-gray-600"><strong>Reacción común:</strong></p>
+          <p class="text-sm text-gray-500 mt-1">{{ alergia.reaccion_comun }}</p>
         </div>
 
         <!-- Notas adicionales -->
@@ -143,12 +143,23 @@ const cargarAlergias = async () => {
 const formatFecha = (fechaString) => {
   if (!fechaString) return 'No especificada'
   
-  const fecha = new Date(fechaString)
-  return fecha.toLocaleDateString('es-ES', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  })
+  // Si ya viene en formato dd/mm/yyyy del API
+  if (typeof fechaString === 'string' && fechaString.includes('/')) {
+    return fechaString
+  }
+  
+  // Si viene en formato Y-m-d
+  try {
+    const fecha = new Date(fechaString)
+    if (isNaN(fecha.getTime())) return fechaString
+    return fecha.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+  } catch (e) {
+    return fechaString
+  }
 }
 
 const abrirRegistroAlergia = () => {

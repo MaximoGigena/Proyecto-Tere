@@ -1,4 +1,4 @@
-<!-- registrarUsuario.vue - FLUJO COMPLETO -->
+<!-- registrarUsuario.vue - Versión modificada para soportar modificación -->
 <template>
   <div class="w-full bg-gray-600 shadow-md fixed top-0 left-0 right-0 z-50">
     <div class="max-w-6xl mx-auto flex items-center">
@@ -7,15 +7,15 @@
   </div>
   
   <div class="max-w-6xl mt-20 mx-auto p-6 max-h-[90vh] overflow-y-auto">
-    <h1 class="text-4xl font-bold mb-4">Registrar Usuario</h1>
+    <h1 class="text-4xl font-bold mb-4">{{ esModificacion ? 'Modificar Usuario' : 'Registrar Usuario' }}</h1>
 
     <!-- Modal de Confirmación -->
     <div v-if="showModal" 
           data-testid="modal-confirmacion"
           class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 class="text-xl font-bold mb-4">Confirmar Registro</h3>
-        <p class="mb-6">¿Estás seguro de que deseas registrar este usuario?</p>
+        <h3 class="text-xl font-bold mb-4">{{ esModificacion ? 'Confirmar Modificación' : 'Confirmar Registro' }}</h3>
+        <p class="mb-6">{{ esModificacion ? '¿Estás seguro de que deseas modificar este usuario?' : '¿Estás seguro de que deseas registrar este usuario?' }}</p>
         <div class="flex justify-end gap-4">
           <button
             @click="showModal = false"
@@ -27,13 +27,13 @@
             @click="confirmarAccion"
             class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            Registrar
+            {{ esModificacion ? 'Modificar' : 'Registrar' }}
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Overlay para Datos Opcionales (PRIMERO) -->
+    <!-- Overlay para Datos Opcionales -->
     <OverlayModal
       v-if="showOverlayDatosOpcionales"
       titulo="Datos Opcionales"
@@ -46,25 +46,29 @@
       @cerrar="confirmarCerrarDatosOpcionales"
     />
 
-    <!-- Overlay para Datos de Contacto (SEGUNDO) -->
+    <!-- Overlay para Datos de Contacto -->
     <OverlayModal
       v-if="showOverlayDatosContacto"
       titulo="Datos de Contacto"
       :componente="DatosContacto"
       :props-componente="propsDatosContacto"
       texto-omitir="Omitir contacto"
-      texto-guardar="Finalizar Registro"
+      texto-guardar="Finalizar"
       @guardar="guardarDatosContacto"
       @omitir="omitirDatosContacto"
       @cerrar="confirmarCerrarDatosContacto"
     />
 
     <form @submit.prevent="mostrarModal" class="space-y-4">
-      <!-- ... (formulario de datos obligatorios igual) ... -->
+      <!-- Indicador de modo edición -->
+      <div v-if="esModificacion" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+        <p class="text-blue-700"> Modo edición - Estás modificando los datos del usuario</p>
+      </div>
+
       <div class="flex items-center my-6">
         <div class="flex-grow border-t border-gray-600"></div>
         <h5 class="px-4 text-center font-bold text-gray-800 whitespace-nowrap">
-          Datos Obligatorios
+          Datos {{ esModificacion ? 'Principales' : 'Obligatorios' }}
         </h5>
         <div class="flex-grow border-t border-gray-600"></div>
       </div>
@@ -78,7 +82,7 @@
               v-model="usuario.nombre"
               placeholder="Nombre del usuario" 
               type="text"
-              required
+              :required="!esModificacion"
               class="w-full border rounded p-2 focus:outline-none focus:ring"
             />
           </div>  
@@ -87,14 +91,19 @@
             <label class="block font-medium">Email</label>
             <input
               v-model="usuario.email"
-              type="text"
+              type="email"
               placeholder="Email"
-              required
+              :required="!esModificacion"
+              :disabled="esModificacion"
               class="w-full border rounded p-2 focus:outline-none focus:ring"
+              :class="{ 'bg-gray-100': esModificacion }"
             />
+            <p v-if="esModificacion" class="text-xs text-gray-500 mt-1">
+              El email no se puede modificar por seguridad
+            </p>
           </div> 
           
-          <div>
+          <div v-if="!esModificacion">
             <label class="block font-medium">Contraseña</label>
             <input
               v-model="usuario.password"
@@ -104,7 +113,7 @@
             />
           </div>
 
-          <div>
+          <div v-if="!esModificacion">
             <label class="block font-medium">Confirmar Contraseña</label>
             <input
               v-model="usuario.confirmPassword"
@@ -114,24 +123,37 @@
             />
           </div>
 
+          <div v-else>
+            <label class="block font-medium">Contraseña (dejar en blanco para no cambiar)</label>
+            <input
+              v-model="usuario.nuevaPassword"
+              type="password"
+              placeholder="Nueva contraseña"
+              class="w-full border rounded p-2 focus:outline-none focus:ring"
+            />
+            <input
+              v-model="usuario.confirmNuevaPassword"
+              type="password"
+              placeholder="Confirmar nueva contraseña"
+              class="w-full border rounded p-2 focus:outline-none focus:ring mt-2"
+            />
+          </div>
+
           <div>
             <label class="block font-medium mb-1">Fecha de nacimiento</label>
             <div class="flex gap-2">
-              <!-- Día -->
               <input
                 v-model.number="usuario.fechaNacimiento.dia"
                 type="number"
                 min="1"
                 max="31"
                 placeholder="Día"
-                required
+                :required="!esModificacion"
                 class="w-1/3 border rounded p-2"
               />
-
-              <!-- Mes -->
               <select
                 v-model="usuario.fechaNacimiento.mes"
-                required
+                :required="!esModificacion"
                 class="w-1/3 border rounded p-2"
               >
                 <option disabled value="">Mes</option>
@@ -148,15 +170,13 @@
                 <option value="11">Noviembre</option>
                 <option value="12">Diciembre</option>
               </select>
-
-              <!-- Año -->
               <input
                 v-model.number="usuario.fechaNacimiento.anio"
                 type="number"
                 min="1930"
                 :max="new Date().getFullYear()"
                 placeholder="Año"
-                required
+                :required="!esModificacion"
                 class="w-1/3 border rounded p-2"
               />
             </div>
@@ -165,7 +185,7 @@
 
         <!-- Columna derecha - Fotos -->
         <div>
-          <label class="block font-medium mb-2">Sube al menos 1 foto de tu persona</label>
+          <label class="block font-medium mb-2">{{ esModificacion ? 'Foto de perfil actual' : 'Sube al menos 1 foto de tu persona' }}</label>
           <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div
               v-for="(foto, index) in fotos"
@@ -173,17 +193,15 @@
               class="relative border-2 border-dashed border-gray-600 rounded-md text-center cursor-pointer h-full aspect-square"
               @click="!foto.preview && activarInput(index)" 
             >
-              <!-- Botón eliminar -->
               <button
                 type="button"
                 @click.stop="quitarFoto(index)" 
                 v-if="foto.preview"
-                class="absolute top-1 right-1 bg-white rounded-full shadow z-10 text-red-500 hover:text-red-700 mt-35 -mr-2"
+                class="absolute top-1 right-1 bg-white rounded-full shadow z-10 text-red-500 hover:text-red-700"
               >
                 <font-awesome-icon :icon="['fas', 'circle-xmark']" class="text-3xl" />
               </button>
 
-              <!-- Input oculto con ref dinámico -->
               <input
                 :ref="el => inputsFoto[index] = el"
                 type="file"
@@ -192,7 +210,6 @@
                 class="hidden"
               />
 
-              <!-- Vista previa -->
               <div v-if="foto.preview" class="h-full flex flex-col">
                 <img
                   :src="foto.preview"
@@ -201,18 +218,19 @@
                 />
               </div>
 
-              <!-- Indicador visual si no hay foto -->
               <div v-else class="text-green-400 mt-14">
                 <font-awesome-icon :icon="['fas', 'circle-plus']" class="text-4xl mb-2" />
-                <div class="text-gray-400">Agregar foto</div>
+                <div class="text-gray-400">{{ esModificacion && index === 0 ? 'Cambiar foto' : 'Agregar foto' }}</div>
               </div>
             </div>
           </div>
+          <p v-if="esModificacion && fotos[0]?.preview" class="text-xs text-gray-500 mt-2">
+            La foto actual se mantendrá si no seleccionas una nueva
+          </p>
         </div>
       </div>
       
       <div class="pt-4 flex items-center justify-center gap-4">
-        <!-- Botón Cancelar -->
         <button
           type="button"
           @click="confirmarCancelar"
@@ -221,12 +239,11 @@
           Cancelar
         </button>
         
-        <!-- Botón Registrar usuario -->
         <button
           type="submit"
           class="bg-blue-500 text-white font-bold text-2xl px-4 py-2 text-center rounded-full hover:bg-blue-700 transition-colors"
         >
-          Registrar Usuario
+          {{ esModificacion ? 'Guardar Cambios' : 'Registrar Usuario' }}
         </button>
       </div>
     </form>
@@ -238,6 +255,7 @@ import { ref, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import { useAuthToken } from '@/composables/useAuthToken'
+import { useUsuarioModificacion } from '@/composables/useUsuarioModificacion'
 import OverlayModal from '@/components/módulo_usuario/overlayRegistro.vue'
 import DatosOpcionales from '@/components/módulo_usuario/DatosOpcionales.vue'
 import DatosContacto from '@/components/módulo_usuario/DatosContacto.vue'
@@ -245,14 +263,27 @@ import DatosContacto from '@/components/módulo_usuario/DatosContacto.vue'
 const router = useRouter()
 const route = useRoute()
 const { accessToken, isAuthenticated, setToken, clearToken } = useAuthToken()
+const { 
+  usuarioModificacion, 
+  cargarDatosUsuario, 
+  actualizarDatosBasicos,
+  actualizarDatosOpcionales,
+  actualizarDatosContacto,
+  cargando 
+} = useUsuarioModificacion()
 
+// Detectar si es modificación o registro
+const esModificacion = ref(false)
+const userId = ref(null)
 
-// Estado del usuario (se mantiene igual)
+// Estado del usuario
 const usuario = reactive({
   nombre: '',
   email: '',
   password: '',
   confirmPassword: '',
+  nuevaPassword: '',
+  confirmNuevaPassword: '',
   edad: null,
   fechaNacimiento: {
     dia: null,
@@ -271,15 +302,11 @@ const propsDatosOpcionales = reactive({
   datosIniciales: {}
 })
 
-
-// En la fase 1, siempre es registro
-const esModificacion = ref(false)
-
 const propsDatosContacto = reactive({
   datosIniciales: {},
-  usuarioId: null, // Se establecerá después del registro
-
-  emailRegistro: usuario.email // Pasar el email del registro
+  usuarioId: null,
+  emailRegistro: '',
+  esModificacion: false
 })
 
 const fotos = ref(Array.from({ length: 6 }, () => ({
@@ -289,7 +316,7 @@ const fotos = ref(Array.from({ length: 6 }, () => ({
 
 const inputsFoto = ref([])
 
-// Métodos para fotos (se mantienen igual)
+// Métodos para fotos
 const handleFoto = (event, index) => {
   const file = event.target.files[0]
   if (file) {
@@ -330,8 +357,13 @@ const calcularEdad = () => {
 const mostrarModal = () => {
   calcularEdad();
   
-  if (usuario.password !== usuario.confirmPassword) {
+  if (!esModificacion.value && usuario.password !== usuario.confirmPassword) {
     alert('Las contraseñas no coinciden');
+    return;
+  }
+  
+  if (esModificacion.value && usuario.nuevaPassword && usuario.nuevaPassword !== usuario.confirmNuevaPassword) {
+    alert('Las nuevas contraseñas no coinciden');
     return;
   }
   
@@ -340,25 +372,81 @@ const mostrarModal = () => {
 
 const confirmarAccion = async () => {
   showModal.value = false;
-  await registrarUsuario();
+  if (esModificacion.value) {
+    await modificarUsuario();
+  } else {
+    await registrarUsuario();
+  }
 }
 
+// Función para modificar usuario
+const modificarUsuario = async () => {
+  try {
+    // Preparar datos básicos
+    const datosBasicos = {
+      nombre: usuario.nombre,
+      email: usuario.email,
+      edad: usuario.edad,
+      fechaNacimiento: usuario.fechaNacimiento,
+      fotoPerfil: fotos.value[0]?.archivo
+    }
+    
+    // Si hay nueva contraseña
+    if (usuario.nuevaPassword) {
+      datosBasicos.password = usuario.nuevaPassword
+    }
+    
+    // 1. Actualizar datos básicos
+    await actualizarDatosBasicos(datosBasicos)
+    
+    // 2. Recargar los datos del usuario para tener los datos opcionales actualizados
+    await cargarDatosUsuario(userId.value)
+    
+    // 3. Configurar props para datos opcionales con los datos RECIÉN CARGADOS
+    propsDatosOpcionales.datosIniciales = {
+      ocupacion: usuarioModificacion.ocupacion || '',
+      tipoVivienda: usuarioModificacion.tipoVivienda || '',
+      experienciaMascotas: usuarioModificacion.experienciaMascotas || '',
+      conviveConNiños: usuarioModificacion.conviveConNiños || '',
+      conviveConMascotas: usuarioModificacion.conviveConMascotas || '',
+      descripcion: usuarioModificacion.descripcion || ''
+    }
+    
+    // 4. Configurar props para datos de contacto
+    // ✅ CORRECCIÓN: Usar usuarioId (ID de la tabla usuarios) no userId
+    propsDatosContacto.usuarioId = usuarioModificacion.user_id // o usuarioId.value
+    propsDatosContacto.emailRegistro = usuario.email
+    propsDatosContacto.esModificacion = true
+    propsDatosContacto.datosIniciales = {
+      dni: usuarioModificacion.dni || '',
+      telefono_contacto: usuarioModificacion.telefono_contacto || '',
+      email_contacto: usuarioModificacion.email_contacto || '',
+      nombre_completo: usuarioModificacion.nombre_completo || ''
+    }
+    
+    // 5. Mostrar overlays
+    showOverlayDatosOpcionales.value = true
+    
+  } catch (error) {
+    console.error('Error al modificar usuario:', error)
+    alert('Error al modificar los datos del usuario')
+  }
+}
+
+// Función para registrar usuario (existente, con modificaciones)
 const registrarUsuario = async () => {
   try {
     const formData = new FormData();
     
-    // Datos básicos
     formData.append('nombre', usuario.nombre);
     formData.append('email', usuario.email);
     formData.append('password', usuario.password);
     if (usuario.edad) formData.append('edad', usuario.edad);
 
-    // Foto de perfil
     if (fotos.value[0]?.archivo) {
       formData.append('foto_perfil', fotos.value[0].archivo);
     }
 
-    // Obtener CSRF token
     await axios.get('/sanctum/csrf-cookie', { withCredentials: true });
 
     const response = await axios.post('/api/registrar-usuario', formData, {
@@ -374,15 +462,14 @@ const registrarUsuario = async () => {
         setToken(response.data.access_token);
       }
 
-      // Guardar ID para el siguiente paso
       if (response.data.user?.id) {
         propsDatosContacto.usuarioId = response.data.user.id;
+        userId.value = response.data.user.id;
       }
 
-      // ✅ ACTUALIZAR el email en las props (importante porque al inicio es string vacío)
       propsDatosContacto.emailRegistro = usuario.email;
+      propsDatosContacto.esModificacion = false;
 
-      // Mostrar overlay
       showOverlayDatosOpcionales.value = true;
 
     } else {
@@ -391,49 +478,42 @@ const registrarUsuario = async () => {
 
   } catch (error) {
     console.error('Error completo:', error);
-
-    if (error.response) {
-      console.error('Datos del error:', error.response.data);
-      alert(`Error: ${error.response.data.message || 'Error en el servidor'}`);
-    } else if (error.request) {
-      alert('Error de conexión. Verifica tu red o si el servidor está funcionando.');
-    } else {
-      alert('Error al enviar los datos. Por favor intenta nuevamente.');
-    }
+    alert('Error al registrar usuario');
   }
 };
-
 
 // ========== MANEJO DE DATOS OPCIONALES ==========
 const guardarDatosOpcionales = async (datos) => {
   try {
     if (datos && Object.keys(datos).length > 0) {
-      const response = await axios.post('/api/actualizar-datos-opcionales', datos, {
-        headers: {
-          'Authorization': `Bearer ${accessToken.value}`,
-          'Accept': 'application/json'
+      if (esModificacion.value) {
+        await actualizarDatosOpcionales(datos)
+      } else {
+        const response = await axios.post('/api/actualizar-datos-opcionales', datos, {
+          headers: {
+            'Authorization': `Bearer ${accessToken.value}`,
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (!response.data.success) {
+          console.warn('Error guardando datos opcionales');
         }
-      });
-
-      if (response.data.success) {
-        console.log('Datos opcionales guardados exitosamente');
       }
+      console.log('Datos opcionales guardados exitosamente');
     }
 
-    // Cerrar overlay actual y mostrar SIGUIENTE: Datos de Contacto
     showOverlayDatosOpcionales.value = false;
     showOverlayDatosContacto.value = true;
     
   } catch (error) {
     console.error('Error al guardar datos opcionales:', error);
-    // Aún así continuar con datos de contacto
     showOverlayDatosOpcionales.value = false;
     showOverlayDatosContacto.value = true;
   }
 }
 
 const omitirDatosOpcionales = () => {
-  // Saltar directamente a datos de contacto
   showOverlayDatosOpcionales.value = false;
   showOverlayDatosContacto.value = true;
 }
@@ -448,37 +528,61 @@ const confirmarCerrarDatosOpcionales = () => {
 const guardarDatosContacto = async (datos) => {
   try {
     if (datos && Object.keys(datos).length > 0) {
-      const response = await axios.post('/api/actualizar-datos-contacto', datos, {
-        headers: {
-          'Authorization': `Bearer ${accessToken.value}`,
-          'Accept': 'application/json'
+      if (esModificacion.value) {
+        await actualizarDatosContacto(datos)
+      } else {
+        const response = await axios.post('/api/actualizar-datos-contacto', datos, {
+          headers: {
+            'Authorization': `Bearer ${accessToken.value}`,
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (!response.data.success) {
+          console.warn('Error guardando datos de contacto');
         }
-      });
-
-      if (response.data.success) {
-        console.log('Datos de contacto guardados exitosamente');
       }
+      console.log('Datos de contacto guardados exitosamente');
     }
 
-    // FINALIZAR - Redirigir al explorar encuentros
     showOverlayDatosContacto.value = false;
-    router.push('/explorar/encuentros');
+    
+    if (esModificacion.value) {
+      router.push('/explorar/perfil/mascotas'); // O la ruta que corresponda
+      alert('Usuario modificado exitosamente');
+    } else {
+      router.push('/explorar/encuentros');
+    }
     
   } catch (error) {
     console.error('Error al guardar datos de contacto:', error);
-    alert('Los datos de contacto no pudieron guardarse, pero puedes completarlos más tarde en tu perfil.');
-    router.push('/explorar/encuentros');
+    if (esModificacion.value) {
+      router.push('/explorar/perfil/mascotas');
+      alert('Usuario modificado, pero hubo problemas con los datos de contacto');
+    } else {
+      alert('Los datos de contacto no pudieron guardarse, pero puedes completarlos más tarde en tu perfil.');
+      router.push('/explorar/encuentros');
+    }
   }
 }
 
 const omitirDatosContacto = () => {
-  // Finalizar registro sin datos de contacto
   showOverlayDatosContacto.value = false;
-  router.push('/explorar/encuentros');
+  
+  if (esModificacion.value) {
+    router.push('/admin/usuarios');
+    alert('Usuario modificado exitosamente');
+  } else {
+    router.push('/explorar/encuentros');
+  }
 }
 
 const confirmarCerrarDatosContacto = () => {
-  if (confirm('¿Estás seguro de que deseas omitir los datos de contacto? Podrás completarlos más tarde en tu perfil.')) {
+  const mensaje = esModificacion.value 
+    ? '¿Estás seguro de que deseas omitir los datos de contacto? Los datos existentes se mantendrán.'
+    : '¿Estás seguro de que deseas omitir los datos de contacto? Podrás completarlos más tarde en tu perfil.';
+  
+  if (confirm(mensaje)) {
     omitirDatosContacto();
   }
 }
@@ -497,7 +601,34 @@ const cerrar = () => {
   }
 }
 
-onMounted(() => {
-  console.log('Registro de usuario - Flujo completo con overlays');
+// Cargar datos si es modo modificación
+onMounted(async () => {
+  const userIdParam = route.params.id || route.query.id
+  
+  if (userIdParam) {
+    esModificacion.value = true
+    userId.value = userIdParam
+    
+    const cargado = await cargarDatosUsuario(userIdParam)
+    
+    if (cargado) {
+      // Llenar el formulario con los datos cargados
+      usuario.nombre = usuarioModificacion.nombre
+      usuario.email = usuarioModificacion.email
+      usuario.edad = usuarioModificacion.edad
+      usuario.fechaNacimiento = { ...usuarioModificacion.fechaNacimiento }
+      
+      // Si hay foto de perfil, mostrarla
+      if (usuarioModificacion.foto_perfil) {
+        fotos.value[0].preview = usuarioModificacion.foto_perfil
+        // No es necesario archivo ya que es URL existente
+      }
+    } else {
+      alert('Error al cargar los datos del usuario')
+      router.back()
+    }
+  }
+  
+  console.log(esModificacion.value ? 'Modificación de usuario' : 'Registro de usuario');
 });
 </script>

@@ -221,7 +221,7 @@ const accessToken = computed(() => {
 // Crear axiosInstance con manejo de errores
 const axiosInstance = computed(() => {
   const instance = axios.create({
-    timeout: 10000, // Timeout de 10 segundos
+    timeout: 20000, // Timeout de 10 segundos
     headers: {}
   })
   
@@ -436,8 +436,21 @@ async function cargarPreferencia(id) {
         filtros.especie = filtrosCargados.especie
       }
       
+      // En la función cargarPreferencia o donde restaures los filtros
       if (filtrosCargados.sexo) {
-        filtros.sexo = filtrosCargados.sexo
+          if (Array.isArray(filtrosCargados.sexo)) {
+              if (filtrosCargados.sexo.includes('macho') && filtrosCargados.sexo.includes('hembra')) {
+                  filtros.sexo = 'Macho y Hembra'
+              } else if (filtrosCargados.sexo.includes('macho')) {
+                  filtros.sexo = 'Macho'
+              } else if (filtrosCargados.sexo.includes('hembra')) {
+                  filtros.sexo = 'Hembra'
+              }
+          } else if (typeof filtrosCargados.sexo === 'string') {
+              // Para compatibilidad con datos antiguos
+              if (filtrosCargados.sexo === 'macho') filtros.sexo = 'Macho'
+              else if (filtrosCargados.sexo === 'hembra') filtros.sexo = 'Hembra'
+          }
       }
       
       if (filtrosCargados.edad) {
@@ -710,48 +723,44 @@ async function aplicarFiltros() {
   // Preparar filtros para enviar al componente padre
   const filtrosParaEnviar = {}
   
-  // Especies
+  // Especies - enviar como array
   if (filtros.especie && filtros.especie.length) {
     filtrosParaEnviar.especie = filtros.especie
   }
   
-  // Sexo
+  // ✅ SEXO - Enviar como array SIMPLE, NO JSON.stringify
   if (filtros.sexo) {
-    filtrosParaEnviar.sexo = filtros.sexo === 'Macho y Hembra' ? 'Macho y Hembra' : filtros.sexo
+    if (filtros.sexo === 'Macho y Hembra') {
+      filtrosParaEnviar.sexo = ['macho', 'hembra']
+    } else {
+      filtrosParaEnviar.sexo = [filtros.sexo.toLowerCase()]
+    }
   }
   
-  // Edad
+  // Edad - enviar como array
   if (filtros.edad && filtros.edad.length) {
     filtrosParaEnviar.rangos_edad = filtros.edad.map(r => r.toLowerCase())
   }
   
-  // ✅ CORRECCIÓN CRÍTICA: Enviar coordenadas con los nombres correctos
+  // Ubicación
   if (filtros.coordenadas) {
-    filtrosParaEnviar.latitud = filtros.coordenadas.lat   // Cambiar de 'lat' a 'latitud'
-    filtrosParaEnviar.longitud = filtros.coordenadas.lon  // Cambiar de 'lon' a 'longitud'
+    filtrosParaEnviar.latitud = filtros.coordenadas.lat
+    filtrosParaEnviar.longitud = filtros.coordenadas.lon
     filtrosParaEnviar.ubicacion = filtros.ubicacion
-    filtrosParaEnviar.radio_km = filtros.radio || 10      // Asegurar que se llama radio_km
-    
-    console.log('Ubicación enviada correctamente:', {
-      latitud: filtros.coordenadas.lat,
-      longitud: filtros.coordenadas.lon,
-      ubicacion: filtros.ubicacion,
-      radio_km: filtros.radio
-    })
+    filtrosParaEnviar.radio_km = filtros.radio || 10
   }
 
   try {
-    // Guardar automáticamente los filtros aplicados
-    await guardarFiltrosAutomaticamente();
+    // 🔥 GUARDAR FILTROS AUTOMÁTICAMENTE ANTES DE EMITIR
+    await guardarFiltrosAutomaticamente()
     
-    // Emitir los filtros al componente padre
-    emit('filtrar', filtrosParaEnviar);
-    emit('cerrar');
+    // Emitir evento al padre
+    emit('filtrar', filtrosParaEnviar)
+    emit('cerrar')
   } catch (error) {
-    console.error('Error al aplicar filtros:', error);
-    alert('Error al aplicar los filtros. Intenta nuevamente.');
+    console.error('Error al aplicar filtros:', error)
   } finally {
-    aplicandoFiltros.value = false;
+    aplicandoFiltros.value = false
   }
 }
 
@@ -767,11 +776,18 @@ async function guardarFiltrosAutomaticamente() {
   if (!hayFiltros) return;
   
   try {
+    // ✅ Preparar sexo como STRING, no como array
+    let sexoGuardado = null;
+    if (filtros.sexo) {
+      // Mantener el formato original que el backend espera
+      sexoGuardado = filtros.sexo;  // "Macho", "Hembra" o "Macho y Hembra"
+    }
+    
     const filtrosParaGuardar = {
       nombre_filtro: `Filtros aplicados ${new Date().toLocaleString()}`,
       filtros: {
         especie: filtros.especie,
-        sexo: filtros.sexo,
+        sexo: sexoGuardado,  // ✅ String, no array
         edad: filtros.edad,
         ubicacion: filtros.ubicacion,
         coordenadas: filtros.coordenadas,
@@ -779,12 +795,16 @@ async function guardarFiltrosAutomaticamente() {
       }
     }
 
-    await axiosInstance.value.post('/api/user/filters/preferences/automatic', filtrosParaGuardar);
+    console.log('Enviando filtros para guardar:', filtrosParaGuardar);
     
-    // Opcional: Marcar como activa la última preferencia guardada
-    // Esto requiere un endpoint adicional o modificar el storeAutomatic
+    const response = await axiosInstance.value.post('/api/user/filters/preferences/automatic', filtrosParaGuardar);
+    console.log('Filtros guardados automáticamente:', response.data);
+    
   } catch (error) {
     console.error('Error al guardar filtros automáticos:', error);
+    if (error.response) {
+      console.error('Detalles del error:', error.response.data);
+    }
   }
 }
 

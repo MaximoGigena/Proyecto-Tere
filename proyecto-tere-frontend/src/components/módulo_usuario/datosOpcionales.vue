@@ -1,21 +1,26 @@
-<!-- components/usuario/DatosOpcionales.vue -->
+<!-- components/módulo_usuario/DatosOpcionales.vue - Versión modificada -->
 <template>
   <div>
     <div class="flex items-center my-6">
       <div class="flex-grow border-t border-gray-600"></div>
       <h5 class="px-4 text-center font-bold text-gray-800 whitespace-nowrap">
         Datos Opcionales
+        <span v-if="esModificacion" class="text-sm text-blue-600 ml-2">(Modo edición)</span>
       </h5>
       <div class="flex-grow border-t border-gray-600"></div>
     </div>
 
     <p class="mb-4">
-      Si bien estos datos son opcionales, completarlos nos ayuda a conocer mejor tus intereses,
-      hábitos y estilo de vida, lo que puede mejorar la experiencia en la plataforma.
+      <span v-if="esModificacion">
+        Puedes modificar estos datos según tus preferencias actuales.
+      </span>
+      <span v-else>
+        Si bien estos datos son opcionales, completarlos nos ayuda a conocer mejor tus intereses,
+        hábitos y estilo de vida, lo que puede mejorar la experiencia en la plataforma.
+      </span>
     </p>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
-
       <!-- Ocupación -->
       <div>
         <label class="block font-medium">Ocupación</label>
@@ -102,21 +107,26 @@
   </div>
 </template>
 
+<!-- components/módulo_usuario/DatosOpcionales.vue -->
 <script setup>
-import { reactive, defineProps, defineEmits, watch } from 'vue'
+import { reactive, defineProps, defineEmits, watch, ref, onMounted } from 'vue'
 
-// Props para recibir datos existentes
 const props = defineProps({
   datosIniciales: {
     type: Object,
     default: () => ({})
+  },
+  esModificacion: {
+    type: Boolean,
+    default: false
   }
 })
 
-// Emits para enviar datos actualizados
 const emit = defineEmits(['datosActualizados'])
 
-// Estado reactivo para los datos opcionales
+// ✅ Agregar log para depuración
+console.log('📋 DatosOpcionales recibidos:', props.datosIniciales)
+
 const usuario = reactive({
   ocupacion: props.datosIniciales.ocupacion || '',
   tipoVivienda: props.datosIniciales.tipoVivienda || '',
@@ -126,27 +136,43 @@ const usuario = reactive({
   descripcion: props.datosIniciales.descripcion || ''
 })
 
+// ✅ Watcher para detectar cambios en props (útil cuando se actualizan después del montaje)
+watch(() => props.datosIniciales, (nuevosDatos) => {
+  console.log('🔄 DatosOpcionales actualizados:', nuevosDatos)
+  usuario.ocupacion = nuevosDatos.ocupacion || ''
+  usuario.tipoVivienda = nuevosDatos.tipoVivienda || ''
+  usuario.experienciaMascotas = nuevosDatos.experienciaMascotas || ''
+  usuario.conviveConNiños = nuevosDatos.conviveConNiños || ''
+  usuario.conviveConMascotas = nuevosDatos.conviveConMascotas || ''
+  usuario.descripcion = nuevosDatos.descripcion || ''
+}, { deep: true, immediate: true })
+
 // Watcher para emitir cambios
 watch(usuario, (nuevosDatos) => {
+  console.log('📝 Cambios en datos opcionales:', nuevosDatos)
   emit('datosActualizados', nuevosDatos)
 }, { deep: true })
 
-// Método para obtener datos (útil para el componente padre)
 const obtenerDatos = () => {
   return { ...usuario }
 }
 
-// Método para limpiar datos
 const limpiarDatos = () => {
-  usuario.ocupacion = ''
-  usuario.tipoVivienda = ''
-  usuario.experienciaMascotas = ''
-  usuario.conviveConNiños = ''
-  usuario.conviveConMascotas = ''
-  usuario.descripcion = ''
+  if (!props.esModificacion) {
+    usuario.ocupacion = ''
+    usuario.tipoVivienda = ''
+    usuario.experienciaMascotas = ''
+    usuario.conviveConNiños = ''
+    usuario.conviveConMascotas = ''
+    usuario.descripcion = ''
+  }
 }
 
-// Exponer métodos al componente padre
+// ✅ Verificar datos al montar
+onMounted(() => {
+  console.log('✅ Componente DatosOpcionales montado con datos:', usuario)
+})
+
 defineExpose({
   obtenerDatos,
   limpiarDatos

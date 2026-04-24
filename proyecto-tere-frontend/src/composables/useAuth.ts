@@ -73,6 +73,9 @@ export const useAuth = () => {
   
 
   // Procesar token desde URL (fragment identifier)
+  // composables/useAuth.ts - Modifica la función processTokenFromUrl
+
+  // Procesar token desde URL (fragment identifier)
   const processTokenFromUrl = async (): Promise<boolean> => {
     const hash = window.location.hash.substring(1)
     const params = new URLSearchParams(hash)
@@ -80,10 +83,35 @@ export const useAuth = () => {
     const token = params.get('token')
     const userId = params.get('user_id')
 
+    console.log('🔍 useAuth.processTokenFromUrl - token:', !!token, 'userId:', userId)
+
     if (token && userId) {
       try {
         setToken(token)
+        
+        // 🔥 GUARDAR EL USER_ID EN LOCALSTORAGE
+        localStorage.setItem('user_id', userId)
+        console.log('💾 userId guardado en localStorage:', userId)
+        
+        // Limpiar URL
         window.history.replaceState({}, document.title, window.location.pathname)
+        
+        // Obtener y guardar el nombre del usuario
+        try {
+          const response = await axios.get(`/api/usuarios/${userId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+          
+          const nombreUsuario = response.data.usuario?.nombre || 
+                              response.data.nombre || 
+                              'Usuario'
+          
+          localStorage.setItem('user_name', nombreUsuario)
+          console.log('💾 user_name guardado en localStorage:', nombreUsuario)
+        } catch (error) {
+          console.error('Error obteniendo nombre de usuario:', error)
+        }
+        
         await fetchUser()
         return true
       } catch (error) {
@@ -302,11 +330,11 @@ export const useAuth = () => {
     clearToken()
     user.value = null
     if (isVeterinario()) {
-      router.push('/veterinario/login')
+      router.push('/')
     } else if (isAdministrador()) {
-      router.push('/admin/login')
+      router.push('/')
     } else {
-      router.push('/login')
+      router.push('/')
     }
   }
 
