@@ -18,7 +18,22 @@ class TipoRevisionController extends Controller
     public function index(): JsonResponse
     {
         try {
+            // OBTENER EL ID DEL VETERINARIO AUTENTICADO
+            $user = auth()->user();
+            
+            // Verificar que el usuario esté autenticado y sea un veterinario
+            if (!$user || !$user->userable || !($user->userable instanceof \App\Models\Veterinario)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado o no es un veterinario'
+                ], 403);
+            }
+            
+            $veterinarioId = $user->userable->id;
+            
+            // FILTRAR SOLO LOS TIPOS DE REVISIÓN DE ESTE VETERINARIO
             $tiposRevision = TipoRevision::where('activo', true)
+                ->where('veterinario_id', $veterinarioId)  // 👈 FILTRO CRUCIAL
                 ->orderBy('nombre')
                 ->get();
 
@@ -134,6 +149,17 @@ class TipoRevisionController extends Controller
     public function show(TipoRevision $tipoRevision): JsonResponse
     {
         try {
+            // VERIFICAR QUE EL TIPO DE REVISIÓN PERTENEZCA AL VETERINARIO AUTENTICADO
+            $user = auth()->user();
+            $veterinarioId = $user->userable->id;
+            
+            if ($tipoRevision->veterinario_id !== $veterinarioId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para ver este tipo de revisión'
+                ], 403);
+            }
+            
             // Asegurarse de que las especies se devuelvan como array
             $tipoRevision->especies_objetivo = $tipoRevision->especies;
             

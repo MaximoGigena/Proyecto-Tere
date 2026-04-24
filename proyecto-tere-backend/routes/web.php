@@ -9,6 +9,21 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Ruta para servir archivos temporales de WhatsApp
+Route::get('/temp_whatsapp/{filename}', function ($filename) {
+    $path = public_path('temp_whatsapp/' . $filename);
+    
+    if (!file_exists($path)) {
+        abort(404);
+    }
+    
+    return response()->file($path, [
+        'Content-Type' => 'application/pdf',
+        'Access-Control-Allow-Origin' => '*',
+        'Cache-Control' => 'no-cache, must-revalidate'
+    ]);
+})->name('temp.whatsapp');
+
 Route::prefix('auth/google')->group(function () {
     Route::get('/', [GoogleAuthController::class, 'redirectToGoogle'])->name('google.login');
     Route::get('/callback', [GoogleAuthController::class, 'handleGoogleCallback']);

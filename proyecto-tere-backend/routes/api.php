@@ -33,10 +33,12 @@ use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\UsuarioContactoController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\OfertaAdopcionController;
+use App\Http\Controllers\WhatsAppWebhookController;
 use App\Http\Controllers\OfertasProximidadController;
 use App\Http\Controllers\ManejarOfertasController;
 use App\Http\Controllers\SolicitudAdopcionController;
 use App\Http\Controllers\ProcesoAdopcionController;
+use App\Http\Controllers\Api\MetricasUsuarioController;
 use App\Http\Controllers\HistorialTransferenciaController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\MensajeController;
@@ -66,10 +68,25 @@ Route::prefix('telegram')->group(function () {
     // Configuración
     Route::post('/set-webhook', [TelegramWebhookController::class, 'setWebhook']);
     Route::post('/remove-webhook', [TelegramWebhookController::class, 'removeWebhook']);
+    Route::get('/webhook-info', [TelegramWebhookController::class, 'getWebhookInfo']); // ✅ AGREGAR: Para ver estado del webhook
     
-    // ✅ CORREGIDO: Ruta para verificar por email
-    Route::get('/verificar-por-email', [TelegramController::class, 'verificarChatIdPorEmail']);
+    // ✅ CORREGIDO: Ruta para verificar por email (cambiar a POST para recibir email en body)
+    Route::post('/verificar-por-email', [TelegramController::class, 'verificarChatIdPorEmail']);
+    
+    // ✅ AGREGAR: Ruta para verificar por email usando GET con parámetro
+    Route::get('/verificar-por-email/{email}', [TelegramController::class, 'verificarChatIdPorEmail']);
 });
+
+// rutas para el wassap
+
+Route::get('/webhook/whatsapp', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/webhook/whatsapp', [WhatsAppWebhookController::class, 'handle']);
+
+// routes/api.php
+
+// Twilio Webhook (sin autenticación CSRF, Twilio necesita acceso público)
+Route::post('/webhook/twilio', [WhatsAppWebhookController::class, 'handle'])
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
 // En api.php - agregar esto temporalmente
 Route::get('/telegram/debug-test', function() {
@@ -170,7 +187,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     Route::post('/actualizar-datos-opcionales', [RegistrarUsuarioController::class, 'actualizarDatosOpcionales']);
     Route::post('/actualizar-datos-contacto', [RegistrarUsuarioController::class, 'actualizarDatosContacto']);
     Route::get('/usuarios/{id}', [RegistrarUsuarioController::class, 'show']);
-    Route::post('/usuarios/{id}', [RegistrarUsuarioController::class, 'update']);
+    Route::put('/usuarios/{id}', [RegistrarUsuarioController::class, 'update']);
 
     Route::get('/optional-data/status', [RegistrarUsuarioController::class, 'checkOptionalDataStatus']);
     
@@ -231,6 +248,11 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     
     // Obtener mascotas del usuario autenticado que SÍ están en adopción
     Route::get('/mis-mascotas/en-adopcion', [MascotaController::class, 'misMascotasEnAdopcion']);
+
+    // Nuevas rutas para historial médico
+    Route::get('/mascotas/{mascotaId}/permisos-historial', [App\Http\Controllers\MascotaController::class, 'verificarPermisosHistorial']);
+    Route::get('/mascotas/{mascotaId}/historial-medico', [App\Http\Controllers\MascotaController::class, 'getHistorialMedico']);
+
     
     Route::get('/usuarios/{id}/medios', [UsuarioContactoController::class, 'obtenerMedios']);
     
@@ -373,6 +395,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         Route::get('/mis-mascotas/disponibles', [OfertaAdopcionController::class, 'getMascotasDisponibles']);
         Route::get('/mis-mascotas/en-adopcion', [OfertaAdopcionController::class, 'getOfertasUsuario']);
         
+
         // Ruta para cancelar por mascotaId
         Route::post('/{mascotaId}/cancelar', function($mascotaId) {
             $controller = new OfertaAdopcionController();
@@ -428,11 +451,19 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
         // Estadísticas del veterinario autenticado
         Route::get('/estadisticas', [VeterinarioProcedimientoController::class, 'estadisticas']);
     });
+
+    Route::get('/veterinario/perfil', [VeterinarioController::class, 'obtenerPerfil']);
+
+    Route::get('/veterinario/{id}', [VeterinarioController::class, 'show']);
+    Route::put('/veterinario/{id}', [VeterinarioController::class, 'update']);
+    Route::post('/veterinario/logout', [VeterinarioController::class, 'logout']);
     
     // Rutas para administradores (ver procedimientos de otros veterinarios)
     Route::prefix('veterinarios')->group(function () {
         Route::get('/{veterinario}/procedimientos', [VeterinarioProcedimientoController::class, 'index']);
     });
+
+    Route::get('/veterinario/debug-fotos/{id}', [VeterinarioController::class, 'debugFotos'])->middleware('auth:sanctum');
 
 
     // Rutas para la gestión de tipos de vacuna - SOLO VETERINARIOS
@@ -675,9 +706,41 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     Route::post('/send-document', [TelegramController::class, 'sendDocument']);
     Route::get('/send-stored-document/{filename}', [TelegramController::class, 'sendStoredDocument']);
     
-    // Rutas protegidas de Telegram
-    Route::post('/telegram/guardar-chat-id', [TelegramController::class, 'guardarChatId']);
-    Route::get('/usuarios/{usuarioId}/telegram-chat-id', [TelegramController::class, 'obtenerChatId']);
+    // =============================================
+    // RUTAS DE TELEGRAM - PROTEGIDAS
+    // =============================================
+    
+    // ACTUALIZAR: Ruta para guardar datos de Telegram (ahora con más campos)
+    Route::post('/telegram/guardar-datos', [TelegramController::class, 'guardarChatId']);
+    
+    // MANTENER: Ruta para obtener chat ID por ID de usuario
+    Route::get('/usuarios/{userId}/telegram', [TelegramController::class, 'obtenerChatId']);
+    
+    // AGREGAR: Ruta para obtener todos los usuarios con Telegram
+    Route::get('/telegram/usuarios', [TelegramController::class, 'obtenerTodosUsuariosTelegram']);
+    
+    // AGREGAR: Ruta para desvincular Telegram
+    Route::delete('/telegram/desvincular', [TelegramController::class, 'desvincularTelegram']);
+    
+    // AGREGAR: Ruta para actualizar datos de Telegram (útil para sincronización)
+    Route::put('/telegram/actualizar', [TelegramController::class, 'actualizarDatosTelegram']);
+    
+    // AGREGAR: Ruta para verificar si el usuario tiene Telegram vinculado
+    Route::get('/telegram/verificar', [TelegramController::class, 'verificarTelegramVinculado']);
+    
+    // rutas de documentos
+    Route::post('/telegram/send-document', [TelegramController::class, 'sendDocument']);
+    Route::get('/telegram/send-stored-document/{filename}', [TelegramController::class, 'sendStoredDocument']);
+    
+    // Rutas de Telegram con tokens
+    Route::prefix('telegram')->group(function () {
+        Route::post('/generar-token', [TelegramController::class, 'generarTokenTelegram']);
+        Route::post('/verificar-token', [TelegramController::class, 'verificarTokenTelegram']);
+        Route::get('/verificar', [TelegramController::class, 'verificarTelegramVinculado']);
+    });
+    
+    // Ruta para obtener datos de Telegram del usuario
+    Route::get('/usuarios/{userId}/telegram', [TelegramController::class, 'obtenerChatId']);
 
     // Rutas para vacunas
     Route::prefix('vacunas')->group(function () {
@@ -819,6 +882,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
             Route::get('/usuarios/comparativa', [UsuarioMetricasController::class, 'compararMetricas']);
             Route::get('/usuarios/alertas', [UsuarioMetricasController::class, 'obtenerAlertas']);
             Route::get('/usuarios/dashboard', [UsuarioMetricasController::class, 'obtenerDashboard']);
+
+            Route::get('/usuarios/granulares', [MetricasUsuarioController::class, 'obtenerMetricasGranulares']);
         });
 
          // Reportes

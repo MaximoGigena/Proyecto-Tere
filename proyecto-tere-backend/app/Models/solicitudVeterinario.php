@@ -4,7 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Models\FotoVeterinario; // Añade este import
 
 class SolicitudVeterinario extends Model
 {
@@ -33,7 +35,6 @@ class SolicitudVeterinario extends Model
         'observaciones'
     ];
 
-
     // Estados posibles
     const ESTADO_PENDIENTE = 'pendiente';
     const ESTADO_APROBADO = 'aprobado';
@@ -54,7 +55,6 @@ class SolicitudVeterinario extends Model
         });
     }
 
-    
     /**
      * Accesor para obtener las URLs completas de las fotos
      */
@@ -79,6 +79,65 @@ class SolicitudVeterinario extends Model
         }
 
         return Storage::url($this->fotos[0]);
+    }
+
+    /**
+     * NUEVO: Método para guardar las fotos en la tabla independiente al aprobar
+     */
+    public function guardarFotosEnVeterinario($veterinarioId)
+    {
+        // Asegurarse de que fotos sea un array
+        $fotosArray = $this->fotos;
+        if (is_string($fotosArray)) {
+            $fotosArray = json_decode($fotosArray, true);
+        }
+        
+        if (empty($fotosArray) || !is_array($fotosArray)) {
+            return [];
+        }
+        
+        $fotosGuardadas = [];
+        
+        foreach ($fotosArray as $orden => $ruta) {
+            // Verificar que la ruta no esté vacía
+            if (empty($ruta)) {
+                continue;
+            }
+            
+            try {
+                $foto = FotoVeterinario::create([
+                    'veterinario_id' => $veterinarioId,
+                    'ruta' => $ruta,
+                    'orden' => (int) $orden,
+                    'tipo' => $orden === 0 ? 'perfil' : 'galeria',
+                    'activa' => true
+                ]);
+                
+                $fotosGuardadas[] = $foto;
+            } catch (\Exception $e) {
+                Log::error('Error al guardar foto en veterinario: ' . $e->getMessage(), [
+                    'veterinario_id' => $veterinarioId,
+                    'ruta' => $ruta,
+                    'orden' => $orden
+                ]);
+                // Continuar con las demás fotos
+            }
+        }
+        
+        return $fotosGuardadas;
+    }
+
+    /**
+     * Método para obtener las rutas de las fotos como array simple
+     */
+    public function getFotosRutasAttribute()
+    {
+        if (empty($this->fotos)) {
+            return [];
+        }
+        
+        $fotos = is_string($this->fotos) ? json_decode($this->fotos, true) : $this->fotos;
+        return is_array($fotos) ? $fotos : [];
     }
 
     /**

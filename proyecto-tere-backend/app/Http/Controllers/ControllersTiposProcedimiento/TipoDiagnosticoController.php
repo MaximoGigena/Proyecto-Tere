@@ -17,15 +17,53 @@ class TipoDiagnosticoController extends Controller
      */
     public function index()
     {
-        $tiposDiagnostico = TipoDiagnostico::with('veterinario')
-            ->where('activo', true)
-            ->orderBy('nombre')
-            ->get();
+        try {
+            // OBTENER EL ID DEL VETERINARIO AUTENTICADO
+            $user = Auth::user();
+            
+            // Verificar que el usuario esté autenticado y sea un veterinario
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            $veterinarioId = null;
+            
+            // Obtener el veterinario_id correctamente
+            if ($user->userable && $user->userable_type === 'App\\Models\\Veterinario') {
+                $veterinarioId = $user->userable->id;
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado o no es un veterinario'
+                ], 403);
+            }
+            
+            // FILTRAR SOLO LOS TIPOS DE DIAGNÓSTICO DE ESTE VETERINARIO
+            $tiposDiagnostico = TipoDiagnostico::with('veterinario')
+                ->where('activo', true)
+                ->where('veterinario_id', $veterinarioId)  // 👈 FILTRO CRUCIAL
+                ->orderBy('nombre')
+                ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => $tiposDiagnostico
-        ]);
+            return response()->json([
+                'success' => true,
+                'data' => $tiposDiagnostico
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error al obtener tipos de diagnóstico', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener los tipos de diagnóstico: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -135,8 +173,31 @@ class TipoDiagnosticoController extends Controller
     public function show($id)
     {
         try {
+            // OBTENER EL ID DEL VETERINARIO AUTENTICADO
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            $veterinarioId = null;
+            
+            if ($user->userable && $user->userable_type === 'App\\Models\\Veterinario') {
+                $veterinarioId = $user->userable->id;
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado'
+                ], 403);
+            }
+            
+            // VERIFICAR QUE EL TIPO DE DIAGNÓSTICO PERTENEZCA AL VETERINARIO AUTENTICADO
             $tipoDiagnostico = TipoDiagnostico::with('veterinario')
                 ->where('activo', true)
+                ->where('veterinario_id', $veterinarioId)  // 👈 FILTRO CRUCIAL
                 ->findOrFail($id);
 
             return response()->json([
@@ -147,8 +208,18 @@ class TipoDiagnosticoController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Tipo de diagnóstico no encontrado'
+                'message' => 'Tipo de diagnóstico no encontrado o no tienes permiso para verlo'
             ], 404);
+        } catch (\Exception $e) {
+            Log::error('Error al obtener tipo de diagnóstico', [
+                'id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener el tipo de diagnóstico: ' . $e->getMessage()
+            ], 500);
         }
     }
 

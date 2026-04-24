@@ -1187,8 +1187,7 @@ class ManejarOfertasController extends Controller
 
     private function obtenerOfertasConDistancia($ubicacionUsuario, $request, $usuarioId = null)
     {
-         if (!$usuarioId) {
-            // ✅ CORRECCIÓN: Obtener el ID del Usuario (no del User)
+        if (!$usuarioId) {
             $user = Auth::user();
             $usuarioId = $user->userable->id;
         }
@@ -1202,7 +1201,7 @@ class ManejarOfertasController extends Controller
             'ubicacion' => compact('lat', 'lon')
         ]);
         
-        // ✅ CONSULTA CORREGIDA: Excluir ofertas del usuario autenticado
+        // ✅ CONSULTA BASE
         $query = OfertaAdopcion::with([
             'mascota.fotos',
             'mascota.caracteristicas',
@@ -1210,61 +1209,73 @@ class ManejarOfertasController extends Controller
             'mascota.usuario.user.ubicacionActual'
         ])
         ->where('estado_oferta', 'publicada')
-        // ✅ EXCLUSIÓN CRÍTICA: No mostrar ofertas del usuario
         ->where('id_usuario_responsable', '!=', $usuarioId)
-        // ✅ EXCLUSIÓN ADICIONAL: Por si acaso (excluir mascotas donde el usuario sea el tutor)
         ->whereDoesntHave('mascota', function($q) use ($usuarioId) {
             $q->where('usuario_id', $usuarioId);
         });
         
-        // Solo incluir ubicación si el usuario la tiene
-        $query->whereHas('mascota.usuario.user.ubicacionActual');
+        // ✅ ✅ ✅ APLICAR FILTROS AQUÍ - IMPORTANTE ✅ ✅ ✅
+        $filtrosController = new \App\Http\Controllers\FiltrosMascotasController();
+        $query = $filtrosController->aplicarFiltros($query, $request);
         
-        // Log de la consulta SQL
-        Log::info('Consulta SQL para proximidad:', [
+        // Verificar que los filtros se hayan aplicado
+        Log::info('SQL DESPUÉS DE FILTROS:', [
             'sql' => $query->toSql(),
-            'bindings' => $query->getBindings(),
-            'usuario_excluido' => $usuarioId
+            'bindings' => $query->getBindings()
         ]);
         
-        return $query->get()
-            ->map(function($oferta) use ($lat, $lon) {
-                $ubicacionTutor = $oferta->mascota->usuario->user->ubicacionActual;
-                
-                if (!$ubicacionTutor) {
-                    $oferta->distancia_km = null;
-                    return $oferta;
-                }
-                
-                // Calcular distancia
-                $distancia = $this->calcularDistancia(
-                    $lat, $lon,
-                    $ubicacionTutor->latitude,
-                    $ubicacionTutor->longitude
-                );
-                
-                $oferta->distancia_km = $distancia;
-                $oferta->distancia_texto = $this->formatearDistancia($distancia);
-                $oferta->ubicacion_texto = $this->formatearUbicacionTexto([
-                    'city' => $ubicacionTutor->city,
-                    'state' => $ubicacionTutor->state,
-                    'country' => $ubicacionTutor->country
-                ]);
-                
-                // ✅ Agregar información de depuración
-                $oferta->es_del_usuario = false; // Ya está excluido
-                $oferta->id_usuario_responsable_debug = $oferta->id_usuario_responsable;
-                $oferta->mascota_usuario_id_debug = $oferta->mascota->usuario_id;
-                
+        // Solo incluir ofertas que tengan ubicación
+        $query->whereHas('mascota.usuario.user.ubicacionActual');
+        
+        // Ejecutar la consulta
+        $ofertas = $query->get();
+        
+        Log::info('Ofertas encontradas DESPUÉS de filtros:', [
+            'total' => $ofertas->count(),
+            'filtros_aplicados' => [
+                'especie' => $request->has('especie'),
+                'sexo' => $request->has('sexo'),
+                'edad' => $request->has('rangos_edad')
+            ]
+        ]);
+        
+        // Calcular distancias
+        return $ofertas->map(function($oferta) use ($lat, $lon) {
+            $ubicacionTutor = $oferta->mascota->usuario->user->ubicacionActual;
+            
+            if (!$ubicacionTutor) {
+                $oferta->distancia_km = null;
                 return $oferta;
-            })
-            ->filter(function($oferta) use ($request) {
-                // Filtrar por distancia máxima si se especifica
-                if ($request->has('distancia_maxima') && $oferta->distancia_km !== null) {
-                    return $oferta->distancia_km <= $request->distancia_maxima;
-                }
-                return true;
-            });
+            }
+            
+            // Calcular distancia
+            $distancia = $this->calcularDistancia(
+                $lat, $lon,
+                $ubicacionTutor->latitude,
+                $ubicacionTutor->longitude
+            );
+            
+            $oferta->distancia_km = $distancia;
+            $oferta->distancia_texto = $this->formatearDistancia($distancia);
+            $oferta->ubicacion_texto = $this->formatearUbicacionTexto([
+                'city' => $ubicacionTutor->city,
+                'state' => $ubicacionTutor->state,
+                'country' => $ubicacionTutor->country
+            ]);
+            
+            // Información de depuración
+            $oferta->es_del_usuario = false;
+            $oferta->id_usuario_responsable_debug = $oferta->id_usuario_responsable;
+            $oferta->mascota_usuario_id_debug = $oferta->mascota->usuario_id;
+            
+            return $oferta;
+        })->filter(function($oferta) use ($request) {
+            // Filtrar por distancia máxima si se especifica
+            if ($request->has('distancia_maxima') && $oferta->distancia_km !== null) {
+                return $oferta->distancia_km <= $request->distancia_maxima;
+            }
+            return true;
+        });
     }
 
     private function formatearUbicacionTexto($ubicacion)

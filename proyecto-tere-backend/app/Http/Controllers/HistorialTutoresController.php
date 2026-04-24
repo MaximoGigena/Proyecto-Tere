@@ -22,31 +22,15 @@ class HistorialTutoresController extends Controller
             $mascota = Mascota::with(['usuario', 'transferencias.tutorAnterior', 'transferencias.tutorNuevo'])
                 ->findOrFail($mascotaId);
             
-            // Verificar permisos (opcional - quien puede ver el historial)
             $user = Auth::user();
             $usuarioId = $user->userable->id ?? null;
             
-            // Por ahora, cualquiera puede ver el historial de cualquier mascota
-            // Si quieres restringir, puedes descomentar:
-            // if ($mascota->usuario_id != $usuarioId && !$this->haTenidoMascota($usuarioId, $mascotaId)) {
-            //     return response()->json([
-            //         'success' => false,
-            //         'message' => 'No tienes permiso para ver el historial de esta mascota'
-            //     ], 403);
-            // }
-            
             $historial = $mascota->historialTutoresCompleto();
             
-            // Añadir información adicional de contacto si el usuario actual es parte del historial
             $usuarioActualParticipa = $historial->contains('usuario_id', $usuarioId);
             
             $historialTransformado = $historial->map(function($item) use ($usuarioActualParticipa, $usuarioId) {
-                // Determinar si el tutor es contactable
-                // Por ahora, solo contactable si es el usuario actual
-                // Más adelante implementarás la lógica de permisos de contacto
                 $item['contactable'] = ($item['usuario_id'] == $usuarioId);
-                
-                // Formatear fechas para mostrar
                 $item['adopcion'] = $item['fecha_inicio'];
                 $item['desligo'] = $item['fecha_fin'];
                 
@@ -58,6 +42,9 @@ class HistorialTutoresController extends Controller
                 'data' => [
                     'mascota_id' => $mascota->id,
                     'mascota_nombre' => $mascota->nombre,
+                    'especie' => $mascota->especie, // Añadir especie
+                    'edad_formateada' => $mascota->edad_formateada, // AÑADIR ESTA LÍNEA
+                    'foto_principal' => $mascota->foto_principal_url, // Añadir foto
                     'tutor_actual_id' => $mascota->usuario_id,
                     'historial' => $historialTransformado->values(),
                     'cantidad_tutores' => $historial->count()
@@ -199,33 +186,31 @@ class HistorialTutoresController extends Controller
     {
         try {
             $mascota = Mascota::with([
-                'transferencias.tutorAnterior',  // Cambiado de historialTutores a transferencias
-                'transferencias.tutorNuevo',     // Asegúrate de incluir las relaciones anidadas
-                'usuario'                         // Para el tutor actual
+                'transferencias.tutorAnterior',
+                'transferencias.tutorNuevo',
+                'usuario',
+                'edadRelacion' // Asegúrate de cargar la relación
             ])->findOrFail($mascotaId);
             
-            // Obtener la oferta activa para esta mascota (si existe)
+            // Forzar actualización y regenerar la edad
+            $mascota->actualizarEdad();
+            
+            // Recargar la relación para obtener los datos actualizados
+            $mascota->load('edadRelacion');
+            
             $ofertaActiva = OfertaAdopcion::where('id_mascota', $mascotaId)
                 ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
                 ->first();
             
-            // Usar el método historialTutoresCompleto() que ya tienes en el modelo
             $historialCompleto = $mascota->historialTutoresCompleto();
             
-            // Transformar el historial para agregar información de contacto
             $historial = $historialCompleto->map(function($item) use ($ofertaActiva) {
-                // Verificar si este tutor es el actual y tiene permisos de contacto
                 $mediosContacto = [];
                 $contactable = false;
                 
-                // Si el tutor es el actual Y hay una oferta activa con permisos
                 if ($item['es_actual'] && $ofertaActiva && $ofertaActiva->permiso_contacto_tutor) {
                     $contactable = true;
-                    
-                    // Obtener los medios de contacto seleccionados
                     $mediosSeleccionados = $ofertaActiva->medios_contacto_seleccionados ?? [];
-                    
-                    // Aquí deberías obtener el usuario para sus medios de contacto
                     $usuario = Usuario::with('contacto')->find($item['usuario_id']);
                     
                     if ($usuario && $usuario->contacto) {
@@ -281,7 +266,7 @@ class HistorialTutoresController extends Controller
                     'historial' => $historial->values(),
                     'mascota_nombre' => $mascota->nombre,
                     'especie' => $mascota->especie,
-                    'edad_formateada' => $mascota->edad_formateada,
+                    'edad_formateada' => $mascota->edad_formateada, // Esto ya está bien
                     'foto_principal' => $mascota->foto_principal_url,
                     'cantidad_tutores' => $historial->count()
                 ]

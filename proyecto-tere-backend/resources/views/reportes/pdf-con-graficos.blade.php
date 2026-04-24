@@ -455,35 +455,49 @@
                 <thead>
                     <tr>
                         <th width="5%">#</th>
-                        <th width="35%">Nombre de la Métrica</th>
+                        <th width="30%">Nombre de la Métrica</th>
                         <th width="20%">Valor</th>
                         <th width="15%">Tipo</th>
-                        @if(isset($datos['metricas'][0]['descripcion']))
-                        <th width="25%">Descripción</th>
-                        @endif
+                        <th width="30%">Detalle</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach($datos['metricas'] as $index => $metrica)
                     <tr>
                         <td class="text-center">{{ $index + 1 }}</td>
-                        <td>{{ htmlspecialchars($metrica['nombre'] ?? 'Métrica sin nombre', ENT_QUOTES, 'UTF-8') }}</td>
-                        <td class="bold">{{ htmlspecialchars($metrica['valor'] ?? 'N/A', ENT_QUOTES, 'UTF-8') }}</td>
+                        <td class="bold">{{ htmlspecialchars($metrica['nombre'] ?? 'Métrica sin nombre', ENT_QUOTES, 'UTF-8') }}</td>
+                        <td>{{ htmlspecialchars($metrica['valor'] ?? 'N/A', ENT_QUOTES, 'UTF-8') }}</td>
                         <td>
                             <span class="chart-badge" style="background-color: #e3f2fd; color: #1565c0;">
                                 {{ htmlspecialchars($metrica['tipo'] ?? 'General', ENT_QUOTES, 'UTF-8') }}
                             </span>
                         </td>
-                        @if(isset($metrica['descripcion']))
-                        <td class="italic">{{ htmlspecialchars($metrica['descripcion'], ENT_QUOTES, 'UTF-8') }}</td>
-                        @endif
+                        <td>
+                            @if(isset($metrica['detalle']) && is_array($metrica['detalle']))
+                                <div style="font-size: 9px;">
+                                    @foreach(array_slice($metrica['detalle'], 0, 5) as $item)
+                                        @if(isset($item['label']))
+                                            <div>{{ $item['label'] }}: {{ number_format($item['value']) }}</div>
+                                        @elseif(isset($item['tipo']))
+                                            <div>{{ $item['tipo'] }}: {{ number_format($item['total']) }}</div>
+                                        @elseif(isset($item['city']))
+                                            <div>{{ $item['city'] }}: {{ number_format($item['total_usuarios'] ?? $item['value']) }}</div>
+                                        @endif
+                                    @endforeach
+                                    @if(count($metrica['detalle']) > 5)
+                                        <div class="italic">+ {{ count($metrica['detalle']) - 5 }} más...</div>
+                                    @endif
+                                </div>
+                            @elseif(isset($metrica['descripcion']))
+                                <span class="italic">{{ htmlspecialchars($metrica['descripcion'], ENT_QUOTES, 'UTF-8') }}</span>
+                            @else
+                                <span class="italic">—</span>
+                            @endif
+                        </td>
                     </tr>
                     @endforeach
                 </tbody>
             </table>
-        </div>
-        <div class="text-right mt-8" style="font-size: 9px; color: #6c757d;">
-            Total: {{ count($datos['metricas']) }} métricas listadas
         </div>
     </div>
     @endif

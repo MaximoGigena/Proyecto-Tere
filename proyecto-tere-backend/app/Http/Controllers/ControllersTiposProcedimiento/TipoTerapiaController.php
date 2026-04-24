@@ -17,7 +17,22 @@ class TipoTerapiaController extends Controller
     public function index(): JsonResponse
     {
         try {
+            // OBTENER EL ID DEL VETERINARIO AUTENTICADO
+            $user = Auth::user();
+            
+            // Verificar que el usuario esté autenticado y sea un veterinario
+            if (!$user || $user->userable_type !== 'App\\Models\\Veterinario') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado o no es un veterinario'
+                ], 403);
+            }
+            
+            $veterinarioId = $user->userable_id;
+            
+            // FILTRAR SOLO LOS TIPOS DE TERAPIA DE ESTE VETERINARIO
             $terapias = TipoTerapia::where('activo', true)
+                ->where('veterinario_id', $veterinarioId)  // 👈 FILTRO CRUCIAL
                 ->orderBy('nombre')
                 ->get();
 
@@ -99,6 +114,25 @@ class TipoTerapiaController extends Controller
     public function show(TipoTerapia $tipoTerapia): JsonResponse
     {
         try {
+            // VERIFICAR QUE EL TIPO DE TERAPIA PERTENEZCA AL VETERINARIO AUTENTICADO
+            $user = Auth::user();
+            
+            if (!$user || $user->userable_type !== 'App\\Models\\Veterinario') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado'
+                ], 403);
+            }
+            
+            $veterinarioId = $user->userable_id;
+            
+            if ($tipoTerapia->veterinario_id !== $veterinarioId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para ver este tipo de terapia'
+                ], 403);
+            }
+            
             return response()->json([
                 'success' => true,
                 'data' => $tipoTerapia,

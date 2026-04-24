@@ -356,13 +356,21 @@ class OfertaAdopcionController extends Controller
                     // ...
                 }
             }
-            
+
+            $puedeVerHistorial = $this->puedeVerHistorialCompleto($oferta->mascota->id);
+        
+            $historialMedico = null;
+            if ($puedeVerHistorial) {
+                $historialMedico = $this->obtenerHistorialMedico($oferta->mascota->id);
+            }
+                
             return response()->json([
                 'success' => true,
                 'data' => [
                     'oferta' => [
                         'id_oferta' => $oferta->id_oferta,
                         'estado_oferta' => $oferta->estado_oferta,
+                        'permiso_historial_medico' => $puedeVerHistorial,
                         'permiso_historial_medico' => $oferta->permiso_historial_medico,
                         'permiso_contacto_tutor' => $oferta->permiso_contacto_tutor,
                         'medios_contacto' => $mediosDetalles, // ✅ Incluir medios con detalles
@@ -1088,5 +1096,27 @@ class OfertaAdopcionController extends Controller
                 'message' => 'Error al obtener la oferta'
             ], 500);
         }
+    }
+
+    // En OfertaAdopcionController.php
+    private function puedeVerHistorialCompleto($mascotaId)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->userable) {
+            return false;
+        }
+        
+        // Verificar si es el tutor de la mascota
+        $mascota = Mascota::find($mascotaId);
+        if ($mascota && $mascota->usuario_id == $user->userable->id) {
+            return true; // El tutor SIEMPRE puede ver el historial
+        }
+        
+        // Si no es el tutor, verificar el permiso de la oferta
+        $oferta = OfertaAdopcion::where('id_mascota', $mascotaId)
+            ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
+            ->first();
+            
+        return $oferta && $oferta->permiso_historial_medico;
     }
 }

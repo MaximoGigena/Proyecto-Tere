@@ -31,11 +31,16 @@ class EnvioDocumentosService
 {
     protected $telegramService;
     protected $pdfService;
+    protected $whatsAppService;
 
-    public function __construct(TelegramService $telegramService, PdfService $pdfService)
-    {
+    public function __construct(
+        TelegramService $telegramService, 
+        PdfService $pdfService,
+        WhatsAppService $whatsAppService  // ← Añadir esto
+    ) {
         $this->telegramService = $telegramService;
         $this->pdfService = $pdfService;
+        $this->whatsAppService = $whatsAppService; // ← Añadir esto
     }
 
     public function enviarCertificadoVacuna(Vacuna $vacuna, Mascota $mascota, string $medioEnvio)
@@ -50,13 +55,17 @@ class EnvioDocumentosService
 
             // Obtener centro veterinario desde la relación
             $centroVeterinario = $vacuna->procesoMedico->centroVeterinario;
+            
+            // ✅ NUEVO: Obtener datos del veterinario
+            $veterinario = $vacuna->procesoMedico->veterinario;
 
-            // Generar PDF
+            // Generar PDF - PASAR TAMBIÉN EL VETERINARIO
             $pdfInfo = $this->pdfService->generarCertificadoVacuna(
                 $vacuna, 
                 $mascota, 
                 $tutor, 
-                $centroVeterinario
+                $centroVeterinario,
+                $veterinario // ← Nuevo parámetro
             );
 
             // Enviar según el medio seleccionado
@@ -149,12 +158,68 @@ class EnvioDocumentosService
 
     private function enviarVacunaPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
     {
-        Log::info('Envío por WhatsApp preparado', [
-            'telefono' => $tutor->telefono,
-            'mascota' => $mascota->nombre
-        ]);
+        try {
+            if (!$tutor->telefono) {
+                throw new \Exception('El tutor no tiene número de teléfono registrado para WhatsApp');
+            }
 
-        return ['success' => true, 'message' => 'Envío por WhatsApp configurado (implementar servicio)'];
+            // Limpiar y formatear el número
+            $telefono = $this->limpiarNumeroTelefono($tutor->telefono);
+            
+            Log::info('📱 Enviando WhatsApp', [
+                'original' => $tutor->telefono,
+                'limpio' => $telefono,
+                'archivo' => $pdfInfo['full_path']
+            ]);
+
+            $caption = "🏥 *CERTIFICADO DE VACUNACIÓN*\n\n" .
+                    "🐾 *Mascota:* {$mascota->nombre}\n" .
+                    "📅 *Fecha:* " . now()->format('d/m/Y') . "\n\n" .
+                    "Documento generado automáticamente por el Sistema Veterinario TERE.";
+
+            // SOLO usar sendDocument, NUNCA sendDocumentBase64
+            $result = $this->whatsAppService->sendDocument(
+                $telefono,
+                $pdfInfo['full_path'],
+                $caption,
+                "certificado_vacuna_{$mascota->id}.pdf"
+            );
+
+            if (!$result['success']) {
+                throw new \Exception($result['message']);
+            }
+
+            return ['success' => true, 'message' => 'Certificado enviado por WhatsApp'];
+
+        } catch (\Exception $e) {
+            Log::error('Error WhatsApp: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    // Método auxiliar para limpiar teléfono
+    private function limpiarNumeroTelefono($telefono)
+    {
+        // Eliminar +, espacios, guiones, paréntesis
+        $limpio = preg_replace('/[^0-9]/', '', $telefono);
+        
+        // Argentina: convertir +54 9 3758 526513 a 5493758526513
+        if (strlen($limpio) === 12 && substr($limpio, 0, 2) === '54') {
+            // Ya tiene 54 + 10 dígitos, agregar 9
+            return '549' . substr($limpio, 2);
+        }
+        
+        if (strlen($limpio) === 10) {
+            // Solo números locales, asumir Argentina
+            return '549' . $limpio;
+        }
+        
+        if (strlen($limpio) === 11 && substr($limpio, 0, 1) === '9') {
+            // Tiene 9 + 10 dígitos
+            return '54' . $limpio;
+        }
+        
+        return $limpio;
     }
 
     public function enviarCertificadoDesparasitacion(Desparasitacion $desparasitacion, Mascota $mascota, string $medioEnvio)
@@ -262,12 +327,28 @@ class EnvioDocumentosService
 
     private function enviarDesparasitacionPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
     {
-        Log::info('Envío por WhatsApp preparado - Desparasitación', [
-            'telefono' => $tutor->telefono,
-            'mascota' => $mascota->nombre
-        ]);
+        if (!$tutor->telefono) {
+            throw new \Exception('El tutor no tiene número de teléfono registrado');
+        }
 
-        return ['success' => true, 'message' => 'Envío por WhatsApp configurado (implementar servicio)'];
+        $caption = "💊 *CERTIFICADO DE DESPARASITACIÓN*\n\n" .
+                "🐾 *Mascota:* {$mascota->nombre}\n" .
+                "📅 *Fecha de emisión:* " . now()->format('d/m/Y') . "\n\n" .
+                "📎 *Documento adjunto:* Certificado de desparasitación\n\n" .
+                "Documento generado automáticamente por el Sistema Veterinario TERE.";
+
+        $result = $this->whatsAppService->sendDocument(
+            $tutor->telefono,
+            $pdfInfo['full_path'],
+            $caption,
+            "certificado_desparasitacion_{$mascota->nombre}.pdf"
+        );
+
+        if (!$result['success']) {
+            throw new \Exception('Error enviando por WhatsApp: ' . $result['message']);
+        }
+
+        return ['success' => true, 'message' => 'Certificado de desparasitación enviado por WhatsApp'];
     }
 
     private function generarPdfDesparasitacion(Desparasitacion $desparasitacion, Mascota $mascota, ContactoUsuario $tutor, $centroVeterinario): array
@@ -413,12 +494,28 @@ class EnvioDocumentosService
 
     private function enviarRevisionPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
     {
-        Log::info('Envío por WhatsApp preparado - Revisión Médica', [
-            'telefono' => $tutor->telefono,
-            'mascota' => $mascota->nombre
-        ]);
+        if (!$tutor->telefono) {
+            throw new \Exception('El tutor no tiene número de teléfono registrado');
+        }
 
-        return ['success' => true, 'message' => 'Envío por WhatsApp configurado (implementar servicio)'];
+        $caption = "🏥 *INFORME DE REVISIÓN MÉDICA*\n\n" .
+                "🐾 *Mascota:* {$mascota->nombre}\n" .
+                "📅 *Fecha de emisión:* " . now()->format('d/m/Y H:i') . "\n\n" .
+                "📎 *Documento adjunto:* Informe completo de revisión\n\n" .
+                "Documento generado automáticamente por el Sistema Veterinario TERE.";
+
+        $result = $this->whatsAppService->sendDocument(
+            $tutor->telefono,
+            $pdfInfo['full_path'],
+            $caption,
+            "informe_revision_{$mascota->nombre}.pdf"
+        );
+
+        if (!$result['success']) {
+            throw new \Exception('Error enviando por WhatsApp: ' . $result['message']);
+        }
+
+        return ['success' => true, 'message' => 'Informe de revisión enviado por WhatsApp'];
     }
 
     private function generarPdfRevision(Revision $revision, Mascota $mascota, ContactoUsuario $tutor, $centroVeterinario = null): array

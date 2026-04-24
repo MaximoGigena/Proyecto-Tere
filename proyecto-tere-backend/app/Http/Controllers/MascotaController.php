@@ -246,7 +246,8 @@ class MascotaController extends Controller
             'caracteristicas', 
             'fotos', 
             'baja', 
-            'edadRelacion' // Esto carga la relación
+            'edadRelacion',
+            'usuario'  // Asegurar que se carga el usuario
         ])
         ->where('usuario_id', $usuario->id)
         ->whereNull('deleted_at')
@@ -263,8 +264,19 @@ class MascotaController extends Controller
                 'caracteristicas' => $mascota->caracteristicas,
                 'fotos' => $mascota->fotos,
                 'cantidadFotos' => $mascota->fotos->count(),
+                'usuario' => $mascota->usuario ? [
+                    'id' => $mascota->usuario->id,
+                    'nombre' => $mascota->usuario->nombre,
+                    'email' => $mascota->usuario->email
+                ] : null
             ];
         });
+
+        Log::info('Mascotas del usuario:', [
+            'usuario_id' => $usuario->id,
+            'total' => $mascotas->count(),
+            'mascotas' => $mascotas->pluck('id')->toArray()
+        ]);
 
         return response()->json([
             'success' => true,
@@ -380,8 +392,12 @@ class MascotaController extends Controller
         $termino = $request->termino;
         $tipo = $request->tipo ?? 'nombre';
 
+        Log::info('=== INICIO BÚSQUEDA MASCOTAS ===');
+        Log::info('Término:', ['termino' => $termino, 'tipo' => $tipo]);
+
         $query = Mascota::with([
-            'usuario.contacto', 
+            'usuario.user', // Cargar la relación usuario y su user asociado
+            'usuario.contacto',
             'fotos',
             'caracteristicas'
         ])->whereNull('deleted_at');
@@ -389,27 +405,51 @@ class MascotaController extends Controller
         switch ($tipo) {
             case 'nombre':
                 $query->where('nombre', 'LIKE', "%{$termino}%");
+                Log::info('Buscando por nombre');
                 break;
                 
             case 'tutor':
-                $query->whereHas('usuario', function($q) use ($termino) {
-                    $q->where('nombre', 'LIKE', "%{$termino}%")
-                    ->orWhereHas('contacto', function($q2) use ($termino) {
-                        $q2->where('email', 'LIKE', "%{$termino}%");
-                    });
+                // CORRECCIÓN: Buscar en la tabla users a través de la relación polimórfica
+                $query->whereHas('usuario.user', function($q) use ($termino) {
+                    $q->where('name', 'LIKE', "%{$termino}%")
+                    ->orWhere('email', 'LIKE', "%{$termino}%");
                 });
+                Log::info('Buscando por tutor en users');
                 break;
                 
             case 'especie':
                 $query->where('especie', 'LIKE', "%{$termino}%");
+                Log::info('Buscando por especie');
                 break;
         }
 
         $mascotas = $query->limit(50)->get();
+        
+        Log::info('Resultados encontrados:', [
+            'total' => $mascotas->count(),
+            'mascotas_ids' => $mascotas->pluck('id')->toArray()
+        ]);
 
-        // Forzar la inclusión de los accessors en la respuesta
+        // Transformar los datos para la respuesta
         $mascotasTransformadas = $mascotas->map(function($mascota) {
             $mascotaData = $mascota->toArray();
+            
+            // Asegurar que la información del usuario esté completa
+            if ($mascota->usuario) {
+                $usuario = $mascota->usuario;
+                $user = $usuario->user; // Obtener el User asociado
+                
+                $mascotaData['usuario'] = [
+                    'id' => $usuario->id,
+                    'nombre' => $usuario->nombre,
+                    'user_id' => $user ? $user->id : null,
+                    'email' => $user ? $user->email : null,
+                    'contacto' => $usuario->contacto ? [
+                        'email' => $usuario->contacto->email,
+                        'telefono' => $usuario->contacto->telefono
+                    ] : null
+                ];
+            }
             
             $mascotaData['foto_principal_url'] = $mascota->foto_principal_url;
             
@@ -422,19 +462,6 @@ class MascotaController extends Controller
             
             return $mascotaData;
         });
-
-        Log::info('Mascotas encontradas:', [
-            'total' => $mascotas->count(),
-            'mascotas' => $mascotasTransformadas->map(function($mascota) {
-                return [
-                    'id' => $mascota['id'],
-                    'nombre' => $mascota['nombre'],
-                    'fotos_count' => count($mascota['fotos'] ?? []),
-                    'foto_principal_url' => $mascota['foto_principal_url'] ?? 'No disponible',
-                    'fotos' => $mascota['fotos'] ?? []
-                ];
-            })->toArray()
-        ]);
 
         return response()->json([
             'success' => true,
@@ -578,5 +605,232 @@ class MascotaController extends Controller
             'data' => $mascotasEnAdopcion,
             'count' => $mascotasEnAdopcion->count()
         ]);
+    }
+
+    // En MascotaController.php, agregar este método:
+
+    /**
+     * Verificar si el usuario actual puede ver el historial médico de una mascota
+     */
+    public function verificarPermisosHistorial($mascotaId)
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user || !$user->userable) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado',
+                    'es_tutor' => false,
+                    'tiene_permiso' => false
+                ], 401);
+            }
+            
+            $usuarioActualId = $user->userable->id;
+            
+            // Obtener la mascota con su información de tutor
+            $mascota = Mascota::with(['usuario'])->find($mascotaId);
+            
+            if (!$mascota) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mascota no encontrada',
+                    'es_tutor' => false,
+                    'tiene_permiso' => false
+                ], 404);
+            }
+            
+            // ✅ VERIFICACIÓN CRÍTICA: ¿Es el usuario actual el tutor de la mascota?
+            $esTutor = ($mascota->usuario_id == $usuarioActualId);
+            
+            // Si es el tutor, SIEMPRE tiene permiso
+            if ($esTutor) {
+                Log::info('Usuario es tutor - Acceso total al historial', [
+                    'mascota_id' => $mascotaId,
+                    'usuario_id' => $usuarioActualId
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'es_tutor' => true,
+                    'tiene_permiso' => true,
+                    'mensaje' => 'Tienes acceso completo como tutor'
+                ]);
+            }
+            
+            // Si NO es tutor, verificar si hay oferta de adopción activa con permiso
+            $oferta = \App\Models\OfertaAdopcion::where('id_mascota', $mascotaId)
+                ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
+                ->first();
+            
+            $tienePermiso = false;
+            $mensaje = '';
+            
+            if ($oferta) {
+                $tienePermiso = $oferta->permiso_historial_medico ?? false;
+                $mensaje = $tienePermiso 
+                    ? 'El tutor ha compartido el historial médico'
+                    : 'El tutor no ha autorizado compartir el historial médico';
+                    
+                Log::info('Verificación de permiso para no-tutor', [
+                    'mascota_id' => $mascotaId,
+                    'usuario_id' => $usuarioActualId,
+                    'oferta_id' => $oferta->id_oferta,
+                    'permiso_historial' => $tienePermiso
+                ]);
+            } else {
+                $mensaje = 'No hay oferta de adopción activa para esta mascota';
+                Log::info('No hay oferta activa para mascota', [
+                    'mascota_id' => $mascotaId,
+                    'usuario_id' => $usuarioActualId
+                ]);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'es_tutor' => false,
+                'tiene_permiso' => $tienePermiso,
+                'mensaje' => $mensaje,
+                'oferta_id' => $oferta->id_oferta ?? null,
+                'permiso_contacto' => $oferta->permiso_contacto_tutor ?? false,
+                'medios_contacto' => $oferta->medios_contacto_seleccionados ?? []
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error al verificar permisos de historial', [
+                'mascota_id' => $mascotaId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al verificar permisos',
+                'es_tutor' => false,
+                'tiene_permiso' => false
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener el historial médico completo de una mascota
+     * (con verificación de permisos)
+     */
+    public function getHistorialMedico($mascotaId)
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user || !$user->userable) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            $usuarioActualId = $user->userable->id;
+            
+            // Obtener la mascota
+            $mascota = Mascota::with(['usuario'])->find($mascotaId);
+            
+            if (!$mascota) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mascota no encontrada'
+                ], 404);
+            }
+            
+            // ✅ Verificar permisos
+            $esTutor = ($mascota->usuario_id == $usuarioActualId);
+            $tienePermiso = $esTutor;
+            
+            if (!$esTutor) {
+                // Verificar oferta de adopción
+                $oferta = \App\Models\OfertaAdopcion::where('id_mascota', $mascotaId)
+                    ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
+                    ->first();
+                    
+                $tienePermiso = $oferta && $oferta->permiso_historial_medico;
+                
+                if (!$tienePermiso) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No tienes permiso para ver este historial médico',
+                        'es_tutor' => false,
+                        'tiene_permiso' => false
+                    ], 403);
+                }
+            }
+            
+            // Obtener historial preventivo
+            $historialPreventivo = [
+                'vacunas' => \App\Models\ProcedimientosMedicos\Vacuna::where('mascota_id', $mascotaId)
+                    ->orderBy('fecha_aplicacion', 'desc')
+                    ->get(),
+                'desparasitaciones' => \App\Models\ProcedimientosMedicos\Desparasitacion::where('mascota_id', $mascotaId)
+                    ->orderBy('fecha', 'desc')
+                    ->get(),
+                'revisiones' => \App\Models\ProcedimientosMedicos\Revision::where('mascota_id', $mascotaId)
+                    ->orderBy('fecha', 'desc')
+                    ->get(),
+                'alergias' => \App\Models\ProcedimientosMedicos\Alergia::where('mascota_id', $mascotaId)
+                    ->orderBy('created_at', 'desc')
+                    ->get(),
+            ];
+            
+            // Obtener historial clínico
+            $historialClinico = [
+                'cirugias' => \App\Models\ProcedimientosMedicos\Cirugia::where('mascota_id', $mascotaId)
+                    ->orderBy('fecha', 'desc')
+                    ->get(),
+                'farmacos' => \App\Models\ProcedimientosMedicos\Farmaco::where('mascota_id', $mascotaId)
+                    ->orderBy('fecha_inicio', 'desc')
+                    ->get(),
+                'terapias' => \App\Models\ProcedimientosMedicos\Terapia::where('mascota_id', $mascotaId)
+                    ->orderBy('fecha', 'desc')
+                    ->get(),
+                'diagnosticos' => \App\Models\ProcedimientosMedicos\Diagnostico::where('mascota_id', $mascotaId)
+                    ->orderBy('fecha', 'desc')
+                    ->get(),
+                'paliativos' => \App\Models\ProcedimientosMedicos\CuidadoPaliativo::where('mascota_id', $mascotaId)
+                    ->orderBy('fecha_inicio', 'desc')
+                    ->get(),
+            ];
+            
+            Log::info('Historial médico obtenido', [
+                'mascota_id' => $mascotaId,
+                'es_tutor' => $esTutor,
+                'tiene_permiso' => $tienePermiso,
+                'preventivo_count' => array_sum(array_map('count', $historialPreventivo)),
+                'clinico_count' => array_sum(array_map('count', $historialClinico))
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'preventivo' => $historialPreventivo,
+                    'clinico' => $historialClinico
+                ],
+                'es_tutor' => $esTutor,
+                'tiene_permiso' => $tienePermiso,
+                'mascota' => [
+                    'id' => $mascota->id,
+                    'nombre' => $mascota->nombre,
+                    'especie' => $mascota->especie
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error al obtener historial médico', [
+                'mascota_id' => $mascotaId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener el historial médico'
+            ], 500);
+        }
     }
 }

@@ -159,13 +159,17 @@ class Mascota extends Model
                 return 'Fecha futura';
             }
 
+            // CALCULOS CORREGIDOS - usando intval para obtener números enteros
             $dias = $nacimiento->diffInDays($hoy);
-            $años = $nacimiento->diffInYears($hoy);
-            $mesesTotales = $nacimiento->diffInMonths($hoy);
+            $años = $nacimiento->diffInYears($hoy); // Esto ya devuelve un entero
+            $mesesTotales = $nacimiento->diffInMonths($hoy); // Esto ya devuelve un entero
+            
+            // Calcular meses restantes correctamente
             $mesesRestantes = $mesesTotales - ($años * 12);
             
+            // Formatear según la edad
             if ($dias < 30) {
-                return "{$dias} días";
+                return "{$dias} " . ($dias === 1 ? 'día' : 'días');
             } else if ($dias < 365) {
                 return "{$mesesTotales} " . ($mesesTotales === 1 ? 'mes' : 'meses');
             } else {
@@ -396,65 +400,6 @@ class Mascota extends Model
         return $this->usuario;
     }
 
-    /**
-     * Verificar si un usuario marcó este chat como favorito
-     */
-    public function esFavoritoParaUsuario($userId)
-    {
-        if (!$this->favoritos_por_usuario) {
-            return false;
-        }
-        
-        $favoritos = json_decode($this->favoritos_por_usuario, true);
-        
-        // Si es un array simple de IDs
-        if (array_values($favoritos) === $favoritos) {
-            return in_array($userId, $favoritos);
-        }
-        
-        // Si es un objeto con estructura {user_id: boolean}
-        return isset($favoritos[$userId]) && $favoritos[$userId] === true;
-    }
-
-    /**
-     * Marcar/Desmarcar chat como favorito para un usuario
-     */
-    public function toggleFavorito($userId)
-    {
-        $favoritos = $this->favoritos_por_usuario 
-            ? json_decode($this->favoritos_por_usuario, true) 
-            : [];
-        
-        // Si es array simple
-        if (array_values($favoritos) === $favoritos) {
-            if (in_array($userId, $favoritos)) {
-                // Quitar de favoritos
-                $favoritos = array_values(array_diff($favoritos, [$userId]));
-            } else {
-                // Agregar a favoritos
-                $favoritos[] = $userId;
-            }
-        } else {
-            // Si es estructura objeto
-            $favoritos[$userId] = !($favoritos[$userId] ?? false);
-        }
-        
-        $this->favoritos_por_usuario = json_encode($favoritos);
-        $this->save();
-        
-        return $this->esFavoritoParaUsuario($userId);
-    }
-
-    /**
-     * Obtener todos los chats favoritos de un usuario
-     */
-    public function scopeFavoritosDeUsuario($query, $userId)
-    {
-        return $query->where(function($q) use ($userId) {
-            $q->whereRaw("JSON_CONTAINS(favoritos_por_usuario, '\"$userId\"')")
-            ->orWhereRaw("JSON_EXTRACT(favoritos_por_usuario, '$.\"$userId\"') = true");
-        });
-    }
 
     /**
      * Relación con el historial de transferencias

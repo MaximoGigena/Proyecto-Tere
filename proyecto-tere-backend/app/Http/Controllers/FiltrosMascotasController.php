@@ -96,19 +96,32 @@ class FiltrosMascotasController extends Controller
      */
     public function aplicarFiltros($query, Request $request)
     {
+        Log::info('=== APLICANDO FILTROS - REQUEST COMPLETO ===');
+        Log::info('Todos los parámetros:', $request->all());
+        Log::info('Query string:', ['query' => $request->getQueryString()]);
+        
         // Filtro por especie (puede ser múltiple)
         if ($request->has('especie') && !empty($request->especie)) {
+            Log::info('Aplicando filtro especie:', ['valor' => $request->especie]);
             $this->aplicarFiltroEspecie($query, $request->especie);
+        } else {
+            Log::info('No se aplica filtro especie');
         }
         
         // Filtro por sexo (puede ser múltiple)
         if ($request->has('sexo') && !empty($request->sexo)) {
+            Log::info('Aplicando filtro sexo:', ['valor' => $request->sexo]);
             $this->aplicarFiltroSexo($query, $request->sexo);
+        } else {
+            Log::info('No se aplica filtro sexo');
         }
         
         // Filtro por rango de edad
         if ($request->has('rangos_edad') && !empty($request->rangos_edad)) {
+            Log::info('Aplicando filtro edad:', ['valor' => $request->rangos_edad]);
             $this->aplicarFiltroEdad($query, $request->rangos_edad);
+        } else {
+            Log::info('No se aplica filtro edad');
         }
         
         return $query;
@@ -156,22 +169,32 @@ class FiltrosMascotasController extends Controller
     /**
      * Aplicar filtro de sexo
      */
+    // En FiltrosMascotasController.php
     private function aplicarFiltroSexo($query, $sexos)
     {
         Log::info('=== APLICANDO FILTRO SEXO ===');
         Log::info('Sexos recibidos:', ['sexos_raw' => $sexos]);
         
+        // Si es string, intentar decodificar JSON
         if (is_string($sexos)) {
-            $sexos = json_decode($sexos, true);
-            Log::info('Sexos después de decodificar:', ['sexos_decoded' => $sexos]);
+            $decodificado = json_decode($sexos, true);
+            if (is_array($decodificado)) {
+                $sexos = $decodificado;
+            } else {
+                // Si no es JSON válido, tratarlo como string único
+                $sexos = [$sexos];
+            }
         }
         
-        // Si después de decodificar no es array o está vacío, intentar tratarlo como string único
-        if (!is_array($sexos) && is_string($sexos)) {
+        // Asegurar que es array
+        if (!is_array($sexos)) {
             $sexos = [$sexos];
         }
         
-        if (!is_array($sexos) || empty($sexos)) {
+        // Limpiar valores vacíos
+        $sexos = array_filter($sexos);
+        
+        if (empty($sexos)) {
             Log::info('No hay sexos para filtrar');
             return;
         }

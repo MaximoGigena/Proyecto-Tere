@@ -19,9 +19,23 @@ class TipoAlergiaController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            // Cambiar la consulta para incluir solo activos y no eliminados
+            // OBTENER EL ID DEL VETERINARIO AUTENTICADO
+            $user = Auth::user();
+            
+            // Verificar que el usuario esté autenticado y sea un veterinario
+            if (!$user || $user->userable_type !== 'App\\Models\\Veterinario') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado o no es un veterinario'
+                ], 403);
+            }
+            
+            $veterinarioId = $user->userable_id;
+            
+            // Cambiar la consulta para incluir solo activos, no eliminados Y DEL VETERINARIO AUTENTICADO
             $query = TipoAlergia::with('veterinario.user')
                         ->where('activo', true)
+                        ->where('veterinario_id', $veterinarioId)  // 👈 FILTRO CRUCIAL
                         ->whereNull('deleted_at'); // Asegurar que no incluya soft deleted
 
             // Filtros opcionales (mantener igual)
@@ -168,6 +182,25 @@ class TipoAlergiaController extends Controller
     public function show(TipoAlergia $tipoAlergia): JsonResponse
     {
         try {
+            // VERIFICAR QUE EL TIPO DE ALERGIA PERTENEZCA AL VETERINARIO AUTENTICADO
+            $user = Auth::user();
+            
+            if (!$user || $user->userable_type !== 'App\\Models\\Veterinario') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado'
+                ], 403);
+            }
+            
+            $veterinarioId = $user->userable_id;
+            
+            if ($tipoAlergia->veterinario_id !== $veterinarioId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para ver este tipo de alergia'
+                ], 403);
+            }
+            
             $tipoAlergia->load('veterinario.user');
 
             return response()->json([

@@ -60,6 +60,13 @@ return [
             'report' => false,
         ],
 
+        'public_temp' => [
+            'driver' => 'local',
+            'root' => public_path('temp_whatsapp'),
+            'url' => env('APP_URL') . '/temp_whatsapp',
+            'visibility' => 'public',
+        ],
+
     ],
 
     /*

@@ -19,10 +19,25 @@ class TipoCirugiaController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            Log::info('Iniciando creación de tipo de cirugía', ['data' => $request->except('equipamiento')]);
-            // Cambiar la consulta para incluir solo activos y no eliminados
+            // OBTENER EL ID DEL VETERINARIO AUTENTICADO
+            $user = auth()->user();
+            
+            // Verificar que el usuario esté autenticado y sea un veterinario
+            if (!$user || !$user->userable || !($user->userable instanceof \App\Models\Veterinario)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado o no es un veterinario'
+                ], 403);
+            }
+            
+            $veterinarioId = $user->userable->id;
+            
+            Log::info('Obteniendo tipos de cirugía para veterinario', ['veterinario_id' => $veterinarioId]);
+            
+            // Cambiar la consulta para incluir solo activos, no eliminados Y DEL VETERINARIO AUTENTICADO
             $query = TipoCirugia::with('veterinario.user')
                         ->where('activo', true)
+                        ->where('veterinario_id', $veterinarioId)  // 👈 FILTRO CRUCIAL
                         ->whereNull('deleted_at'); // Asegurar que no incluya soft deleted
 
             // Filtros opcionales
@@ -37,9 +52,9 @@ class TipoCirugiaController extends Controller
             if ($request->has('search') && !empty($request->search)) {
                 $query->where(function($q) use ($request) {
                     $q->where('nombre', 'like', '%' . $request->search . '%')
-                      ->orWhere('descripcion', 'like', '%' . $request->search . '%')
-                      ->orWhere('riesgos', 'like', '%' . $request->search . '%')
-                      ->orWhere('recomendaciones_preoperatorias', 'like', '%' . $request->search . '%');
+                    ->orWhere('descripcion', 'like', '%' . $request->search . '%')
+                    ->orWhere('riesgos', 'like', '%' . $request->search . '%')
+                    ->orWhere('recomendaciones_preoperatorias', 'like', '%' . $request->search . '%');
                 });
             }
 
@@ -52,6 +67,7 @@ class TipoCirugiaController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Error al obtener tipos de cirugía', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener los tipos de cirugía: ' . $e->getMessage()
@@ -148,6 +164,25 @@ class TipoCirugiaController extends Controller
     public function show(TipoCirugia $tipoCirugia): JsonResponse
     {
         try {
+            // VERIFICAR QUE EL TIPO DE CIRUGÍA PERTENEZCA AL VETERINARIO AUTENTICADO
+            $user = auth()->user();
+            
+            if (!$user || !$user->userable || !($user->userable instanceof \App\Models\Veterinario)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado'
+                ], 403);
+            }
+            
+            $veterinarioId = $user->userable->id;
+            
+            if ($tipoCirugia->veterinario_id !== $veterinarioId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para ver este tipo de cirugía'
+                ], 403);
+            }
+            
             // Cargar relaciones
             $tipoCirugia->load('veterinario.user');
 

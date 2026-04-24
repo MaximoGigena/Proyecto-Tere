@@ -71,7 +71,15 @@ class TipoTerapia extends Model
     // Relación con Veterinario
     public function veterinario()
     {
-        return $this->belongsTo(Veterinario::class, 'veterinario_id');
+        return $this->belongsTo(Veterinario::class);
+    }
+
+    /**
+     * Scope para filtrar por veterinario
+     */
+    public function scopeDelVeterinario($query, $veterinarioId)
+    {
+        return $query->where('veterinario_id', $veterinarioId);
     }
 
     /**

@@ -383,36 +383,17 @@ class RegistrarUsuarioController extends Controller
         try {
             Log::info('🔧 ===== INICIANDO ACTUALIZACIÓN DE USUARIO =====', ['usuario_id' => $id]);
             Log::info('🔧 Datos recibidos del frontend:', $request->all());
-            Log::info('🔧 Headers:', $request->headers->all());
-
-            Log::info('🎯 ===== DEBUG COMPLETO DEL FORM DATA =====');
-        
-            // DEBUG: Ver el contenido RAW del request
-            Log::info('🎯 CONTENIDO RAW:', ['content' => $request->getContent()]);
-            
-            // DEBUG: Ver todos los parámetros del FormData
-            $allParams = [];
-            foreach ($request->all() as $key => $value) {
-                $allParams[$key] = $value;
-            }
-            Log::info('🎯 PARÁMETROS FORM DATA:', $allParams);
-            
-            // DEBUG: Ver archivos
-            Log::info('🎯 ARCHIVOS:', $request->allFiles());
-            
-            // DEBUG: Ver método y headers
-            Log::info('🎯 MÉTODO:', ['method' => $request->method()]);
-            Log::info('🎯 CONTENT TYPE:', ['content_type' => $request->header('Content-Type')]);
 
             $usuario = Usuario::findOrFail($id);
             Log::info('🔧 Usuario encontrado en BD:', [
                 'id' => $usuario->id,
-                'nombre' => $usuario->nombre,
+                'nombre_actual' => $usuario->nombre,
                 'edad_actual' => $usuario->edad
             ]);
 
-            // Validación
+            // ✅ AGREGAR 'nombre' A LA VALIDACIÓN
             $validatedData = $request->validate([
+                'nombre' => 'nullable|string|max:100',  // 👈 ESTO FALTABA
                 'edad' => 'nullable|integer|min:14',
                 'tipoVivienda' => 'nullable|string',
                 'ocupacion' => 'nullable|string',
@@ -429,16 +410,13 @@ class RegistrarUsuarioController extends Controller
 
             Log::info('🔧 Datos validados:', $validatedData);
 
-            // DEBUG: Verificar qué campos se están enviando realmente
-            Log::info('🔧 Campos recibidos en request:', array_keys($request->all()));
-            
-            // Verificar si hay archivos
-            Log::info('🔧 ¿Tiene archivo foto_perfil?: ' . ($request->hasFile('foto_perfil') ? 'SÍ' : 'NO'));
-
-            // Actualizar usuario
+            // ✅ ACTUALIZAR EL NOMBRE
             $usuario->update([
+                'nombre' => $validatedData['nombre'] ?? $usuario->nombre,  // 👈 ESTO FALTABA
                 'edad' => $validatedData['edad'] ?? $usuario->edad,
             ]);
+            
+            Log::info('🔧 Usuario actualizado - Nuevo nombre:', ['nuevo_nombre' => $usuario->nombre]);
             Log::info('🔧 Usuario actualizado - Nueva edad:', ['nueva_edad' => $usuario->edad]);
 
             // Actualizar o crear características
@@ -465,10 +443,9 @@ class RegistrarUsuarioController extends Controller
                     'convivenciaMascotas' => $validatedData['convivenciaMascotas'] ?? null,
                     'descripción' => $validatedData['descripcion'] ?? null,
                 ]);
-                Log::info('🔧 Características creadas');
             }
 
-            // Actualizar o crear contacto
+            // Actualizar o crear contacto (código existente)
             if ($usuario->contacto) {
                 $contactoActualizado = [
                     'dni' => $validatedData['dni'] ?? $usuario->contacto->dni,
@@ -488,23 +465,18 @@ class RegistrarUsuarioController extends Controller
                     'email' => $validatedData['email_contacto'] ?? null,
                     'nombre_completo' => $validatedData['nombre_completo'] ?? null,
                 ]);
-                Log::info('🔧 Contacto creado');
             }
 
-            // Guardar foto de perfil si se envía
+            // Guardar foto de perfil si se envía (código existente)
             if ($request->hasFile('foto_perfil')) {
                 Log::info('🔧 Procesando nueva foto de perfil...');
                 
-                // Eliminar foto principal anterior si existe
                 $fotoAnterior = $usuario->fotos()->where('es_principal', true)->first();
                 if ($fotoAnterior) {
                     Log::info('🔧 Eliminando foto anterior:', ['ruta' => $fotoAnterior->ruta_foto]);
-                    
-                    // Eliminar archivo físico
                     if (Storage::disk('public')->exists($fotoAnterior->ruta_foto)) {
                         Storage::disk('public')->delete($fotoAnterior->ruta_foto);
                     }
-                    // Eliminar registro
                     $fotoAnterior->delete();
                 }
 
@@ -515,15 +487,11 @@ class RegistrarUsuarioController extends Controller
                     'ruta_foto' => $path,
                     'es_principal' => true
                 ]);
-                Log::info('🔧 Foto de perfil actualizada en BD');
-            } else {
-                Log::info('🔧 No se envió nueva foto de perfil');
             }
 
             DB::commit();
             Log::info('✅ ===== USUARIO ACTUALIZADO EXITOSAMENTE =====');
 
-            // Recargar relaciones actualizadas
             $usuario->load(['caracteristicas', 'contacto', 'fotos']);
 
             return response()->json([
@@ -546,9 +514,7 @@ class RegistrarUsuarioController extends Controller
         }
     }
 
-     /**
-     * Actualizar solo datos opcionales
-     */
+     // En RegistrarUsuarioController.php
     public function actualizarDatosOpcionales(Request $request)
     {
         DB::beginTransaction();
@@ -556,7 +522,9 @@ class RegistrarUsuarioController extends Controller
         try {
             Log::info('📝 Actualizando datos opcionales', $request->all());
             
+            // ✅ OBTENER EL USUARIO AUTENTICADO EN LUGAR DE RECIBIR EL ID
             $user = Auth::user();
+            
             if (!$user) {
                 return response()->json([
                     'success' => false,
@@ -564,11 +532,13 @@ class RegistrarUsuarioController extends Controller
                 ], 401);
             }
             
+            // Obtener el modelo Usuario desde la relación polimórfica
             $usuario = $user->userable;
+            
             if (!$usuario) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Usuario no encontrado'
+                    'message' => 'Perfil de usuario no encontrado'
                 ], 404);
             }
             
@@ -623,9 +593,6 @@ class RegistrarUsuarioController extends Controller
         }
     }
 
-    /**
-     * Actualizar solo datos de contacto
-     */
     public function actualizarDatosContacto(Request $request)
     {
         DB::beginTransaction();
@@ -633,7 +600,9 @@ class RegistrarUsuarioController extends Controller
         try {
             Log::info('📞 Actualizando datos de contacto', $request->all());
             
+            // ✅ OBTENER EL USUARIO AUTENTICADO
             $user = Auth::user();
+            
             if (!$user) {
                 return response()->json([
                     'success' => false,
@@ -642,18 +611,19 @@ class RegistrarUsuarioController extends Controller
             }
             
             $usuario = $user->userable;
+            
             if (!$usuario) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Usuario no encontrado'
+                    'message' => 'Perfil de usuario no encontrado'
                 ], 404);
             }
             
             // Validación de datos de contacto
             $validatedData = $request->validate([
-                'dni' => 'nullable|string|max:20|unique:usuario_contacto,dni,' . ($usuario->contacto ? $usuario->contacto->id : 'NULL'),
+                'dni' => 'nullable|string|max:20|unique:usuario_contacto,dni,' . ($usuario->contacto ? $usuario->contacto->id : 'NULL') . ',id',
                 'telefono_contacto' => 'nullable|string|max:20',
-                'email_contacto' => 'nullable|email|max:100|unique:usuario_contacto,email,' . ($usuario->contacto ? $usuario->contacto->id : 'NULL'),
+                'email_contacto' => 'nullable|email|max:100|unique:usuario_contacto,email,' . ($usuario->contacto ? $usuario->contacto->id : 'NULL') . ',id',
                 'nombre_completo' => 'nullable|string|max:200',
             ]);
             
@@ -690,7 +660,7 @@ class RegistrarUsuarioController extends Controller
             Log::error('❌ Error al guardar datos de contacto: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                    'message' => 'Error al guardar datos de contacto',
+                'message' => 'Error al guardar datos de contacto',
                 'error' => $e->getMessage()
             ], 500);
         }

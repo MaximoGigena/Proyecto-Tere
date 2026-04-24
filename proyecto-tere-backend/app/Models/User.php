@@ -20,6 +20,7 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+    // App\Models\User.php
     protected $fillable = [
         'name',
         'email',
@@ -30,6 +31,13 @@ class User extends Authenticatable
         'google_id', 
         'facebook_id',
         'avatar',
+        'telegram_chat_id',
+        'telegram_username',
+        'telegram_first_name',
+        'telegram_last_name',
+        'telegram_verified_at', // ✅ Agregar todos los campos
+        'telegram_token', // ✅ Agregar
+        'telegram_token_expires_at', // ✅ Agregar
     ];
 
     /**
@@ -127,6 +135,13 @@ class User extends Authenticatable
         }
 
         return null;
+    }
+
+     public function notificaciones()
+    {
+        return $this->hasMany(Notificacion::class, 'user_id') // ✅ user_id ahora es el ID del User
+                    ->activas()
+                    ->orderBy('created_at', 'desc');
     }
 
 
@@ -264,14 +279,60 @@ class User extends Authenticatable
         return $this->ubicacionActual;
     }
 
-    /**
-     * Obtener las notificaciones del usuario
-     */
-    public function notificaciones()
+    // Agregar accesor para obtener el nombre completo de Telegram
+    public function getTelegramFullNameAttribute()
     {
-        return $this->hasMany(Notificacion::class, 'user_id') // Cambiado a user_id
-                    ->activas()
-                    ->orderBy('created_at', 'desc');
+        $name = $this->telegram_first_name;
+        if ($this->telegram_last_name) {
+            $name .= ' ' . $this->telegram_last_name;
+        }
+        return $name;
+    }
+
+    // Método para verificar si tiene Telegram vinculado
+    public function hasTelegram()
+    {
+        return !is_null($this->telegram_chat_id);
+    }
+
+    // Método para generar token único
+    public function generateTelegramToken()
+    {
+        $this->telegram_token = \Illuminate\Support\Str::random(32);
+        $this->telegram_token_expires_at = now()->addHours(24); // Expira en 24 horas
+        $this->save();
+        
+        return $this->telegram_token;
+    }
+
+    public function crearNotificacion($titulo, $contenido, $tipo = 'SISTEMA', $origen = 'SISTEMA', $referenciaTipo = null, $referenciaId = null)
+    {
+        return Notificacion::create([
+            'user_id' => $this->id, // ✅ ID del modelo User
+            'tipo' => $tipo,
+            'titulo' => $titulo,
+            'contenido' => $contenido,
+            'origen' => $origen,
+            'referencia_tipo' => $referenciaTipo,
+            'referencia_id' => $referenciaId,
+            'leida' => false,
+            'activa' => true
+        ]);
+    }
+
+    // Método para verificar token
+    public function verifyTelegramToken($token)
+    {
+        return $this->telegram_token === $token && 
+            $this->telegram_token_expires_at > now();
+    }
+
+    // Método para limpiar token después de usar
+    public function clearTelegramToken()
+    {
+        $this->telegram_token = null;
+        $this->telegram_token_expires_at = null;
+        $this->save();
     }
 
     /**

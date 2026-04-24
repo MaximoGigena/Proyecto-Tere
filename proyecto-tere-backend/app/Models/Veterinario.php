@@ -11,6 +11,7 @@ use App\Models\TiposProcedimientos\TipoCirugia;
 use App\Models\TiposProcedimientos\TipoTerapia;
 use App\Models\TiposProcedimientos\TipoDiagnostico;
 use App\Models\TiposProcedimientos\TipoFarmaco;
+use App\Models\FotoVeterinario;
 use App\Models\ContactoVeterinario;
 use App\Models\CentroVeterinario;
 use App\Models\TiposProcedimientos\TipoPaliativo;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class Veterinario extends Model
 {
@@ -162,7 +165,7 @@ class Veterinario extends Model
     public function tiposCirugia(): HasMany
     {
         return $this->hasMany(TipoCirugia::class, 'veterinario_id');
-    } 
+    }   
 
     public function tiposTerapia(): HasMany
     {
@@ -197,5 +200,43 @@ class Veterinario extends Model
     public function usuario()
     {
         return $this->morphOne(User::class, 'userable');
+    }
+
+     /**
+     * Relación con las fotos del veterinario
+     */
+    public function fotos(): HasMany
+    {
+        return $this->hasMany(FotoVeterinario::class)->orderBy('orden');
+    }
+
+    /**
+     * Relación para obtener la foto principal (orden = 0)
+     */
+    public function fotoPrincipal(): HasOne
+    {
+        return $this->hasOne(FotoVeterinario::class)->where('orden', 0);
+    }
+
+    /**
+     * Accesor para obtener la URL completa de la foto
+     */
+    public function getFotoAttribute($value)
+    {
+        if (empty($value)) {
+            return null;
+        }
+        
+        // Devolver URL absoluta
+        return asset('storage/' . $value);
+    }
+
+    /**
+     * Opcional: Si quieres también un accesor para obtener la URL de la foto principal desde la relación
+     */
+    public function getFotoPrincipalUrlAttribute()
+    {
+        $fotoPrincipal = $this->fotoPrincipal;
+        return $fotoPrincipal ? $fotoPrincipal->url : null;
     }
 }

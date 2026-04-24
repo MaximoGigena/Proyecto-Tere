@@ -166,14 +166,14 @@ class ReporteUsuarioController extends Controller
             // Guardar ejecución si se desea
             $formato = $request->get('formato', 'json');
             
-            if ($formato !== 'json') {
+             if ($formato !== 'json') {
                 $ejecucion = EjecucionReporteUsuario::create([
-                    'reporte_id' => null, // No asociado a un reporte guardado
+                    'reporte_id' => null,
                     'user_id' => $user->id,
                     'parametros' => $request->parametros,
                     'formato' => $formato,
-                    'estado' => EjecucionReporteUsuario::ESTADO_COMPLETADO,
-                    'tiempo_ejecucion' => 0, // Podrías medir esto
+                    'estado' => EjecucionReporteUsuario::ESTADO_COMPLETADO, // UNIFICADO
+                    'tiempo_ejecucion' => 0,
                     'resultados' => $resultados
                 ]);
             }
@@ -327,93 +327,77 @@ class ReporteUsuarioController extends Controller
         }
 
         try {
-            // Verificar autenticación
-            $user = Auth::user();
-            if (!$user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No autenticado'
-                ], 401);
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'No autenticado'], 401);
+        }
+
+        if ($id) {
+            // Reporte guardado
+            $reporte = ReportesUsuarios::findOrFail($id);
+            $service = $this->obtenerServicioReporte($reporte);
+            
+            if ($request->has('parametros')) {
+                $service->setParametros($request->parametros);
             }
+            
+            $resultados = $service->ejecutar();
+            $formato = $request->get('formato', 'json');
+            
+            $ejecucion = EjecucionReporteUsuario::create([
+                'reporte_id' => $reporte->id,
+                'user_id' => $user->id,
+                'parametros' => $request->parametros ?? $reporte->parametros,
+                'formato' => $formato,
+                'estado' => EjecucionReporteUsuario::ESTADO_COMPLETADO,
+                'tiempo_ejecucion' => 0,
+                'resultados' => $resultados
+            ]);
 
-            // Si hay ID, es un reporte guardado
-            if ($id) {
-                $reporte = ReportesUsuarios::findOrFail($id);
-                
-                // Ejecutar el servicio
-                $service = $this->obtenerServicioReporte($reporte);
-                
-                // Actualizar parámetros si se proporcionan nuevos
-                if ($request->has('parametros')) {
-                    $service->setParametros($request->parametros);
-                }
-                
-                $resultados = $service->ejecutar();
-                
-                // Guardar ejecución
-                $formato = $request->get('formato', 'json');
-                $ejecucion = EjecucionReporteUsuario::create([
-                    'reporte_id' => $reporte->id,
-                    'user_id' => $user->id,
-                    'parametros' => $request->parametros ?? $reporte->parametros,
-                    'formato' => $formato,
-                    'estado' => EjecucionReporteUsuario::ESTADO_COMPLETADO,
-                    'tiempo_ejecucion' => 0,
-                    'resultados' => $resultados
-                ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Reporte generado exitosamente',
+                'data' => ['reporte' => $reporte, 'ejecucion' => $ejecucion, 'resultados' => $resultados]
+            ]);
+        } 
+        
+        // 🔥 SIN ID: ejecución directa (código simplificado)
+        $reporte = new ReportesUsuarios();
+        $reporte->tipo_reporte = ReportesUsuarios::TIPO_USUARIOS;
+        $reporte->configuracion = $request->configuracion ?? [];
+        $reporte->parametros = $request->parametros;
+        $reporte->user_id = $user->id;
 
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Reporte generado exitosamente',
-                    'data' => [
-                        'reporte' => $reporte,
-                        'ejecucion' => $ejecucion,
-                        'resultados' => $resultados
-                    ]
-                ]);
-            } 
-            // Si NO hay ID, es una ejecución directa
-            else {
-                // Crear un reporte temporal
-                $reporte = new ReportesUsuarios();
-                $reporte->tipo_reporte = ReportesUsuarios::TIPO_USUARIOS;
-                $reporte->configuracion = $request->configuracion ?? [];
-                $reporte->parametros = $request->parametros;
-                $reporte->user_id = $user->id;
+        $service = new ReporteUsuariosService($reporte);
+        $resultados = $service->ejecutar();
 
-                // Ejecutar el servicio
-                $service = new ReporteUsuariosService($reporte);
-                $resultados = $service->ejecutar();
+        $formato = $request->get('formato', 'json');
+        
+        // Solo guardar si no es JSON
+        if ($formato !== 'json') {
+            $ejecucion = EjecucionReporteUsuario::create([
+                'reporte_id' => null,
+                'user_id' => $user->id,
+                'parametros' => $request->parametros,
+                'formato' => $formato,
+                'estado' => EjecucionReporteUsuario::ESTADO_COMPLETADO,
+                'tiempo_ejecucion' => 0,
+                'resultados' => $resultados
+            ]);
+        }
 
-                // Guardar ejecución si se desea
-                $formato = $request->get('formato', 'json');
-                
-                if ($formato !== 'json') {
-                    $ejecucion = EjecucionReporteUsuario::create([
-                        'reporte_id' => null, // No asociado a un reporte guardado
-                        'user_id' => $user->id,
-                        'parametros' => $request->parametros,
-                        'formato' => $formato,
-                        'estado' => EjecucionReporteUsuario::ESTADO_EXITO,
-                        'tiempo_ejecucion' => 0,
-                        'resultados' => $resultados
-                    ]);
-                }
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Reporte generado exitosamente',
-                    'data' => [
-                        'resultados' => $resultados,
-                        'metadatos' => [
-                            'fecha_generacion' => now()->toDateTimeString(),
-                            'metricas_seleccionadas' => count($request->parametros['metricas'] ?? []),
-                            'usuario' => $user->email
-                        ]
-                    ]
-                ]);
-            }
-
+        return response()->json([
+            'success' => true,
+            'message' => 'Reporte generado exitosamente',
+            'data' => [
+                'resultados' => $resultados,
+                'metadatos' => [
+                    'fecha_generacion' => now()->toDateTimeString(),
+                    'metricas_seleccionadas' => count($request->parametros['metricas'] ?? []),
+                    'usuario' => $user->email
+                ]
+            ]
+        ]);
         } catch (\Exception $e) {
             Log::error('Error ejecutando reporte: ' . $e->getMessage(), [
                 'id' => $id,
@@ -477,32 +461,29 @@ class ReporteUsuarioController extends Controller
     // En el método exportar
     public function exportar(Request $request, $id)
     {
-        Log::info('Datos recibidos para exportación:', $request->all());
-        Log::info('Estructura de datos:', ['datos' => $request->datos ? 'presente' : 'ausente']); // ← CORREGIDO
         $ejecucion = EjecucionReporteUsuario::findOrFail($id);
-        
         $formato = $request->get('formato', $ejecucion->formato);
         
         if ($formato === 'pdf') {
-            // Usar el servicio de PDF
             $pdfService = new PdfExportService();
             
-            // Generar contenido PDF
+            // 🔥 CORRECCIÓN: Verificar si existe reporte
+            $nombreReporte = $ejecucion->reporte 
+                ? $ejecucion->reporte->nombre 
+                : ($ejecucion->parametros['titulo'] ?? 'Reporte Ejecución Directa');
+            
             $pdfContent = $pdfService->generarPdf(
                 $ejecucion->resultados,
-                $ejecucion->reporte->nombre ?? 'Reporte'
+                $nombreReporte
             );
             
-            // Generar nombre de archivo
             $nombreArchivo = 'reporte-' . $ejecucion->id . '-' . now()->format('Y-m-d') . '.pdf';
             
             return response($pdfContent)
                 ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'attachment; filename="' . $nombreArchivo . '"')
-                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0');
+                ->header('Content-Disposition', 'attachment; filename="' . $nombreArchivo . '"');
         }
         
-        // Para otros formatos (Excel, CSV)
         return $this->exportarOtrosFormatos($ejecucion, $formato);
     }
 
@@ -714,18 +695,19 @@ class ReporteUsuarioController extends Controller
     {
         try {
             $resultados = $ejecucion->resultados;
-            $nombreArchivo = "reporte-{$ejecucion->reporte->id}-{$ejecucion->id}-" . now()->format('Y-m-d-H-i-s');
+            
+            // 🔥 CORRECCIÓN: Manejar reporte_id null
+            $reporteId = $ejecucion->reporte_id ?? 'directo';
+            $nombreArchivo = "reporte-{$reporteId}-{$ejecucion->id}-" . now()->format('Y-m-d-H-i-s');
             
             switch ($formato) {
                 case EjecucionReporteUsuario::FORMATO_PDF:
-                    // Usar DomPDF o similar
                     $ruta = "reportes/pdf/{$nombreArchivo}.pdf";
                     // Implementar generación de PDF
                     break;
                     
                 case EjecucionReporteUsuario::FORMATO_EXCEL:
                     $ruta = "reportes/excel/{$nombreArchivo}.xlsx";
-                    // Implementar generación de Excel
                     break;
                     
                 case EjecucionReporteUsuario::FORMATO_CSV:
@@ -796,19 +778,26 @@ class ReporteUsuarioController extends Controller
         $validator = Validator::make($request->all(), [
             'titulo' => 'required|string|max:255',
             'datos' => 'required|array',
-            'grafico' => 'required|array', // Cambiado de nullable a required
-            'grafico.type' => 'required|string',
+            'grafico' => 'required|array',
+            'grafico.type' => 'required|string|in:bar,pie,line',
             'grafico.data' => 'required|array',
+            'grafico.data.labels' => 'nullable|array',  // 🔥 Validación mejorada
+            'grafico.data.datasets' => 'nullable|array', // 🔥 Validación mejorada
             'grafico.options' => 'nullable|array',
             'formato' => 'required|in:pdf'
         ]);
-
-        if ($validator->fails()) {
-            Log::error('❌ Validación fallida:', $validator->errors()->toArray());
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+        
+        // 🔥 Validación condicional: si hay datasets, deben tener la estructura correcta
+        if ($request->has('grafico.data.datasets')) {
+            $datasets = $request->input('grafico.data.datasets');
+            foreach ($datasets as $dataset) {
+                if (!isset($dataset['data']) || !is_array($dataset['data'])) {
+                    return response()->json([
+                        'success' => false,
+                        'errors' => ['grafico.data.datasets' => ['Cada dataset debe tener un array "data"']]
+                    ], 422);
+                }
+            }
         }
 
         try {

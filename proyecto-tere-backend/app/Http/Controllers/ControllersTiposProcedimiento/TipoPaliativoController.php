@@ -8,6 +8,7 @@ use App\Models\Veterinario;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class TipoPaliativoController extends Controller
@@ -18,7 +19,30 @@ class TipoPaliativoController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = TipoPaliativo::with('veterinario');
+            // OBTENER EL ID DEL VETERINARIO AUTENTICADO
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            $veterinarioId = null;
+            
+            if ($user->userable && $user->userable_type === 'App\\Models\\Veterinario') {
+                $veterinarioId = $user->userable->id;
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado o no es un veterinario'
+                ], 403);
+            }
+            
+            // FILTRAR SOLO LOS PROCEDIMIENTOS PALIATIVOS DE ESTE VETERINARIO
+            $query = TipoPaliativo::with('veterinario')
+                ->where('veterinario_id', $veterinarioId);  // 👈 FILTRO CRUCIAL
 
             // Filtros
             if ($request->has('especie') && $request->especie) {
@@ -31,6 +55,9 @@ class TipoPaliativoController extends Controller
 
             if ($request->has('activo')) {
                 $query->where('activo', $request->boolean('activo'));
+            } else {
+                // Por defecto, mostrar solo activos
+                $query->where('activo', true);
             }
 
             // Búsqueda
@@ -38,9 +65,9 @@ class TipoPaliativoController extends Controller
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
                     $q->where('nombre', 'like', "%{$search}%")
-                      ->orWhere('descripcion', 'like', "%{$search}%")
-                      ->orWhere('objetivo_terapeutico', 'like', "%{$search}%")
-                      ->orWhere('objetivo_otro', 'like', "%{$search}%");
+                    ->orWhere('descripcion', 'like', "%{$search}%")
+                    ->orWhere('objetivo_terapeutico', 'like', "%{$search}%")
+                    ->orWhere('objetivo_otro', 'like', "%{$search}%");
                 });
             }
 
@@ -62,6 +89,10 @@ class TipoPaliativoController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Error al obtener procedimientos paliativos', [
+                'error' => $e->getMessage()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener los procedimientos paliativos: ' . $e->getMessage()
@@ -151,12 +182,36 @@ class TipoPaliativoController extends Controller
     public function show($id)
     {
         try {
-            $procedimiento = TipoPaliativo::with('veterinario')->find($id);
+            // OBTENER EL ID DEL VETERINARIO AUTENTICADO
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            $veterinarioId = null;
+            
+            if ($user->userable && $user->userable_type === 'App\\Models\\Veterinario') {
+                $veterinarioId = $user->userable->id;
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autorizado'
+                ], 403);
+            }
+            
+            // VERIFICAR QUE EL PROCEDIMIENTO PERTENEZCA AL VETERINARIO AUTENTICADO
+            $procedimiento = TipoPaliativo::with('veterinario')
+                ->where('veterinario_id', $veterinarioId)  // 👈 FILTRO CRUCIAL
+                ->find($id);
 
             if (!$procedimiento) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Procedimiento paliativo no encontrado'
+                    'message' => 'Procedimiento paliativo no encontrado o no tienes permiso para verlo'
                 ], 404);
             }
 
@@ -167,6 +222,11 @@ class TipoPaliativoController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Error al obtener procedimiento paliativo', [
+                'id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener el procedimiento paliativo: ' . $e->getMessage()

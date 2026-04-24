@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Services\TelegramService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Models\ContactoUsuario;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
@@ -13,48 +12,76 @@ class TelegramController extends Controller
 {
     protected $telegramService;
 
-     public function guardarChatId(Request $request)
+    public function __construct(TelegramService $telegramService)
+    {
+        $this->telegramService = $telegramService;
+    }
+
+    public function guardarChatId(Request $request)
     {
         $request->validate([
             'email' => 'required|email',
-            'telegram_chat_id' => 'required|string|max:50'
+            'telegram_chat_id' => 'required|string|max:50',
+            'telegram_username' => 'nullable|string|max:255',
+            'telegram_first_name' => 'nullable|string|max:255',
+            'telegram_last_name' => 'nullable|string|max:255'
         ]);
 
         try {
-            // Buscar el contacto por email
-            $contacto = ContactoUsuario::where('email', $request->email)->first();
+            $user = User::where('email', $request->email)->first();
 
-            if (!$contacto) {
+            if (!$user) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No se encontró un usuario con ese email'
                 ], 404);
             }
 
-            // Guardar el chat ID (permitir actualización)
-            $contacto->update([
-                'telegram_chat_id' => $request->telegram_chat_id
-            ]);
+            // Datos a actualizar
+            $updateData = [
+                'telegram_chat_id' => $request->telegram_chat_id,
+                'telegram_verified_at' => now(),
+            ];
 
-            Log::info("✅ Chat ID guardado/actualizado", [
-                'usuario_id' => $contacto->usuario_id,
+            // Actualizar campos opcionales si están presentes
+            if ($request->has('telegram_username')) {
+                $updateData['telegram_username'] = $request->telegram_username;
+            }
+            if ($request->has('telegram_first_name')) {
+                $updateData['telegram_first_name'] = $request->telegram_first_name;
+            }
+            if ($request->has('telegram_last_name')) {
+                $updateData['telegram_last_name'] = $request->telegram_last_name;
+            }
+
+            $user->update($updateData);
+
+            Log::info("✅ Datos de Telegram guardados/actualizados", [
+                'user_id' => $user->id,
+                'user_type' => $user->userable_type,
                 'email' => $request->email,
-                'chat_id' => $request->telegram_chat_id
+                'chat_id' => $request->telegram_chat_id,
+                'username' => $request->telegram_username ?? 'No proporcionado',
+                'first_name' => $request->telegram_first_name ?? 'No proporcionado',
+                'last_name' => $request->telegram_last_name ?? 'No proporcionado'
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Chat ID de Telegram guardado exitosamente',
+                'message' => 'Datos de Telegram guardados exitosamente',
                 'data' => [
-                    'usuario_id' => $contacto->usuario_id,
-                    'nombre_completo' => $contacto->nombre_completo,
-                    'telegram_chat_id' => $contacto->telegram_chat_id
+                    'user_id' => $user->id,
+                    'nombre' => $user->nombre,
+                    'email' => $user->email,
+                    'telegram_chat_id' => $user->telegram_chat_id,
+                    'telegram_username' => $user->telegram_username,
+                    'telegram_full_name' => $user->telegram_full_name,
+                    'telegram_verified_at' => $user->telegram_verified_at
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error al guardar chat ID de Telegram: ' . $e->getMessage());
-            
+            Log::error('Error al guardar datos de Telegram: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Error interno del servidor: ' . $e->getMessage()
@@ -69,140 +96,145 @@ class TelegramController extends Controller
         ]);
 
         try {
-            Log::info("🔍 Buscando chat ID por email: " . $request->email);
+            Log::info("🔍 Buscando datos de Telegram por email: " . $request->email);
 
-            // Buscar en ContactoUsuario primero
-            $contacto = ContactoUsuario::where('email', $request->email)->first();
+            $user = User::where('email', $request->email)->first();
 
-            if (!$contacto) {
-                // Si no está en ContactoUsuario, buscar si el usuario existe
-                $usuario = User::where('email', $request->email)->first();
-                
-                if ($usuario) {
-                    Log::info("✅ Usuario existe pero no tiene contacto, creando registro...");
-                    
-                    // Crear registro básico en ContactoUsuario
-                    $contacto = ContactoUsuario::create([
-                        'usuario_id' => $usuario->id,
-                        'email' => $request->email,
-                        'nombre_completo' => $usuario->nombre
-                        // telegram_chat_id se establecerá más tarde
-                    ]);
-                } else {
-                    Log::warning("❌ No se encontró contacto ni usuario con email: " . $request->email);
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'No se encontró un usuario con ese email'
-                    ], 404);
-                }
-            }
-
-            if (!$contacto->telegram_chat_id) {
-                Log::info("ℹ️ Email {$request->email} no tiene Telegram configurado");
+            if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No se encontró chat ID de Telegram para este email'
+                    'message' => 'No se encontró un usuario con ese email'
                 ], 404);
             }
 
-            Log::info("✅ Chat ID encontrado por email", [
-                'email' => $request->email,
-                'chat_id' => $contacto->telegram_chat_id,
-                'usuario_id' => $contacto->usuario_id
-            ]);
+            if (!$user->telegram_chat_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró vinculación de Telegram para este email'
+                ], 404);
+            }
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'telegram_chat_id' => $contacto->telegram_chat_id,
-                    'nombre_completo' => $contacto->nombre_completo,
-                    'email' => $contacto->email,
-                    'usuario_id' => $contacto->usuario_id
+                    'telegram_chat_id' => $user->telegram_chat_id,
+                    'telegram_username' => $user->telegram_username,
+                    'telegram_first_name' => $user->telegram_first_name,
+                    'telegram_last_name' => $user->telegram_last_name,
+                    'telegram_full_name' => $user->telegram_full_name,
+                    'telegram_verified_at' => $user->telegram_verified_at,
+                    'nombre' => $user->nombre,
+                    'email' => $user->email,
+                    'user_id' => $user->id,
+                    'user_type' => class_basename($user->userable_type)
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error al verificar chat ID por email: ' . $e->getMessage());
-            
+            Log::error('Error al verificar datos de Telegram: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Error interno del servidor: ' . $e->getMessage()
+                'message' => 'Error interno del servidor'
             ], 500);
         }
     }
-    public function obtenerChatId($usuarioId) // ✅ Ahora recibe el parámetro correctamente
+
+    public function obtenerChatId($userId)
     {
         try {
-            Log::info("🔍 Buscando chat ID para usuario: $usuarioId");
+            Log::info("🔍 Buscando datos de Telegram para user: $userId");
 
-            $contacto = ContactoUsuario::where('usuario_id', $usuarioId)->first();
+            $user = User::find($userId);
 
-            if (!$contacto) {
-                Log::warning("❌ No se encontró contacto para usuario: $usuarioId");
+            if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No se encontró información de contacto para este usuario'
+                    'message' => 'No se encontró el usuario'
                 ], 404);
             }
 
-            if (!$contacto->telegram_chat_id) {
-                Log::info("ℹ️ Usuario $usuarioId no tiene Telegram configurado");
+            if (!$user->telegram_chat_id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No se encontró chat ID de Telegram para este usuario'
+                    'message' => 'No se encontró vinculación de Telegram para este usuario'
                 ], 404);
             }
-
-            Log::info("✅ Chat ID encontrado", [
-                'usuario_id' => $usuarioId,
-                'chat_id' => $contacto->telegram_chat_id
-            ]);
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'telegram_chat_id' => $contacto->telegram_chat_id,
-                    'nombre_completo' => $contacto->nombre_completo,
-                    'email' => $contacto->email
+                    'telegram_chat_id' => $user->telegram_chat_id,
+                    'telegram_username' => $user->telegram_username,
+                    'telegram_first_name' => $user->telegram_first_name,
+                    'telegram_last_name' => $user->telegram_last_name,
+                    'telegram_full_name' => $user->telegram_full_name,
+                    'telegram_verified_at' => $user->telegram_verified_at,
+                    'nombre' => $user->nombre,
+                    'email' => $user->email,
+                    'user_type' => class_basename($user->userable_type)
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error al obtener chat ID: ' . $e->getMessage());
-            
+            Log::error('Error al obtener datos de Telegram: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Error interno del servidor: ' . $e->getMessage()
+                'message' => 'Error interno del servidor'
             ], 500);
         }
     }
 
-    public function __construct(TelegramService $telegramService)
+    public function obtenerTodosUsuariosTelegram()
     {
-        $this->telegramService = $telegramService;
+        try {
+            $users = User::whereNotNull('telegram_chat_id')
+                ->select('id', 'email', 'name', 'telegram_chat_id', 'telegram_username', 
+                        'telegram_first_name', 'telegram_last_name', 'telegram_verified_at')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $users->map(function($user) {
+                    return [
+                        'user_id' => $user->id,
+                        'nombre' => $user->nombre,
+                        'email' => $user->email,
+                        'telegram_chat_id' => $user->telegram_chat_id,
+                        'telegram_username' => $user->telegram_username,
+                        'telegram_full_name' => $user->telegram_full_name,
+                        'telegram_verified_at' => $user->telegram_verified_at
+                    ];
+                })
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al obtener usuarios de Telegram: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
     }
 
+    // Métodos existentes para documentos...
     public function sendDocument(Request $request)
     {
         $request->validate([
-            'document' => 'required|file|mimes:pdf|max:10240', // 10MB max
+            'document' => 'required|file|mimes:pdf|max:10240',
             'chat_id' => 'required',
             'caption' => 'nullable|string|max:255'
         ]);
 
         try {
-            // Guardar el archivo temporalmente
             $path = $request->file('document')->store('temp');
             $fullPath = Storage::path($path);
 
-            // Enviar documento
             $result = $this->telegramService->sendDocument(
                 $request->chat_id,
                 $fullPath,
                 $request->caption
             );
 
-            // Limpiar archivo temporal
             Storage::delete($path);
 
             if ($result['ok']) {
@@ -243,6 +275,139 @@ class TelegramController extends Controller
 
         } catch (\Exception $e) {
             return response()->json(['success' => false], 500);
+        }
+    }
+
+    /**
+     * Generar token para vincular Telegram (desde la web)
+     */
+    public function generarTokenTelegram(Request $request)
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+
+            // Generar nuevo token
+            $token = $user->generateTelegramToken();
+            
+            // Crear URL de vinculación
+            $telegramBotUsername = env('TELEGRAM_BOT_USERNAME', 'Proyecto_Tere_bot');
+            $telegramLink = "https://t.me/{$telegramBotUsername}?start={$token}";
+            
+            Log::info("🔑 Token generado para usuario", [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'token' => $token,
+                'expira_en' => $user->telegram_token_expires_at
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'token' => $token,
+                    'telegram_link' => $telegramLink,
+                    'expires_at' => $user->telegram_token_expires_at,
+                    'bot_username' => $telegramBotUsername
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al generar token Telegram: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al generar token'
+            ], 500);
+        }
+    }
+
+    /**
+     * Verificar token (para la web después de vincular)
+     */
+    public function verificarTokenTelegram(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string'
+        ]);
+
+        try {
+            $user = User::where('telegram_token', $request->token)
+                ->where('telegram_token_expires_at', '>', now())
+                ->first();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Token inválido o expirado'
+                ], 404);
+            }
+
+            if (!$user->telegram_chat_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aún no se ha vinculado Telegram. Envía el comando /start al bot.'
+                ], 404);
+            }
+
+            // Limpiar token después de verificar
+            $user->clearTelegramToken();
+
+            return response()->json([
+                'success' => true,
+                'message' => '✅ Telegram vinculado exitosamente',
+                'data' => [
+                    'telegram_chat_id' => $user->telegram_chat_id,
+                    'telegram_username' => $user->telegram_username,
+                    'telegram_full_name' => $user->telegram_full_name,
+                    'telegram_verified_at' => $user->telegram_verified_at
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al verificar token: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al verificar token'
+            ], 500);
+        }
+    }
+
+    // App\Http\Controllers\TelegramController.php
+
+    public function verificarTelegramVinculado(Request $request)
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'vinculado' => !is_null($user->telegram_chat_id),
+                    'telegram_chat_id' => $user->telegram_chat_id,
+                    'telegram_username' => $user->telegram_username,
+                    'telegram_full_name' => $user->telegram_full_name,
+                    'telegram_verified_at' => $user->telegram_verified_at
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al verificar vinculación: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al verificar vinculación'
+            ], 500);
         }
     }
 }

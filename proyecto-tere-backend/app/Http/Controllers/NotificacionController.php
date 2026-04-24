@@ -17,37 +17,17 @@ class NotificacionController extends Controller
     {
         $user = Auth::user();
         
-        // 🔥 CORREGIDO: Obtener el ID del perfil (Usuario) no el ID de autenticación (User)
-        $usuario = $user->userable;
-        
-        if (!$usuario) {
-            Log::warning('Usuario sin perfil asociado al consultar notificaciones', [
-                'user_id' => $user->id
-            ]);
-            
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'notificaciones' => [],
-                    'paginacion' => [
-                        'current_page' => 1,
-                        'last_page' => 1,
-                        'per_page' => 15,
-                        'total' => 0
-                    ]
-                ],
-                'total_no_leidas' => 0
-            ]);
-        }
+        // ✅ Ahora usamos directamente el ID del User (autenticación)
+        $userId = $user->id;
         
         Log::info('Consultando notificaciones', [
-            'auth_user_id' => $user->id,
-            'usuario_id' => $usuario->id,
-            'buscando_con_user_id' => $usuario->id // 👈 Usando el ID del perfil
+            'user_id' => $userId,
+            'user_type' => $user->userable_type,
+            'userable_id' => $user->userable_id
         ]);
         
-        // ✅ Usar usuario->id (ID del perfil) para buscar notificaciones
-        $query = Notificacion::where('user_id', $usuario->id)
+        // ✅ Usar user_id del modelo User directamente
+        $query = Notificacion::where('user_id', $userId)
             ->where('activa', true);
         
         if ($request->filled('tipo')) {
@@ -63,8 +43,7 @@ class NotificacionController extends Controller
         $perPage = $request->get('per_page', 15);
         $notificaciones = $query->paginate($perPage);
         
-        // Contar no leídas usando el mismo criterio
-        $totalNoLeidas = Notificacion::where('user_id', $usuario->id)
+        $totalNoLeidas = Notificacion::where('user_id', $userId)
             ->where('activa', true)
             ->where('leida', false)
             ->count();
@@ -99,7 +78,7 @@ class NotificacionController extends Controller
             ], 404);
         }
         
-        $notificacion = Notificacion::where('user_id', $usuario->id)
+        $notificacion = Notificacion::where('user_id', $user->id)
             ->where('activa', true)
             ->findOrFail($id);
         
@@ -126,7 +105,7 @@ class NotificacionController extends Controller
             ], 404);
         }
         
-        $actualizadas = Notificacion::where('user_id', $usuario->id)
+        $actualizadas = Notificacion::where('user_id', $user->id)
             ->where('activa', true)
             ->where('leida', false)
             ->update([
@@ -156,7 +135,7 @@ class NotificacionController extends Controller
             ], 404);
         }
         
-        $notificacion = Notificacion::where('user_id', $usuario->id)
+        $notificacion = Notificacion::where('user_id', $user->id)
             ->where('activa', true)
             ->findOrFail($id);
         
@@ -194,13 +173,13 @@ class NotificacionController extends Controller
             
             Log::info('Calculando estadísticas de notificaciones', [
                 'auth_user_id' => $user->id,
-                'usuario_id' => $usuario->id,
-                'usando_user_id' => $usuario->id
+                'usuario_id' => $user->id,
+                'usando_user_id' => $user->id
             ]);
             
             // ✅ Usar usuario->id para todas las consultas
             $estadisticas = DB::table('notificaciones')
-                ->where('user_id', $usuario->id)
+                ->where('user_id', $user->id)
                 ->where('activa', true)
                 ->select('tipo', DB::raw('COUNT(*) as total'))
                 ->groupBy('tipo')
@@ -208,12 +187,12 @@ class NotificacionController extends Controller
                 ->pluck('total', 'tipo');
 
             $total = DB::table('notificaciones')
-                ->where('user_id', $usuario->id)
+                ->where('user_id', $user->id)
                 ->where('activa', true)
                 ->count();
                 
             $noLeidas = DB::table('notificaciones')
-                ->where('user_id', $usuario->id)
+                ->where('user_id', $user->id)
                 ->where('activa', true)
                 ->where('leida', false)
                 ->count();

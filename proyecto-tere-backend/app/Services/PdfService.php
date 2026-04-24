@@ -7,28 +7,33 @@ use Illuminate\Support\Facades\Storage;
 
 class PdfService
 {
-    public function generarCertificadoVacuna($vacuna, $mascota, $tutor, $centroVeterinario = null)
+    // app/Services/PdfService.php
+
+    public function generarCertificadoVacuna($vacuna, $mascota, $tutor, $centroVeterinario, $veterinario = null)
     {
-        $data = [
+        $html = view('pdf.certificado-vacuna', [
             'vacuna' => $vacuna,
             'mascota' => $mascota,
             'tutor' => $tutor,
             'centroVeterinario' => $centroVeterinario,
-            'fecha_emision' => now()->format('d/m/Y'),
-        ];
+            'veterinario' => $veterinario, // ← Nuevo
+            'fecha_emision' => now()->format('d/m/Y H:i')
+        ])->render();
 
-        $pdf = Pdf::loadView('pdf.certificado-vacuna', $data);
-        
-        // Guardar el PDF
-        $filename = 'certificado_vacuna_' . $vacuna->id . '_' . time() . '.pdf';
-        $path = 'certificados/' . $filename;
-        
-        Storage::put($path, $pdf->output());
-        
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        $fileName = 'certificado_vacuna_' . uniqid() . '.pdf';
+        $fullPath = storage_path('app/temp/' . $fileName);
+
+        if (!file_exists(storage_path('app/temp'))) {
+            mkdir(storage_path('app/temp'), 0777, true);
+        }
+
+        file_put_contents($fullPath, $pdf->output());
+
         return [
-            'path' => $path,
-            'filename' => $filename,
-            'full_path' => Storage::path($path)
+            'file_name' => $fileName,
+            'full_path' => $fullPath
         ];
     }
 

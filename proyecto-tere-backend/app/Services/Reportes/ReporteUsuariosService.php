@@ -223,15 +223,15 @@ class ReporteUsuariosService extends BaseReporteService
             ->map(function ($item) {
                 $tipo = str_replace('App\\Models\\', '', $item->userable_type);
                 return [
-                    'tipo' => $tipo,
-                    'total' => $item->total,
-                    'porcentaje' => (float) $item->porcentaje
+                    'label' => $tipo,
+                    'value' => $item->total,
+                    'percentage' => (float) $item->porcentaje
                 ];
             });
 
         return [
-            'valor' => $distribucion->sum('total'),
-            'etiqueta' => 'Distribución por Tipo',
+            'valor' => $distribucion,  // 🔥 CAMBIO CLAVE: aquí va el array, no el total
+            'etiqueta' => 'Distribución por Tipo de Usuario',
             'tipo' => 'distribucion',
             'datos' => $distribucion,
             'icono' => '📊'
@@ -242,8 +242,6 @@ class ReporteUsuariosService extends BaseReporteService
     {
         $ubicaciones = UbicacionUsuario::select(
                 'city',
-                'state',
-                'country',
                 DB::raw('COUNT(DISTINCT user_id) as total_usuarios')
             )
             ->whereNotNull('city')
@@ -253,43 +251,22 @@ class ReporteUsuariosService extends BaseReporteService
             ->when(isset($this->parametros['fecha_fin']), function ($q) {
                 $q->whereDate('location_updated_at', '<=', $this->parametros['fecha_fin']);
             })
-            ->groupBy('city', 'state', 'country')
+            ->groupBy('city')
             ->orderBy('total_usuarios', 'desc')
-            ->limit(20)
-            ->get();
-
-        $totalConUbicacion = UbicacionUsuario::select(DB::raw('COUNT(DISTINCT user_id) as total'))
-            ->when(isset($this->parametros['fecha_inicio']), function ($q) {
-                $q->whereDate('location_updated_at', '>=', $this->parametros['fecha_inicio']);
-            })
-            ->when(isset($this->parametros['fecha_fin']), function ($q) {
-                $q->whereDate('location_updated_at', '<=', $this->parametros['fecha_fin']);
-            })
-            ->first()
-            ->total;
-
-        $totalUsuarios = User::when(isset($this->parametros['fecha_inicio']), function ($q) {
-                $q->whereDate('created_at', '>=', $this->parametros['fecha_inicio']);
-            })
-            ->when(isset($this->parametros['fecha_fin']), function ($q) {
-                $q->whereDate('created_at', '<=', $this->parametros['fecha_fin']);
-            })
-            ->count();
-
-        $porcentajeConUbicacion = $totalUsuarios > 0 
-            ? round(($totalConUbicacion / $totalUsuarios) * 100, 2)
-            : 0;
+            ->limit(10)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'label' => $item->city,
+                    'value' => $item->total_usuarios
+                ];
+            });
 
         return [
-            'valor' => $totalConUbicacion,
-            'etiqueta' => 'Usuarios con Ubicación',
+            'valor' => $ubicaciones,  // 🔥 CAMBIO CLAVE: array de ubicaciones
+            'etiqueta' => 'Distribución Geográfica',
             'tipo' => 'geografico',
             'datos' => $ubicaciones,
-            'estadisticas' => [
-                'total_usuarios' => $totalUsuarios,
-                'con_ubicacion' => $totalConUbicacion,
-                'porcentaje_con_ubicacion' => $porcentajeConUbicacion
-            ],
             'icono' => '📍'
         ];
     }

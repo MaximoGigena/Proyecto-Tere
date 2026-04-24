@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -24,6 +21,16 @@ return new class extends Migration
             $table->enum('estado', ['pendiente', 'activo', 'inactivo', 'suspendido', 'bloqueado'])->default('pendiente');
             $table->index(['userable_type', 'userable_id']);
 
+            // ✅ Campos de Telegram
+            $table->string('telegram_chat_id')->nullable()->after('estado');
+            $table->string('telegram_username')->nullable()->after('telegram_chat_id');
+            $table->string('telegram_first_name')->nullable()->after('telegram_username');
+            $table->string('telegram_last_name')->nullable()->after('telegram_first_name');
+            $table->timestamp('telegram_verified_at')->nullable()->after('telegram_last_name');
+            $table->string('telegram_token')->nullable()->after('telegram_verified_at');
+            $table->timestamp('telegram_token_expires_at')->nullable()->after('telegram_token');
+
+            // Campos de autenticación social
             $table->string('google_id')->nullable()->unique();
             $table->string('facebook_id')->nullable()->unique();
             $table->string('avatar')->nullable();
@@ -45,9 +52,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('users');
