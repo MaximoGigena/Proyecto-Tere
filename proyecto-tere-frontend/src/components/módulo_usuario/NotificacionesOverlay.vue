@@ -21,7 +21,7 @@
         </div>
         <div class="flex items-center gap-2">
           <button
-            v-if="estadisticas?.no_leidas > 0"
+            v-if="estadisticas?.no_leidas && estadisticas.no_leidas > 0"
             @click="marcarTodasComoLeidas"
             class="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
             :disabled="marcandoTodas"
@@ -193,13 +193,10 @@ import useNotificaciones, { type Notificacion } from '@/composables/useNotificac
 const router = useRouter();
 const emit = defineEmits(['close']);
 
-// Props con valor por defecto seguro
-const props = defineProps({
-  notificaciones: {
-    type: Array,
-    default: () => []
-  }
-});
+// Props con tipado correcto
+const props = defineProps<{
+  notificaciones?: Notificacion[];
+}>();
 
 /* =====================================================
    Composable
@@ -219,14 +216,14 @@ const {
   eliminarNotificacion
 } = useNotificaciones();
 
-// Computed que combina props y store, siempre asegurando que sea un array
-const notificacionesList = computed(() => {
+// Computed que combina props y store
+const notificacionesList = computed<Notificacion[]>(() => {
   // Si hay props y tienen elementos, úsalas
   if (props.notificaciones && Array.isArray(props.notificaciones) && props.notificaciones.length > 0) {
     return props.notificaciones;
   }
-  // Si no, usa las del store (que siempre será array por el composable corregido)
-  return notificacionesStore.value || [];
+  // Si no, usa las del store
+  return notificacionesStore.value;
 });
 
 /* =====================================================
@@ -258,7 +255,7 @@ const estaExpandida = (id: number) =>
 /* =====================================================
    Iconos y estilos
 ===================================================== */
-const icono = (tipo: string) => {
+const icono = (tipo: string): [string, string] => {
   const map: Record<string, [string, string]> = {
     ADVERTENCIA: ['fas', 'triangle-exclamation'],
     SANCION: ['fas', 'ban'],
@@ -274,7 +271,7 @@ const icono = (tipo: string) => {
   return map[tipo] || ['fas', 'bell'];
 };
 
-const iconoColor = (tipo: string) => {
+const iconoColor = (tipo: string): string => {
   if (tipo === 'ADVERTENCIA' || tipo === 'SANCION') return 'text-red-500';
   if (tipo === 'OFERTA') return 'text-green-500';
   if (tipo === 'ADOPCION') return 'text-pink-500';
@@ -283,7 +280,7 @@ const iconoColor = (tipo: string) => {
   return 'text-gray-500';
 };
 
-const badgeColor = (tipo: string) => {
+const badgeColor = (tipo: string): string => {
   const colors: Record<string, string> = {
     ADVERTENCIA: 'bg-red-100 text-red-800',
     SANCION: 'bg-red-100 text-red-800',
@@ -300,7 +297,7 @@ const badgeColor = (tipo: string) => {
 /* =====================================================
    Fecha
 ===================================================== */
-const formatFecha = (f: string) => {
+const formatFecha = (f: string): string => {
   if (!f) return '';
   const date = new Date(f);
   const now = new Date();
@@ -367,15 +364,17 @@ const handleClose = () => {
 /* =====================================================
    Lifecycle
 ===================================================== */
-onMounted(() => {
-  cargarNotificaciones();
-});
-
 let intervaloRefresco: number;
 
 onMounted(() => {
+  // Solo cargar si no hay props externas
+  if (!props.notificaciones || props.notificaciones.length === 0) {
+    cargarNotificaciones();
+  }
+  
+  // Configurar intervalo de refresco
   intervaloRefresco = window.setInterval(() => {
-    if (!cargando.value) {
+    if (!cargando.value && (!props.notificaciones || props.notificaciones.length === 0)) {
       cargarNotificaciones(1, false);
     }
   }, 30000);
@@ -392,6 +391,7 @@ onUnmounted(() => {
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

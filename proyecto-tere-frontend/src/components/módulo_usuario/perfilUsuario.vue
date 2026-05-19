@@ -182,14 +182,18 @@ const tipoUsuario = computed(() => {
 
 // Computed para la ruta de edición
 const editarRuta = computed(() => {
-  if (usuario.value.id) {
+  if (usuario.value.user_id) {  // ← Cambiado: usar user_id en lugar de id
     return {
       path: '/usuarioEdicion',
-      query: { id: usuario.value.id }
+      query: { 
+        id: usuario.value.user_id,  // ← Enviar el USER ID (2)
+        usuario_id: usuario.value.id  // ← Opcional: enviar también el usuario_id por si acaso
+      }
     }
   }
   return '/usuarioEdicion'
 })
+
 
 // Configurar axios con interceptor
 const axiosAuth = axios.create({
@@ -255,9 +259,10 @@ const cargarUsuario = async () => {
       console.log('✅ Datos del usuario desde API:', apiUsuario)
       
       // Asignar datos básicos
-      usuario.value.id = apiUsuario.id
+      usuario.value.id = apiUsuario.id  // Usuario ID (1)
+      usuario.value.user_id = apiUsuario.user_id  // User ID (2) ← IMPORTANTE: guardar esto
       usuario.value.nombre = apiUsuario.nombre || 'Usuario'
-      usuario.value.email = apiUsuario.email || user.value?.email || 'usuario@ejemplo.com'
+      usuario.value.email = apiUsuario.email || user.value?.email
       
       // DATOS PARA EL COMPONENTE DE TIEMPO
       usuario.value.created_at = apiUsuario.created_at

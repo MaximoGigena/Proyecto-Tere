@@ -1,7 +1,6 @@
 <!-- mascotasUsuario.vue -->
 <template>
   <div class="space-y-6">
-
     <!-- Lista de mascotas -->
     <MascotaCard
       v-for="mascota in mascotas"
@@ -25,10 +24,22 @@
     <!-- Botón para agregar mascota -->
     <button
       @click="abrirRegistroMascota"
-      class="fixed bottom-14 left-1/2  transform -translate-x-1/2 text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full px-6 py-3 text-base md:text-lg font-bold shadow-lg hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl transition-all duration-200 hover:scale-105 z-50 whitespace-nowrap"
+      class="fixed bottom-14 left-1/2 transform -translate-x-1/2 text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full px-6 py-3 text-base md:text-lg font-bold shadow-lg hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl transition-all duration-200 hover:scale-105 z-50 whitespace-nowrap"
     >
       + Agregar Mascota
     </button>
+
+    <!-- Modal Overlay para el detalle de la mascota -->
+    <ModalOverlay 
+      :visible="showMascotaModal" 
+      @close="cerrarModalMascota"
+    >
+      <contenidoMascota 
+        :mascotaId="selectedMascotaId"
+        :esTarjetaActiva="true" 
+        @close="cerrarModalMascota"
+      />
+    </ModalOverlay>
 
     <div class="relative">
       <router-view />
@@ -38,24 +49,52 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, watch } from 'vue'
 import axios from 'axios'
 import MascotaCard from '@/components/módulo_mascotas/tarjetaMascota.vue'
-import { useAuth } from '@/composables/useAuth' // ✅ Usar useAuth en lugar de useAuthToken
+import { useAuth } from '@/composables/useAuth'
+import ModalOverlay from '@/components/módulo_adopciones/ModalOverlay.vue'
+import contenidoMascota from '@/components/módulo_mascotas/contenidoMascota.vue'
 
 const router = useRouter()
+const route = useRoute()
+
 const { 
   user, 
   accessToken, 
   isAuthenticated, 
   checkAuth,
   logout 
-} = useAuth() // ✅ Nuevo composable
+} = useAuth()
 
 const mascotas = ref([])
 const loading = ref(true)
 const error = ref('')
+
+// Estado para el modal
+const showMascotaModal = ref(false)
+const selectedMascotaId = ref(null)
+
+const abrirDetalleMascota = (id) => {
+  if (!isAuthenticated.value) {
+    error.value = 'Debes iniciar sesión para ver los detalles'
+    return
+  }
+  
+  selectedMascotaId.value = id
+  showMascotaModal.value = true
+}
+
+const cerrarModalMascota = () => {
+  showMascotaModal.value = false
+  selectedMascotaId.value = null
+  
+  // Limpiar cualquier query param relacionado
+  if (router.currentRoute.value.query.modal === 'true') {
+    router.replace({ query: {} })
+  }
+}
 
 // ✅ Configurar axios con interceptor
 const axiosAuth = axios.create({
@@ -114,7 +153,6 @@ const cargarMascotas = async () => {
     
     console.log('[MascotasUsuario] Verificando autenticación...')
     
-    // ✅ Verificar autenticación con el servidor
     const autenticado = await checkAuth()
     
     if (!autenticado) {
@@ -131,34 +169,63 @@ const cargarMascotas = async () => {
 
     const response = await axiosAuth.get('/api/mascotas')
 
+    console.log('[DEBUG] Respuesta completa:', response.data)
+    if (response.data.mascotas && response.data.mascotas.length > 0) {
+      console.log('[DEBUG] Primera mascota:', JSON.stringify(response.data.mascotas[0], null, 2))
+      if (response.data.mascotas[0].fotos && response.data.mascotas[0].fotos.length > 0) {
+        console.log('[DEBUG] Primera foto:', JSON.stringify(response.data.mascotas[0].fotos[0], null, 2))
+      }
+    }
+
     console.log('[MascotasUsuario] Respuesta del servidor:', {
       success: response.data.success,
       cantidadMascotas: response.data.mascotas?.length || 0
     })
 
-    if (response.data.success) {
+   if (response.data.success) {
       mascotas.value = response.data.mascotas.map(mascota => {
-      console.log('[MascotasUsuario] Procesando mascota:', {
-        id: mascota.id,
-        nombre: mascota.nombre,
-        edad_formateada: mascota.edad_formateada, // ← Agregar esto para debug
-        cantidadFotos: mascota.fotos?.length || 0
+        console.log('[MascotasUsuario] Procesando mascota:', {
+          id: mascota.id,
+          nombre: mascota.nombre,
+          edad_formateada: mascota.edad_formateada,
+          cantidadFotos: mascota.fotos?.length || 0
+        })
+        
+        // ✅ CORRECCIÓN: Usar optimized_urls para obtener la mejor versión
+      // En mascotasUsuario.vue, modifica la sección donde asignas la imagen
+        if (mascota.fotos && mascota.fotos.length > 0) {
+          const primeraFoto = mascota.fotos[0];
+          
+          // ✅ CAMBIA EL ORDEN DE PRIORIDAD - Usar URL directa de storage primero
+          if (primeraFoto.url && primeraFoto.url.startsWith('/storage/')) {
+            // Usar URL directa de storage (más confiable)
+            mascota.imagen = `http://localhost:8000${primeraFoto.url}`;
+            console.log('[MascotasUsuario] Usando URL directa de storage:', mascota.imagen)
+          } 
+          else if (primeraFoto.optimized_urls && primeraFoto.optimized_urls.original) {
+            // Usar URL optimizada como fallback
+            mascota.imagen = primeraFoto.optimized_urls.original.startsWith('/') 
+              ? `http://localhost:8000${primeraFoto.optimized_urls.original}`
+              : primeraFoto.optimized_urls.original;
+            console.log('[MascotasUsuario] Usando URL optimizada original:', mascota.imagen)
+          }
+          else if (primeraFoto.url) {
+            mascota.imagen = primeraFoto.url.startsWith('/') 
+              ? `http://localhost:8000${primeraFoto.url}`
+              : primeraFoto.url;
+            console.log('[MascotasUsuario] Usando URL simple:', mascota.imagen)
+          }
+          else {
+            mascota.imagen = 'https://cdn.pixabay.com/photo/2017/08/18/06/49/capybara-2653996_1280.jpg';
+          }
+        } else if (!mascota.imagen) {
+          mascota.imagen = 'https://cdn.pixabay.com/photo/2017/08/18/06/49/capybara-2653996_1280.jpg';
+          console.log('[MascotasUsuario] Usando imagen por defecto para mascota:', mascota.nombre)
+        }
+        
+        return mascota;
       })
       
-      // Solo agregar la URL de imagen si no existe
-      if (!mascota.imagen && mascota.fotos && mascota.fotos.length > 0) {
-        mascota.imagen = mascota.fotos[0].url;
-        console.log('[MascotasUsuario] URL de imagen asignada:', mascota.imagen)
-      } else if (!mascota.imagen) {
-        mascota.imagen = 'https://cdn.pixabay.com/photo/2017/08/18/06/49/capybara-2653996_1280.jpg';
-        console.log('[MascotasUsuario] Usando imagen por defecto para mascota:', mascota.nombre)
-      }
-      
-      // Devolver la mascota completa, no sobrescribir
-      return mascota;
-    })
-      
-
       console.log('[MascotasUsuario] Mascotas cargadas exitosamente:', mascotas.value.length)
     } else {
       throw new Error(response.data.message || 'Error en la respuesta del servidor')
@@ -170,7 +237,6 @@ const cargarMascotas = async () => {
       data: err.response?.data
     })
 
-    // ✅ Manejo mejorado de errores
     if (err.response?.status === 401) {
       error.value = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
     } else if (err.response?.status === 403) {
@@ -186,13 +252,25 @@ const cargarMascotas = async () => {
   }
 }
 
-// ✅ Mejor manejo del mounted
 onMounted(async () => {
   await cargarMascotas()
+  
+  // ✅ Verificar si debemos abrir una mascota específica
+  const abrirMascotaId = route.query.abrir_mascota
+  
+  if (abrirMascotaId && !loading.value && mascotas.value.length > 0) {
+    const mascota = mascotas.value.find(m => m.id == abrirMascotaId)
+    
+    if (mascota) {
+      abrirDetalleMascota(abrirMascotaId)
+    }
+    
+    // Limpiar query params
+    router.replace({ query: { ...route.query, abrir_mascota: undefined } })
+  }
 })
 
 const abrirRegistroMascota = () => {
-  // ✅ Verificar autenticación antes de redirigir
   if (!isAuthenticated.value) {
     error.value = 'Debes iniciar sesión para registrar una mascota'
     return
@@ -206,33 +284,7 @@ const abrirRegistroMascota = () => {
   });
 };
 
-const abrirDetalleMascota = (id) => {
-  // ✅ Verificar autenticación antes de redirigir
-  if (!isAuthenticated.value) {
-    error.value = 'Debes iniciar sesión para ver los detalles'
-    return
-  }
-  
-  router.push({
-    path: `/explorar/perfil/mascota/${id}`,
-    query: {
-      from: '/explorar/perfil/mascotas'
-    }
-  });
-};
-
-const bgColors = [
-  'bg-orange-200 hover:bg-orange-400',
-  'bg-yellow-200 hover:bg-yellow-400',
-  'bg-purple-200 hover:bg-purple-400',
-  'bg-red-200 hover:bg-red-400',
-  'bg-sky-200 hover:bg-sky-400',
-  'bg-fuchsia-200 hover:bg-fuchsia-400',
-  'bg-emerald-200 hover:bg-emerald-400'
-];
-
 const editarMascota = (id) => {
-  // ✅ Verificar autenticación antes de redirigir
   if (!isAuthenticated.value) {
     error.value = 'Debes iniciar sesión para editar mascotas'
     return
@@ -247,7 +299,6 @@ const editarMascota = (id) => {
 }
 
 const eliminarMascota = (id) => {
-  // ✅ Verificar autenticación antes de redirigir
   if (!isAuthenticated.value) {
     error.value = 'Debes iniciar sesión para eliminar mascotas'
     return
@@ -260,7 +311,6 @@ const eliminarMascota = (id) => {
   })
 }
 
-// ✅ Recargar mascotas cuando cambie el estado de autenticación
 watch(isAuthenticated, async (newVal) => {
   if (newVal) {
     console.log('[MascotasUsuario] Usuario re-autenticado, recargando mascotas...')

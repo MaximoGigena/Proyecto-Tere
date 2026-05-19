@@ -364,15 +364,24 @@ const verificarEstadoTelegram = async () => {
       telegramChatId.value = null;
     }
   } catch (error) {
-    console.log('ℹ️ Usuario no tiene Telegram configurado aún');
     telegramConfigurado.value = false;
   }
 }
 
+const reintentosVerificacion = ref(0)
+const maxReintentos = 3
+const timeoutVerificacion = ref(null)
+
 const verificarTelegram = async () => {
   if (!telegramToken.value) {
     alert('⚠️ Primero genera el enlace de vinculación.');
-    return;
+    return false;
+  }
+  
+  // Limpiar timeout anterior si existe
+  if (timeoutVerificacion.value) {
+    clearTimeout(timeoutVerificacion.value);
+    timeoutVerificacion.value = null;
   }
   
   try {
@@ -394,25 +403,52 @@ const verificarTelegram = async () => {
       alert('🎉 ¡Telegram configurado correctamente!\n\nAhora recibirás notificaciones importantes por Telegram.');
       showTelegramModal.value = false;
       
+      // Resetear contador de reintentos
+      reintentosVerificacion.value = 0;
+      
       // Recargar estado
       await verificarEstadoTelegram();
+      return true;
     }
     
   } catch (error) {
     console.error('❌ Error al verificar Telegram:', error);
     
-    if (error.response?.status === 404) {
-      alert('⚠️ Aún no hemos detectado la configuración de Telegram.\n\nAsegúrate de:\n1. Haber abierto el enlace y enviado el comando /start al bot\n2. Esperar unos segundos\n\nReintentando en 3 segundos...');
+    // Solo reintentar si es error 404 y no hemos superado el máximo de reintentos
+    if (error.response?.status === 404 && reintentosVerificacion.value < maxReintentos) {
+      reintentosVerificacion.value++;
       
-      setTimeout(async () => {
+      const tiempoEspera = 3000;
+      alert(`⚠️ Verificando configuración de Telegram... (Intento ${reintentosVerificacion.value}/${maxReintentos})\n\nAsegúrate de haber enviado el comando /start al bot.`);
+      
+      // Usar setTimeout en lugar de llamada recursiva directa
+      timeoutVerificacion.value = setTimeout(async () => {
         await verificarTelegram();
-      }, 3000);
+      }, tiempoEspera);
+      
+    } else if (error.response?.status === 404) {
+      alert('❌ No se pudo verificar Telegram después de varios intentos.\n\nVerifica que:\n1. Hayas enviado el comando /start al bot\n2. El bot esté funcionando correctamente\n3. Puedes intentar cerrar y abrir el modal nuevamente');
+      reintentosVerificacion.value = 0;
     } else {
       alert('❌ Error al verificar Telegram. Intenta nuevamente.');
+      reintentosVerificacion.value = 0;
     }
+    return false;
   } finally {
     verificandoTelegram.value = false;
   }
+}
+
+const cerrarModalTelegram = () => {
+  // Limpiar cualquier timeout pendiente
+  if (timeoutVerificacion.value) {
+    clearTimeout(timeoutVerificacion.value);
+    timeoutVerificacion.value = null;
+  }
+  // Resetear reintentos
+  reintentosVerificacion.value = 0;
+  // Cerrar modal
+  showTelegramModal.value = false;
 }
 
 const obtenerDatos = () => {
@@ -432,7 +468,7 @@ onMounted(() => {
   console.log('🔧 Modo edición:', props.esModificacion);
 
   if (contacto.telefono_contacto) {
-    validarTelefonoArgentino(contacto.telefono_contacto)
+    validarTelefono(contacto.telefono_contacto)
   }
   
   if (props.usuarioId) {

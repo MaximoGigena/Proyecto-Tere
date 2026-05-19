@@ -179,26 +179,79 @@ const props = defineProps({
 const emit = defineEmits(['editar', 'eliminar', 'click'])
 
 // Computed para la edad con múltiples fallbacks
+// Computed para la edad - ACTUALIZADO para la nueva estructura
 const edadFormateada = computed(() => {
   const mascota = props.mascota
   
-  // 1. Intentar con edad_formateada directo
+  // 1. Intentar con edad_formateada directo (nueva estructura)
   if (mascota.edad_formateada && mascota.edad_formateada !== 'Edad no disponible') {
     return mascota.edad_formateada
   }
   
-  // 2. Intentar con la relación edadRelacion
+  // 2. Intentar con edad_formateada dentro de edad_relacion (solo por compatibilidad)
   if (mascota.edad_relacion && mascota.edad_relacion.edad_formateada) {
     return mascota.edad_relacion.edad_formateada
   }
   
-  // 3. Intentar con el accessor edad
-  if (mascota.edad && mascota.edad !== 'Edad no disponible') {
-    return mascota.edad
+  // 3. Intentar calcular desde fecha_nacimiento si existe
+  if (mascota.fecha_nacimiento) {
+    // Calcular edad básica en el frontend
+    try {
+      const fechaNacimiento = parseFecha(mascota.fecha_nacimiento)
+      if (fechaNacimiento) {
+        const hoy = new Date()
+        const diffTiempo = hoy - fechaNacimiento
+        const diffDias = Math.floor(diffTiempo / (1000 * 60 * 60 * 24))
+        const diffMeses = Math.floor(diffDias / 30.44)
+        const diffAños = Math.floor(diffDias / 365.25)
+        const mesesRestantes = Math.floor(diffMeses % 12)
+        
+        if (diffDias < 30) {
+          return `${diffDias} ${diffDias === 1 ? 'día' : 'días'}`
+        } else if (diffDias < 365) {
+          return `${diffMeses} ${diffMeses === 1 ? 'mes' : 'meses'}`
+        } else {
+          if (mesesRestantes > 0) {
+            return `${diffAños} ${diffAños === 1 ? 'año' : 'años'} y ${mesesRestantes} ${mesesRestantes === 1 ? 'mes' : 'meses'}`
+          }
+          return `${diffAños} ${diffAños === 1 ? 'año' : 'años'}`
+        }
+      }
+    } catch (error) {
+      console.error('Error calculando edad en frontend:', error)
+    }
   }
   
   return 'Edad no disponible'
 })
+
+// Función auxiliar para parsear fecha
+function parseFecha(fechaStr) {
+  if (!fechaStr) return null
+  
+  // Intentar formato DD/MM/YYYY
+  const partesDMY = fechaStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (partesDMY) {
+    const [_, dia, mes, anio] = partesDMY
+    const fecha = new Date(anio, mes - 1, dia)
+    if (!isNaN(fecha.getTime())) return fecha
+  }
+  
+  // Intentar formato YYYY-MM-DD
+  const partesYMD = fechaStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (partesYMD) {
+    const [_, anio, mes, dia] = partesYMD
+    const fecha = new Date(anio, mes - 1, dia)
+    if (!isNaN(fecha.getTime())) return fecha
+  }
+  
+  // Intentar parseo genérico
+  const fecha = new Date(fechaStr)
+  if (!isNaN(fecha.getTime())) return fecha
+  
+  return null
+}
+
 
 // Computed para formatear el sexo
 const formatoSexo = computed(() => {

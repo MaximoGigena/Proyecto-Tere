@@ -47,7 +47,6 @@ class ManejarOfertasController extends Controller
             $query = OfertaAdopcion::with([
                 'mascota.caracteristicas',
                 'mascota.fotos',
-                'mascota.edadRelacion',
                 'mascota.usuario.user.ubicacionActual'
             ])
             ->where('estado_oferta', 'publicada')
@@ -221,7 +220,6 @@ class ManejarOfertasController extends Controller
             $query = OfertaAdopcion::with([
                 'mascota.caracteristicas',
                 'mascota.fotos',
-                'mascota.edadRelacion',
                 'mascota.usuario.user.ubicacionActual'
             ])
             ->where('estado_oferta', 'publicada')
@@ -525,7 +523,6 @@ class ManejarOfertasController extends Controller
             $oferta = OfertaAdopcion::with([
                 'mascota.caracteristicas',
                 'mascota.fotos',
-                'mascota.edadRelacion',
                 'mascota.usuario.user.ubicacionActual' // ✅ Añadir ubicación
             ])
             ->where('id_oferta', $idOferta)
@@ -592,12 +589,12 @@ class ManejarOfertasController extends Controller
                         'ruta_foto' => $foto->ruta_foto
                     ];
                 }),
-                'edad' => $mascota->edadRelacion ? [
-                    'dias' => $mascota->edadRelacion->dias,
-                    'meses' => $mascota->edadRelacion->meses,
-                    'años' => $mascota->edadRelacion->años,
-                    'edad_formateada' => $mascota->edadRelacion->edad_formateada
-                ] : null,
+                'edad' => [
+                    'dias' => $mascota->edad_dias,
+                    'meses' => $mascota->edad_meses,
+                    'años' => $mascota->edad_años,
+                    'edad_formateada' => $mascota->edad_formateada
+                ],
                 'edad_formateada' => $mascota->edad_formateada,
                 'usuario' => [
                     'id' => $mascota->usuario->id,
@@ -663,7 +660,6 @@ class ManejarOfertasController extends Controller
             $query = OfertaAdopcion::with([
                 'mascota.caracteristicas',
                 'mascota.fotos',
-                'mascota.edadRelacion',
                 'mascota.usuario.user.ubicacionActual'
             ])
             ->where('estado_oferta', 'publicada');
@@ -831,10 +827,10 @@ class ManejarOfertasController extends Controller
                     
                     // ✅ Determinar rango etario
                     $rangoEtario = 'Adulto';
-                    if ($mascota->edadRelacion && $mascota->edadRelacion->dias !== null) {
+                    if ($mascota->edad_dias !== null) {
                         $rangoEtario = FiltrosMascotasController::determinarRangoEtario(
                             $mascota->especie,
-                            $mascota->edadRelacion->dias
+                            $mascota->edad_dias
                         );
                     }
                     
@@ -919,7 +915,6 @@ class ManejarOfertasController extends Controller
             $query = OfertaAdopcion::with([
                 'mascota.caracteristicas',
                 'mascota.fotos',
-                'mascota.edadRelacion',
                 'mascota.usuario.user.ubicacionActual'
             ])
             ->where('estado_oferta', 'publicada');
@@ -1205,7 +1200,6 @@ class ManejarOfertasController extends Controller
         $query = OfertaAdopcion::with([
             'mascota.fotos',
             'mascota.caracteristicas',
-            'mascota.edadRelacion',
             'mascota.usuario.user.ubicacionActual'
         ])
         ->where('estado_oferta', 'publicada')
@@ -1344,7 +1338,6 @@ class ManejarOfertasController extends Controller
             $queryBase = OfertaAdopcion::with([
                 'mascota.caracteristicas',
                 'mascota.fotos',
-                'mascota.edadRelacion',
                 'mascota.usuario.user.ubicacionActual'
             ])
             ->where('estado_oferta', 'publicada');
@@ -1715,13 +1708,13 @@ class ManejarOfertasController extends Controller
                 
                 // Determinar rango etario
                 $rangoEtario = 'Adulto';
-                if ($mascota->edadRelacion && $mascota->edadRelacion->dias !== null) {
+                if ($mascota->edad_dias !== null) {
                     $rangoEtario = FiltrosMascotasController::determinarRangoEtario(
                         $mascota->especie,
-                        $mascota->edadRelacion->dias
+                        $mascota->edad_dias
                     );
                 }
-                
+                                
                 // Preparar fotos
                 $fotos = $mascota->fotos->map(function($foto) {
                     return [

@@ -2,27 +2,6 @@
 <template>
   <div class="bg-white p-6 h-full">
     <div class="w-full h-full bg-white rounded-lg overflow-hidden flex-col">
-      <!-- Cabecera con información de la mascota -->
-      <div v-if="mascotaInfo" class="mb-4 p-4 bg-gray-50 rounded-lg">
-        <div class="flex items-center">
-          <img 
-            v-if="mascotaInfo.foto" 
-            :src="mascotaInfo.foto" 
-            class="w-12 h-12 rounded-full object-cover mr-3"
-            :alt="mascotaInfo.nombre"
-          />
-          <div>
-            <h1 class="text-xl font-bold">{{ mascotaInfo.nombre }}</h1>
-            <p class="text-sm text-gray-600">
-              {{ mascotaInfo.especie }} • {{ mascotaInfo.edad_formateada }}
-            </p>
-            <p class="text-xs text-gray-500">
-              {{ mascotaInfo.cantidad_tutores }} {{ mascotaInfo.cantidad_tutores === 1 ? 'tutor' : 'tutores' }} en su historial
-            </p>
-          </div>
-        </div>
-      </div>
-
       <!-- Componente de ordenamiento -->
       <OrdenDropdown @cambioOrden="ordenAsc = $event" />
 
@@ -151,6 +130,7 @@
                     </button>
                   </div>
                 </div>
+                <!-- Indicador de origen del contacto (solo para veterinarios) -->
               </div>
             </div>
 
@@ -172,9 +152,6 @@ import axios from 'axios'
 import { useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 
-// Para notificaciones (opcional, necesitas instalar vue-toastification)
-// import { useToast } from 'vue-toastification'
-
 const props = defineProps({
   mascotaId: {
     type: [Number, String],
@@ -183,15 +160,15 @@ const props = defineProps({
 })
 
 const route = useRoute()
-const { accessToken, isAuthenticated, checkAndRedirectIfSuspended, isSuspendido } = useAuth()
-// const toast = useToast() // Descomentar si usas toast
+const { accessToken, isAuthenticated, checkAndRedirectIfSuspended, isSuspendido, user } = useAuth()
 
 const ordenAsc = ref(true)
 const owners = ref([])
 const cargando = ref(true)
 const mascotaInfo = ref(null)
 const error = ref(null)
-const contactoVisible = ref({}) // Estado para controlar qué medio está desplegado
+const contactoVisible = ref({})
+const esVeterinario = ref(false)
 
 // Configurar axios para incluir el token en todas las peticiones
 const axiosInstance = axios.create()
@@ -214,11 +191,9 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Si es error 401 (No autorizado) o 403 (Prohibido)
     if (error.response?.status === 401 || error.response?.status === 403) {
       console.error('Error de autenticación:', error.response?.data)
       
-      // Verificar si es un error de suspensión
       const auth = useAuth()
       if (auth.isSuspensionError(error)) {
         auth.handleSuspensionError(error)
@@ -228,9 +203,42 @@ axiosInstance.interceptors.response.use(
   }
 )
 
+// Verificar si el usuario es veterinario
+const verificarRolVeterinario = () => {
+  // Método 1: Verificar por ruta
+  if (route.path.startsWith('/veterinarios')) {
+    esVeterinario.value = true
+    console.log('Usuario veterinario detectado por ruta')
+    return
+  }
+  
+  // Método 2: Verificar por el objeto user del auth
+  if (user.value && user.value.rol === 'veterinario') {
+    esVeterinario.value = true
+    console.log('Usuario veterinario detectado por rol')
+    return
+  }
+  
+  // Método 3: Verificar por token o claims (si tienes información en el token)
+  if (accessToken.value) {
+    try {
+      // Decodificar token JWT (si es necesario)
+      const payload = JSON.parse(atob(accessToken.value.split('.')[1]))
+      if (payload.rol === 'veterinario' || payload.tipo_usuario === 'veterinario') {
+        esVeterinario.value = true
+        console.log('Usuario veterinario detectado por token')
+        return
+      }
+    } catch (e) {
+      console.error('Error decodificando token:', e)
+    }
+  }
+  
+  esVeterinario.value = false
+}
+
 // Cargar historial desde el backend
 const cargarHistorial = async () => {
-  // Verificar si el usuario está suspendido
   if (isSuspendido.value) {
     checkAndRedirectIfSuspended()
     return
@@ -247,9 +255,15 @@ const cargarHistorial = async () => {
     }
     
     console.log('Cargando historial para mascota ID:', id)
+    console.log('¿Es veterinario?', esVeterinario.value)
     
-    // Usar la instancia de axios configurada
-    const response = await axiosInstance.get(`/api/mascotas/${id}/historial-tutores`)
+    // Construir URL con parámetro para indicar si es veterinario
+    let url = `/api/mascotas/${id}/historial-tutores`
+    if (esVeterinario.value) {
+      url += '?veterinario=true'
+    }
+    
+    const response = await axiosInstance.get(url)
     
     if (response.data.success) {
       owners.value = response.data.data.historial
@@ -260,13 +274,23 @@ const cargarHistorial = async () => {
         foto: response.data.data.foto_principal,
         cantidad_tutores: response.data.data.cantidad_tutores
       }
+      
+      // Log para depuración
+      if (esVeterinario.value) {
+        console.log('Veterinario - Contactos disponibles:', 
+          owners.value.map(o => ({
+            nombre: o.nombre,
+            cantidad_contactos: o.medios_contacto?.length || 0,
+            contactos: o.medios_contacto
+          }))
+        )
+      }
     } else {
       error.value = response.data.message || 'Error al cargar el historial'
     }
   } catch (err) {
     console.error('Error cargando historial:', err)
     
-    // Manejar específicamente errores 401
     if (err.response?.status === 401) {
       error.value = 'No autorizado. Por favor, inicia sesión nuevamente.'
     } else {
@@ -293,7 +317,7 @@ const ownersOrdenados = computed(() => {
   })
 })
 
-// Obtener color por tipo de medio (para compatibilidad con datos antiguos)
+// Obtener color por tipo de medio
 const getColorByTipo = (tipo) => {
   const colores = {
     'WhatsApp': 'green',
@@ -326,17 +350,14 @@ const getIcono = (tipo) => {
 
 // Toggle para mostrar/ocultar el dato de contacto
 const toggleContacto = (owner, medio) => {
-  // Verificar autenticación antes de mostrar contacto
   if (!isAuthenticated.value) {
     error.value = 'Debes iniciar sesión para ver los datos de contacto'
     return
   }
   
-  // Si ya está visible este medio, lo ocultamos
   if (contactoVisible.value[owner.id] === medio.id) {
     contactoVisible.value[owner.id] = null
   } else {
-    // Mostramos el nuevo medio
     contactoVisible.value[owner.id] = medio.id
   }
 }
@@ -350,18 +371,14 @@ const getMedioSeleccionado = (owner) => {
 // Copiar al portapapeles
 const copiarAlPortapapeles = (texto) => {
   navigator.clipboard.writeText(texto).then(() => {
-    // Mostrar notificación de éxito
-    // toast.success('¡Copiado al portapapeles!') // Descomentar si usas toast
-    alert('¡Copiado al portapapeles!') // Alternativa simple
+    alert('¡Copiado al portapapeles!')
   }).catch(() => {
-    // toast.error('Error al copiar') // Descomentar si usas toast
     alert('Error al copiar')
   })
 }
 
 // Abrir WhatsApp
 const abrirWhatsApp = (telefono) => {
-  // Limpiar el número (eliminar espacios, guiones, etc.)
   const numeroLimpio = telefono.replace(/\D/g, '')
   window.open(`https://wa.me/${numeroLimpio}`, '_blank')
 }
@@ -371,29 +388,17 @@ const abrirEmail = (email) => {
   window.location.href = `mailto:${email}`
 }
 
-// Función para contactar (mantenida por compatibilidad, pero ya no se usa directamente)
-const contactar = (tutor, medio) => {
-  if (!tutor.contactable) return
-  
-  // Verificar autenticación antes de contactar
-  if (!isAuthenticated.value) {
-    error.value = 'Debes iniciar sesión para contactar al tutor'
-    return
-  }
-  
-  console.log(`Contactar a ${tutor.nombre} por ${medio}`)
-}
-
-// Cargar datos al montar el componente
-onMounted(() => {
-  cargarHistorial()
+// Verificar rol al montar el componente
+onMounted(async () => {
+  verificarRolVeterinario()
+  await cargarHistorial()
 })
 
 // Recargar si cambia el ID de la mascota
-watch(() => props.mascotaId, (newId) => {
+watch(() => props.mascotaId, async (newId) => {
   if (newId) {
-    contactoVisible.value = {} // Resetear estado
-    cargarHistorial()
+    contactoVisible.value = {}
+    await cargarHistorial()
   }
 })
 

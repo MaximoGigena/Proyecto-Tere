@@ -17,10 +17,7 @@ return new class extends Migration
                 ->constrained('mascotas')
                 ->onDelete('cascade'); // Más limpio
             
-            $table->foreignId('motivo_baja_id')
-                ->constrained('motivos_baja')
-                ->onDelete('restrict'); // Evita eliminar motivos usados
-            
+          
             $table->foreignId('usuario_id')
                 ->constrained('usuarios')
                 ->onDelete('cascade'); // o 'restrict' según tu lógica

@@ -289,7 +289,7 @@ class RevisionValidationService
      */
     public function validarAntesDeRegistro(int $mascotaId, int $tipoRevisionId): array
     {
-        $mascota = Mascota::with(['edadRelacion'])->findOrFail($mascotaId);
+        $mascota = Mascota::findOrFail($mascotaId); // ✅ Sin el with innecesario
         $tipoRevision = TipoRevision::findOrFail($tipoRevisionId);
 
         return $this->validarMascotaParaTipoRevision($mascota, $tipoRevision);

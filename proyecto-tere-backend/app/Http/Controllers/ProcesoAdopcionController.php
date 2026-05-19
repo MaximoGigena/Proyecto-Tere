@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ProcesoAdopcion;
 use App\Models\SolicitudAdopcion;
 use App\Models\OfertaAdopcion;
+use App\Models\User;
 use App\Models\Usuario;
 use App\Models\Notificacion;
 use App\Models\AdopcionCompletada;
@@ -21,23 +22,23 @@ class ProcesoAdopcionController extends Controller
     /**
      * Crear proceso de adopción al aprobar una solicitud
      */
-    public function crearDesdeSolicitudAprobada($solicitudId)
+    public function crearDesdeSolicitudAprobada($solicitudId, $tutorOriginalId = null)
     {
         DB::beginTransaction();
         
         try {
             $user = Auth::user();
-            $usuarioAutenticadoId = $user->userable->id ?? null;
+            $usuarioAutenticadoId = $user->id ?? null; // User ID
             
             if (!$usuarioAutenticadoId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Usuario no tiene perfil completo'
+                    'message' => 'Usuario no autenticado correctamente'
                 ], 403);
             }
 
             // 1. Buscar la solicitud aprobada
-            $solicitud = SolicitudAdopcion::with(['mascota', 'usuarioSolicitante.userable'])
+            $solicitud = SolicitudAdopcion::with(['mascota', 'usuarioSolicitante'])
                 ->where('idSolicitud', $solicitudId)
                 ->where('estadoSolicitud', 'aprobada')
                 ->first();
@@ -61,12 +62,6 @@ class ProcesoAdopcionController extends Controller
                 ], 404);
             }
 
-            if (!$transferenciaReciente->motivo) {
-                $transferenciaReciente->motivo = 'adopcion';
-                $transferenciaReciente->observaciones = 'Transferencia por proceso de adopción aprobado';
-                $transferenciaReciente->save();
-            }
-            
             // 3. Buscar la oferta relacionada
             $oferta = OfertaAdopcion::where('id_mascota', $solicitud->idMascota)
                 ->where('estado_oferta', 'cerrada')
@@ -79,18 +74,38 @@ class ProcesoAdopcionController extends Controller
                 ], 404);
             }
 
+            // ✅ CORREGIDO: Obtener el USER ID del adoptante directamente
+            // usuarioSolicitante ya es un User, no necesitas ->user
+            $adoptanteUserId = $solicitud->usuarioSolicitante->id ?? null;
             
-            // ✅ OBTENER EL ID DE USUARIO DEL ADOPTANTE (no User ID)
-            $adoptanteUsuarioId = null;
-            if ($solicitud->usuarioSolicitante && $solicitud->usuarioSolicitante->userable) {
-                $adoptanteUsuarioId = $solicitud->usuarioSolicitante->userable->id;
-            }
-            
-            if (!$adoptanteUsuarioId) {
+            if (!$adoptanteUserId) {
+                Log::error('No se pudo obtener el User ID del adoptante', [
+                    'solicitud_id' => $solicitudId,
+                    'usuario_solicitante_id' => $solicitud->idUsuarioSolicitante ?? null
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'No se pudo obtener el ID de usuario del adoptante'
                 ], 404);
+            }
+
+            // ✅ CORREGIDO: Obtener el User ID del tutor
+            // Si se pasa tutorOriginalId, buscar el User ID correspondiente
+            $tutorUserId = null;
+            if ($tutorOriginalId) {
+                // tutorOriginalId es el ID del Usuario (userable)
+                $tutorUser = User::where('userable_id', $tutorOriginalId)
+                    ->where('userable_type', 'App\\Models\\Usuario')
+                    ->first();
+                
+                if ($tutorUser) {
+                    $tutorUserId = $tutorUser->id;
+                }
+            }
+            
+            // Si no se encuentra, usar el ID del usuario autenticado
+            if (!$tutorUserId) {
+                $tutorUserId = $usuarioAutenticadoId;
             }
             
             // 4. Verificar que no existe ya un proceso activo
@@ -109,23 +124,23 @@ class ProcesoAdopcionController extends Controller
             $procesoData = [
                 'id_oferta' => $oferta->id_oferta,
                 'id_solicitud' => $solicitud->idSolicitud,
-                'id_usuario_tutor' => $transferenciaReciente->tutor_anterior_id, // ID de Usuario
-                'id_usuario_adoptante' => $adoptanteUsuarioId, // ID de Usuario
+                'id_usuario_tutor' => $tutorUserId, // ✅ User ID del tutor
+                'id_usuario_adoptante' => $adoptanteUserId, // ✅ User ID del adoptante
                 'estado_proceso' => 'iniciado',
                 'fecha_inicio' => now()
             ];
             
             $proceso = ProcesoAdopcion::create($procesoData);
 
-            // ✅ ACTUALIZAR LA TRANSFERENCIA CON EL ID DEL PROCESO
+            // Actualizar la transferencia con el ID del proceso
             $transferenciaReciente->update(['proceso_adopcion_id' => $proceso->id_proceso]);
 
-             // ✅ NUEVO: Enviar notificación de proceso iniciado
+            // ✅ Enviar notificación de proceso iniciado
             $this->enviarNotificacionProcesoIniciado($proceso);
             
             // 6. Registrar evento inicial
             $proceso->seguimientos()->create([
-                'id_usuario' => $transferenciaReciente->tutor_anterior_id,
+                'id_usuario' => $tutorUserId, // User ID
                 'estado_anterior' => null,
                 'estado_nuevo' => 'iniciado',
                 'observaciones' => 'Proceso de adopción iniciado formalmente.',
@@ -134,29 +149,22 @@ class ProcesoAdopcionController extends Controller
             
             DB::commit();
             
-            Log::info('Proceso de adopción creado', [
+            Log::info('✅ Proceso de adopción creado exitosamente', [
                 'proceso_id' => $proceso->id_proceso,
-                'solicitud_id' => $solicitudId,
-                'tutor_usuario_id' => $transferenciaReciente->tutor_anterior_id,
-                'adoptante_usuario_id' => $adoptanteUsuarioId,
-                'user_solicitante_id' => $solicitud->idUsuarioSolicitante
+                'tutor_user_id' => $tutorUserId,
+                'adoptante_user_id' => $adoptanteUserId
             ]);
             
             return response()->json([
                 'success' => true,
                 'message' => 'Proceso de adopción creado exitosamente',
-                'data' => [
-                    'proceso' => $proceso,
-                    'solicitud' => $solicitud,
-                    'oferta' => $oferta,
-                    'mascota' => $solicitud->mascota->only(['id', 'nombre', 'especie'])
-                ]
+                'data' => $proceso->load(['tutor', 'adoptante', 'oferta.mascota'])
             ]);
             
         } catch (\Exception $e) {
             DB::rollBack();
             
-            Log::error('Error al crear proceso de adopción', [
+            Log::error('❌ Error al crear proceso de adopción', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -176,6 +184,7 @@ class ProcesoAdopcionController extends Controller
     {
         try {
             $user = Auth::user();
+            $userId = $user->id; // ✅ User ID
             
             $query = ProcesoAdopcion::with([
                 'oferta.mascota',
@@ -187,15 +196,15 @@ class ProcesoAdopcionController extends Controller
             // Filtrar por rol
             if ($request->has('rol')) {
                 if ($request->rol === 'tutor') {
-                    $query->where('id_usuario_tutor', $user->id);
+                    $query->where('id_usuario_tutor', $userId);
                 } elseif ($request->rol === 'adoptante') {
-                    $query->where('id_usuario_adoptante', $user->id);
+                    $query->where('id_usuario_adoptante', $userId);
                 }
             } else {
                 // Mostrar todos los procesos donde el usuario participa
-                $query->where(function($q) use ($user) {
-                    $q->where('id_usuario_tutor', $user->id)
-                      ->orWhere('id_usuario_adoptante', $user->id);
+                $query->where(function($q) use ($userId) {
+                    $q->where('id_usuario_tutor', $userId)
+                      ->orWhere('id_usuario_adoptante', $userId);
                 });
             }
             
@@ -211,7 +220,7 @@ class ProcesoAdopcionController extends Controller
                 'success' => true,
                 'data' => [
                     'procesos' => $procesos,
-                    'estadisticas' => $this->obtenerEstadisticas($user->id)
+                    'estadisticas' => $this->obtenerEstadisticas($userId)
                 ]
             ]);
             
@@ -234,6 +243,7 @@ class ProcesoAdopcionController extends Controller
     {
         try {
             $user = Auth::user();
+            $userId = $user->id; // ✅ User ID
             
             $proceso = ProcesoAdopcion::with([
                 'oferta.mascota.fotos',
@@ -244,8 +254,8 @@ class ProcesoAdopcionController extends Controller
             ])->findOrFail($id);
             
             // Verificar que el usuario tenga acceso
-            if ($proceso->id_usuario_tutor !== $user->id && 
-                $proceso->id_usuario_adoptante !== $user->id) {
+            if ($proceso->id_usuario_tutor !== $userId && 
+                $proceso->id_usuario_adoptante !== $userId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No autorizado para ver este proceso'
@@ -274,6 +284,7 @@ class ProcesoAdopcionController extends Controller
         
         try {
             $user = Auth::user();
+            $userId = $user->id; // ✅ User ID
             
             $validator = Validator::make($request->all(), [
                 'estado_proceso' => 'required|in:entrevista,evaluacion,aprobado,rechazado,cancelado,finalizado',
@@ -292,7 +303,7 @@ class ProcesoAdopcionController extends Controller
             $proceso = ProcesoAdopcion::findOrFail($id);
             
             // Verificar permisos (solo tutor puede cambiar estados)
-            if ($proceso->id_usuario_tutor !== $user->id) {
+            if ($proceso->id_usuario_tutor !== $userId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Solo el tutor puede cambiar el estado del proceso'
@@ -317,23 +328,13 @@ class ProcesoAdopcionController extends Controller
             // Guardar motivo si es rechazo o cancelación
             if (in_array($request->estado_proceso, ['rechazado', 'cancelado'])) {
                 $proceso->motivo_rechazo = $request->motivo_rechazo;
-                
-                // Si se rechaza o cancela DESPUÉS de haber aprobado, revertir transferencia
-               // if ($estadoAnterior === 'aprobado') {
-                 //   $this->revertirTransferencia($proceso);
-                //}
             }
-            
-            // ✅ REMOVER esta línea - La mascota ya fue transferida al aprobar la solicitud
-            // if ($request->estado_proceso === 'aprobado') {
-            //     $this->transferirMascota($proceso);
-            // }
             
             $proceso->save();
             
             // Registrar seguimiento
             $proceso->seguimientos()->create([
-                'id_usuario' => $user->id,
+                'id_usuario' => $userId, // ✅ User ID
                 'estado_anterior' => $estadoAnterior,
                 'estado_nuevo' => $request->estado_proceso,
                 'observaciones' => $request->observaciones,
@@ -375,6 +376,7 @@ class ProcesoAdopcionController extends Controller
     {
         try {
             $user = Auth::user();
+            $userId = $user->id; // ✅ User ID
             
             $proceso = ProcesoAdopcion::findOrFail($id);
             
@@ -387,10 +389,10 @@ class ProcesoAdopcionController extends Controller
             }
             
             // Determinar qué confirmación actualizar
-            if ($proceso->id_usuario_tutor === $user->id) {
+            if ($proceso->id_usuario_tutor === $userId) {
                 $proceso->confirmacion_tutor = true;
                 $tipoConfirmacion = 'tutor';
-            } elseif ($proceso->id_usuario_adoptante === $user->id) {
+            } elseif ($proceso->id_usuario_adoptante === $userId) {
                 $proceso->confirmacion_adoptante = true;
                 $tipoConfirmacion = 'adoptante';
             } else {
@@ -404,7 +406,7 @@ class ProcesoAdopcionController extends Controller
             
             // Registrar evento
             $proceso->seguimientos()->create([
-                'id_usuario' => $user->id,
+                'id_usuario' => $userId, // ✅ User ID
                 'estado_anterior' => $proceso->estado_proceso,
                 'estado_nuevo' => $proceso->estado_proceso,
                 'observaciones' => "Confirmación de entrega realizada por el {$tipoConfirmacion}",
@@ -415,7 +417,7 @@ class ProcesoAdopcionController extends Controller
                 ]
             ]);
             
-            // ✅ SOLUCIÓN: Verificar si ambas partes confirmaron
+            // Verificar si ambas partes confirmaron
             $ambasConfirmaciones = $proceso->confirmacion_tutor && $proceso->confirmacion_adoptante;
             
             if ($ambasConfirmaciones && $proceso->estado_proceso === 'aprobado') {
@@ -423,7 +425,7 @@ class ProcesoAdopcionController extends Controller
                 $proceso->estado_proceso = 'finalizado';
                 $proceso->save();
                 
-                // ✅ RECARGAR relaciones antes de enviar notificaciones
+                // Recargar relaciones antes de enviar notificaciones
                 $proceso->load(['tutor', 'adoptante', 'oferta.mascota']);
                 
                 // Enviar notificaciones
@@ -443,7 +445,7 @@ class ProcesoAdopcionController extends Controller
                 'success' => true,
                 'message' => 'Confirmación registrada exitosamente',
                 'data' => [
-                    'proceso' => $proceso->fresh(), // ✅ Usar fresh() para obtener datos actualizados
+                    'proceso' => $proceso->fresh(),
                     'fue_finalizado' => $proceso->estado_proceso === 'finalizado'
                 ]
             ]);
@@ -451,7 +453,7 @@ class ProcesoAdopcionController extends Controller
         } catch (\Exception $e) {
             Log::error('Error al confirmar entrega', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString() // Agrega trace para mejor depuración
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
@@ -468,6 +470,7 @@ class ProcesoAdopcionController extends Controller
     {
         try {
             $user = Auth::user();
+            $userId = $user->id; // ✅ User ID
             
             $validator = Validator::make($request->all(), [
                 'observaciones' => 'required|string|max:1000',
@@ -485,8 +488,8 @@ class ProcesoAdopcionController extends Controller
             $proceso = ProcesoAdopcion::findOrFail($id);
             
             // Verificar que el usuario participa en el proceso
-            if ($proceso->id_usuario_tutor !== $user->id && 
-                $proceso->id_usuario_adoptante !== $user->id) {
+            if ($proceso->id_usuario_tutor !== $userId && 
+                $proceso->id_usuario_adoptante !== $userId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No autorizado para agregar seguimiento'
@@ -494,7 +497,7 @@ class ProcesoAdopcionController extends Controller
             }
             
             $seguimiento = $proceso->seguimientos()->create([
-                'id_usuario' => $user->id,
+                'id_usuario' => $userId, // ✅ User ID
                 'estado_anterior' => $proceso->estado_proceso,
                 'estado_nuevo' => $proceso->estado_proceso,
                 'observaciones' => $request->observaciones,
@@ -531,6 +534,7 @@ class ProcesoAdopcionController extends Controller
     {
         try {
             $user = Auth::user();
+            $userId = $user->id; // ✅ User ID
             
             $validator = Validator::make($request->all(), [
                 'puntuacion_experiencia' => 'required|integer|min:1|max:5',
@@ -548,8 +552,8 @@ class ProcesoAdopcionController extends Controller
             $proceso = ProcesoAdopcion::findOrFail($id);
             
             // Solo puede finalizar si es participante y está aprobado
-            if (($proceso->id_usuario_tutor !== $user->id && 
-                 $proceso->id_usuario_adoptante !== $user->id) ||
+            if (($proceso->id_usuario_tutor !== $userId && 
+                 $proceso->id_usuario_adoptante !== $userId) ||
                 $proceso->estado_proceso !== 'aprobado') {
                 return response()->json([
                     'success' => false,
@@ -563,9 +567,8 @@ class ProcesoAdopcionController extends Controller
             
             // Si ya confirmó su parte, marcar como finalizado
             if ($proceso->intentarFinalizar()) {
-
                 $this->enviarNotificacionAdopcionCompletada($proceso);
-
+                
                 return response()->json([
                     'success' => true,
                     'message' => 'Proceso finalizado exitosamente',
@@ -596,91 +599,6 @@ class ProcesoAdopcionController extends Controller
     /**
      * Métodos privados auxiliares
      */
-    private function transferirMascota(ProcesoAdopcion $proceso)
-    {
-        DB::beginTransaction();
-        
-        try {
-            $mascota = Mascota::find($proceso->oferta->id_mascota);
-            
-            if (!$mascota) {
-                throw new \Exception('Mascota no encontrada para transferir');
-            }
-            
-            // Verificar que el tutor actual es quien dice ser
-            if ($mascota->usuario_id !== $proceso->id_usuario_tutor) {
-                throw new \Exception('El usuario no es el tutor actual de la mascota');
-            }
-            
-            // Verificar que el adoptante existe
-            $adoptante = Usuario::find($proceso->id_usuario_adoptante);
-            if (!$adoptante) {
-                throw new \Exception('Usuario adoptante no encontrado');
-            }
-            
-            // Guardar historial detallado
-            $historial = [
-                'tutor_anterior' => $mascota->usuario_id,
-                'tutor_anterior_nombre' => $proceso->tutor->nombre ?? 'Desconocido',
-                'tutor_nuevo' => $proceso->id_usuario_adoptante,
-                'tutor_nuevo_nombre' => $adoptante->nombre ?? 'Desconocido',
-                'fecha_transferencia' => now(),
-                'proceso_adopcion_id' => $proceso->id_proceso,
-                'solicitud_adopcion_id' => $proceso->id_solicitud,
-                'oferta_adopcion_id' => $proceso->id_oferta,
-                'motivo' => 'Transferencia por proceso de adopción aprobado'
-            ];
-            
-            // ✅ TRANSFERIR PROPIEDAD DE LA MASCOTA
-            $mascota->usuario_id = $proceso->id_usuario_adoptante;
-            
-            // Guardar historial en JSON
-            $historialTransiciones = json_decode($mascota->historial_transiciones ?? '[]', true);
-            $historialTransiciones[] = $historial;
-            $mascota->historial_transiciones = json_encode($historialTransiciones);
-            
-            // Cambiar estado de la mascota
-            $mascota->estado_adopcion = 'transferida';
-            $mascota->fecha_adopcion = now();
-            
-            // ✅ GUARDAR CAMBIOS
-            $mascota->save();
-            
-            // Opcional: crear un registro de adopción completada
-            AdopcionCompletada::create([
-                'mascota_id' => $mascota->id,
-                'tutor_anterior_id' => $proceso->id_usuario_tutor,
-                'tutor_nuevo_id' => $proceso->id_usuario_adoptante,
-                'proceso_adopcion_id' => $proceso->id_proceso,
-                'fecha_adopcion' => now(),
-                'estado' => 'completada'
-            ]);
-            
-            DB::commit();
-            
-            Log::info('Mascota transferida exitosamente en proceso de adopción', [
-                'mascota_id' => $mascota->id,
-                'nombre_mascota' => $mascota->nombre,
-                'tutor_anterior' => $historial['tutor_anterior'],
-                'tutor_nuevo' => $mascota->usuario_id,
-                'proceso_id' => $proceso->id_proceso
-            ]);
-            
-            return true;
-            
-        } catch (\Exception $e) {
-            DB::rollBack();
-            
-            Log::error('Error al transferir mascota', [
-                'error' => $e->getMessage(),
-                'proceso_id' => $proceso->id_proceso,
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            throw $e; // Re-lanzar la excepción para manejarla arriba
-        }
-    }
-    
     private function obtenerEstadisticas($userId)
     {
         return [
@@ -709,11 +627,10 @@ class ProcesoAdopcionController extends Controller
      */
     private function enviarNotificacionAdopcionCompletada(ProcesoAdopcion $proceso)
     {
-        Log::info('🔔 INTENTANDO crear notificaciones de adopción completada', [
+        Log::info('🔔 Creando notificaciones de adopción completada', [
             'proceso_id' => $proceso->id_proceso,
-            'tutor_id' => $proceso->id_usuario_tutor,
-            'adoptante_id' => $proceso->id_usuario_adoptante,
-            'estado_proceso' => $proceso->estado_proceso
+            'tutor_user_id' => $proceso->id_usuario_tutor,
+            'adoptante_user_id' => $proceso->id_usuario_adoptante
         ]);
         
         // Cargar relaciones necesarias
@@ -721,12 +638,12 @@ class ProcesoAdopcionController extends Controller
         
         // Verificar que existen los usuarios
         if (!$proceso->tutor) {
-            Log::error('❌ Tutor no encontrado', ['tutor_id' => $proceso->id_usuario_tutor]);
+            Log::error('❌ Tutor no encontrado', ['tutor_user_id' => $proceso->id_usuario_tutor]);
             return false;
         }
         
         if (!$proceso->adoptante) {
-            Log::error('❌ Adoptante no encontrado', ['adoptante_id' => $proceso->id_usuario_adoptante]);
+            Log::error('❌ Adoptante no encontrado', ['adoptante_user_id' => $proceso->id_usuario_adoptante]);
             return false;
         }
         
@@ -738,9 +655,9 @@ class ProcesoAdopcionController extends Controller
         DB::beginTransaction();
         
         try {
-            // ✅ CORREGIDO: Cambiar 'usuario_id' por 'user_id'
+            // ✅ Notificación para el TUTOR (user_id es el ID del User)
             $notificacionTutor = Notificacion::create([
-                'user_id' => $proceso->id_usuario_tutor,  // 👈 CAMBIADO AQUÍ
+                'user_id' => $proceso->id_usuario_tutor,
                 'tipo' => 'ADOPCION',
                 'titulo' => $titulo,
                 'contenido' => "Hola {$proceso->tutor->nombre},\n\n¡Felicitaciones! El proceso de adopción de **{$nombreMascota}** ha sido completado exitosamente.\n\nGracias por confiar en nuestra plataforma.",
@@ -753,12 +670,12 @@ class ProcesoAdopcionController extends Controller
             
             Log::info('✅ Notificación TUTOR creada', [
                 'notificacion_id' => $notificacionTutor->id,
-                'user_id' => $proceso->id_usuario_tutor  // 👈 Actualizado el log
+                'user_id' => $proceso->id_usuario_tutor
             ]);
             
-            // ✅ CORREGIDO: Cambiar 'usuario_id' por 'user_id'
+            // ✅ Notificación para el ADOPTANTE (user_id es el ID del User)
             $notificacionAdoptante = Notificacion::create([
-                'user_id' => $proceso->id_usuario_adoptante,  // 👈 CAMBIADO AQUÍ
+                'user_id' => $proceso->id_usuario_adoptante,
                 'tipo' => 'ADOPCION',
                 'titulo' => $titulo,
                 'contenido' => "Hola {$proceso->adoptante->nombre},\n\n¡Felicitaciones! El proceso de adopción de **{$nombreMascota}** ha sido completado exitosamente.\n\n**{$nombreMascota}** ahora es oficialmente parte de tu familia.",
@@ -771,12 +688,12 @@ class ProcesoAdopcionController extends Controller
             
             Log::info('✅ Notificación ADOPTANTE creada', [
                 'notificacion_id' => $notificacionAdoptante->id,
-                'user_id' => $proceso->id_usuario_adoptante  // 👈 Actualizado el log
+                'user_id' => $proceso->id_usuario_adoptante
             ]);
             
             DB::commit();
             
-            Log::info('🎉 AMBAS notificaciones creadas exitosamente', [
+            Log::info('🎉 Ambas notificaciones creadas exitosamente', [
                 'proceso_id' => $proceso->id_proceso
             ]);
             
@@ -785,7 +702,7 @@ class ProcesoAdopcionController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             
-            Log::error('❌ ERROR al crear notificaciones', [
+            Log::error('❌ Error al crear notificaciones', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'proceso_id' => $proceso->id_proceso
@@ -800,10 +717,10 @@ class ProcesoAdopcionController extends Controller
      */
     private function enviarNotificacionProcesoIniciado(ProcesoAdopcion $proceso)
     {
-        Log::info('🔔 ENVIANDO notificación de proceso INICIADO', [
+        Log::info('🔔 Enviando notificación de proceso iniciado', [
             'proceso_id' => $proceso->id_proceso,
-            'tutor_id' => $proceso->id_usuario_tutor,
-            'adoptante_id' => $proceso->id_usuario_adoptante
+            'tutor_user_id' => $proceso->id_usuario_tutor,
+            'adoptante_user_id' => $proceso->id_usuario_adoptante
         ]);
         
         // Cargar relaciones necesarias
@@ -811,12 +728,12 @@ class ProcesoAdopcionController extends Controller
         
         // Verificar que existen los usuarios
         if (!$proceso->tutor) {
-            Log::error('❌ Tutor no encontrado en notificación de inicio', ['tutor_id' => $proceso->id_usuario_tutor]);
+            Log::error('❌ Tutor no encontrado', ['tutor_user_id' => $proceso->id_usuario_tutor]);
             return false;
         }
         
         if (!$proceso->adoptante) {
-            Log::error('❌ Adoptante no encontrado en notificación de inicio', ['adoptante_id' => $proceso->id_usuario_adoptante]);
+            Log::error('❌ Adoptante no encontrado', ['adoptante_user_id' => $proceso->id_usuario_adoptante]);
             return false;
         }
         
@@ -826,7 +743,7 @@ class ProcesoAdopcionController extends Controller
         DB::beginTransaction();
         
         try {
-            // Notificación para el TUTOR
+            // ✅ Notificación para el TUTOR
             $notificacionTutor = Notificacion::create([
                 'user_id' => $proceso->id_usuario_tutor,
                 'tipo' => 'ADOPCION',
@@ -843,7 +760,7 @@ class ProcesoAdopcionController extends Controller
                 'notificacion_id' => $notificacionTutor->id
             ]);
             
-            // Notificación para el ADOPTANTE
+            // ✅ Notificación para el ADOPTANTE
             $notificacionAdoptante = Notificacion::create([
                 'user_id' => $proceso->id_usuario_adoptante,
                 'tipo' => 'ADOPCION',
@@ -862,7 +779,7 @@ class ProcesoAdopcionController extends Controller
             
             DB::commit();
             
-            Log::info('🎉 Notificaciones de INICIO de proceso creadas exitosamente', [
+            Log::info('🎉 Notificaciones de inicio de proceso creadas exitosamente', [
                 'proceso_id' => $proceso->id_proceso
             ]);
             
@@ -871,7 +788,7 @@ class ProcesoAdopcionController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             
-            Log::error('❌ ERROR al crear notificaciones de inicio', [
+            Log::error('❌ Error al crear notificaciones de inicio', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'proceso_id' => $proceso->id_proceso

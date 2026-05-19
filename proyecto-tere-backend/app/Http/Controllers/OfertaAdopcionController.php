@@ -77,7 +77,7 @@ class OfertaAdopcionController extends Controller
                 'permisos' => 'required|array',
                 'permisos.compartirHistorialMedico' => 'required|boolean',
                 'permisos.compartirMediosContacto' => 'required|boolean',
-                'permisos.mediosContactoSeleccionados' => 'required_if:permisos.compartirMediosContacto,true|array', // ✅ Validar
+                'permisos.mediosContactoSeleccionados' => 'required_if:permisos.compartirMediosContacto,true|array',
             ]);
             
             if ($validator->fails()) {
@@ -100,9 +100,6 @@ class OfertaAdopcionController extends Controller
                 Log::error('Mascota no pertenece al usuario', [
                     'mascota_id' => $request->mascotaId,
                     'usuario_id' => $usuarioId,
-                    'user_id' => $user->id,
-                    'userable_type' => $user->userable_type,
-                    'userable_id' => $user->userable_id
                 ]);
                 return response()->json([
                     'success' => false,
@@ -115,7 +112,6 @@ class OfertaAdopcionController extends Controller
                 ->first();
             
             if ($ofertaExistente) {
-                Log::error('Ya existe oferta activa', ['mascota_id' => $request->mascotaId]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Ya existe una oferta activa para esta mascota'
@@ -123,9 +119,11 @@ class OfertaAdopcionController extends Controller
             }
             
             // ✅ Preparar medios de contacto seleccionados
-            $mediosSeleccionados = $request->permisos['compartirMediosContacto'] 
-                ? $request->permisos['mediosContactoSeleccionados'] 
-                : [];
+            $mediosSeleccionados = [];
+            
+            if ($request->permisos['compartirMediosContacto']) {
+                $mediosSeleccionados = $request->permisos['mediosContactoSeleccionados'] ?? [];
+            }
             
             $oferta = OfertaAdopcion::create([
                 'id_mascota' => $request->mascotaId,
@@ -133,17 +131,17 @@ class OfertaAdopcionController extends Controller
                 'estado_oferta' => 'publicada',
                 'permiso_historial_medico' => $request->permisos['compartirHistorialMedico'],
                 'permiso_contacto_tutor' => $request->permisos['compartirMediosContacto'],
-                'medios_contacto_seleccionados' => $mediosSeleccionados, // ✅ Guardar como JSON
+                'medios_contacto_seleccionados' => $mediosSeleccionados, // ✅ Solo IDs
             ]);
             
             Log::info('Oferta creada exitosamente', [
                 'oferta_id' => $oferta->id_oferta,
-                'medios_seleccionados' => $mediosSeleccionados
+                'medios_seleccionados' => $mediosSeleccionados,
             ]);
             
             DB::commit();
             
-            $responseData = [
+            return response()->json([
                 'success' => true,
                 'message' => 'Oferta de adopción creada exitosamente',
                 'data' => [
@@ -156,13 +154,11 @@ class OfertaAdopcionController extends Controller
                     'permisos' => [
                         'historial_medico' => $oferta->permiso_historial_medico,
                         'contacto_tutor' => $oferta->permiso_contacto_tutor,
-                        'medios_contacto' => $oferta->medios_contacto_seleccionados // ✅ Incluir en respuesta
+                        'medios_contacto' => $oferta->medios_contacto_seleccionados,
                     ],
                     'created_at' => $oferta->created_at
                 ]
-            ];
-            
-            return response()->json($responseData, 201);
+            ], 201);
             
         } catch (\Exception $e) {
             DB::rollBack();
@@ -251,12 +247,15 @@ class OfertaAdopcionController extends Controller
                 Log::debug('Ubicación obtenida', ['ubicacion' => $ubicacionTutor, 'texto' => $ubicacionTexto]);
             }
             
+            // En el método show(), donde procesas las fotos
             $fotos = $oferta->mascota->fotos->map(function($foto) {
                 return [
                     'id' => $foto->id,
                     'url' => $foto->url,
                     'es_principal' => $foto->es_principal,
-                    'ruta_foto' => $foto->ruta_foto
+                    'ruta_foto' => $foto->ruta_foto,
+                    'optimized_urls' => $foto->optimized_urls, // ✅ AGREGAR ESTO
+                    'is_external' => $foto->is_external
                 ];
             });
             
@@ -290,43 +289,91 @@ class OfertaAdopcionController extends Controller
             ];
             
             // ✅ Obtener detalles de los medios de contacto seleccionados
-            $mediosDetalles = [];
-            if ($oferta->permiso_contacto_tutor && $oferta->medios_contacto_seleccionados) {
-                $contactoUsuario = $oferta->mascota->usuario->contacto;
-                if ($contactoUsuario) {
-                    $mediosSeleccionados = $oferta->medios_contacto_seleccionados;
-                    
-                    // Mapear IDs a medios reales
-                    $todosMedios = [];
-                    
-                    if (in_array(1, $mediosSeleccionados) && $contactoUsuario->telefono) {
-                        $todosMedios[] = [
-                            'id' => 1,
-                            'tipo' => 'WhatsApp',
-                            'valor' => $contactoUsuario->telefono,
-                            'icono' => '📱'
-                        ];
+            // En el método show(), modificar la sección de mediosDetalles:
+
+// ✅ Obtener detalles de los medios de contacto seleccionados
+$mediosDetalles = [];
+if ($oferta->permiso_contacto_tutor && $oferta->medios_contacto_seleccionados) {
+    $mediosSeleccionados = $oferta->medios_contacto_seleccionados;
+    $datosContactoGuardados = $oferta->datos_contacto_tutor ?? [];
+    
+    // Si tenemos datos de contacto guardados directamente en la oferta
+    if (!empty($datosContactoGuardados)) {
+        // Mapear IDs a medios reales usando los datos guardados
+        foreach ($mediosSeleccionados as $medioId) {
+            switch ($medioId) {
+                case 1: // WhatsApp
+                    if (!empty($datosContactoGuardados['telefono'])) {
+                        $mediosDetalles[] = [
+                                        'id' => 1,
+                                        'tipo' => 'WhatsApp',
+                                        'valor' => $datosContactoGuardados['telefono'],
+                                        'icono' => '📱'
+                                    ];
+                                }
+                                break;
+                            case 2: // Email
+                                if (!empty($datosContactoGuardados['email'])) {
+                                    $mediosDetalles[] = [
+                                        'id' => 2,
+                                        'tipo' => 'Email',
+                                        'valor' => $datosContactoGuardados['email'],
+                                        'icono' => '✉️'
+                                    ];
+                                }
+                                break;
+                            case 3: // Telegram
+                                if (!empty($datosContactoGuardados['telegram'])) {
+                                    $mediosDetalles[] = [
+                                        'id' => 3,
+                                        'tipo' => 'Telegram',
+                                        'valor' => '@' . $datosContactoGuardados['telegram'], // Agregar @ para mostrar
+                                        'username' => $datosContactoGuardados['telegram'],
+                                        'icono' => '📨'
+                                    ];
+                                }
+                                break;
+                        }
                     }
-                    
-                    if (in_array(2, $mediosSeleccionados) && $contactoUsuario->email) {
-                        $todosMedios[] = [
-                            'id' => 2,
-                            'tipo' => 'Email',
-                            'valor' => $contactoUsuario->email,
-                            'icono' => '✉️'
-                        ];
+                } else {
+                    // Fallback: Intentar obtener del contacto del usuario (compatibilidad con datos existentes)
+                    $contactoUsuario = $oferta->mascota->usuario->contacto;
+                    if ($contactoUsuario) {
+                        foreach ($mediosSeleccionados as $medioId) {
+                            switch ($medioId) {
+                                case 1:
+                                    if ($contactoUsuario->telefono) {
+                                        $mediosDetalles[] = [
+                                            'id' => 1,
+                                            'tipo' => 'WhatsApp',
+                                            'valor' => $contactoUsuario->telefono,
+                                            'icono' => '📱'
+                                        ];
+                                    }
+                                    break;
+                                case 2:
+                                    if ($contactoUsuario->email) {
+                                        $mediosDetalles[] = [
+                                            'id' => 2,
+                                            'tipo' => 'Email',
+                                            'valor' => $contactoUsuario->email,
+                                            'icono' => '✉️'
+                                        ];
+                                    }
+                                    break;
+                                case 3:
+                                    if ($contactoUsuario->telegram_chat_id) {
+                                        $mediosDetalles[] = [
+                                            'id' => 3,
+                                            'tipo' => 'Telegram',
+                                            'valor' => $contactoUsuario->telegram_chat_id,
+                                            'icono' => '📨'
+                                        ];
+                                    }
+                                    break;
+                            }
+                        }
                     }
-                    
-                    if (in_array(3, $mediosSeleccionados) && $contactoUsuario->telegram_chat_id) {
-                        $todosMedios[] = [
-                            'id' => 3,
-                            'tipo' => 'Telegram',
-                            'valor' => $contactoUsuario->telegram_chat_id,
-                            'icono' => '📨'
-                        ];
-                    }
-                    
-                    $mediosDetalles = $todosMedios;
                 }
             }
             
@@ -828,13 +875,30 @@ class OfertaAdopcionController extends Controller
                     }
                     
                     // Obtener foto principal
-                    $fotoPrincipal = $mascota->fotos->first();
-                    $fotoPrincipalUrl = $fotoPrincipal ? $fotoPrincipal->url : null;
-                    
-                    if (!$fotoPrincipalUrl && $mascota->fotos->isNotEmpty()) {
-                        $fotoPrincipalUrl = $mascota->fotos->first()->url;
+                    // En la sección donde creas $datosMascota (alrededor de línea 400-420)
+                    // Obtener foto principal con prioridad a optimized_urls
+                    $fotoPrincipal = $mascota->fotos->where('es_principal', true)->first() ?? $mascota->fotos->first();
+                    $fotoPrincipalUrl = null;
+
+                    if ($fotoPrincipal) {
+                        // Priorizar URL optimizada medium
+                        if (isset($fotoPrincipal->optimized_urls['medium']) && $fotoPrincipal->optimized_urls['medium']) {
+                            $fotoPrincipalUrl = $fotoPrincipal->optimized_urls['medium'];
+                        } 
+                        // Luego small
+                        elseif (isset($fotoPrincipal->optimized_urls['small']) && $fotoPrincipal->optimized_urls['small']) {
+                            $fotoPrincipalUrl = $fotoPrincipal->optimized_urls['small'];
+                        }
+                        // Luego thumbnail
+                        elseif (isset($fotoPrincipal->optimized_urls['thumbnail']) && $fotoPrincipal->optimized_urls['thumbnail']) {
+                            $fotoPrincipalUrl = $fotoPrincipal->optimized_urls['thumbnail'];
+                        }
+                        // Finalmente URL original
+                        else {
+                            $fotoPrincipalUrl = $fotoPrincipal->url;
+                        }
                     }
-                    
+                                        
                     // Determinar rango etario
                     $rangoEtario = 'Adulto';
                     if ($mascota->edadRelacion && $mascota->edadRelacion->dias !== null) {
@@ -860,12 +924,15 @@ class OfertaAdopcionController extends Controller
                         // ✅ INCLUIR UBICACIÓN CORRECTAMENTE - esto es lo más importante
                         'ubicacion' => $ubicacionTutor,
                         'ubicacion_texto' => $ubicacionTexto,
+                        // EN getOfertasDisponibles(), cambia el map de fotos:
                         'fotos' => $mascota->fotos->map(function($foto) {
                             return [
                                 'id' => $foto->id,
                                 'url' => $foto->url,
                                 'es_principal' => $foto->es_principal,
-                                'ruta_foto' => $foto->ruta_foto
+                                'ruta_foto' => $foto->ruta_foto,
+                                'optimized_urls' => $foto->optimized_urls,
+                                'is_external' => $foto->is_external
                             ];
                         })->toArray(),
                         'usuario_id' => $mascota->usuario_id,
@@ -1118,5 +1185,80 @@ class OfertaAdopcionController extends Controller
             ->first();
             
         return $oferta && $oferta->permiso_historial_medico;
+    }
+
+    /**
+     * Obtener los medios de contacto disponibles del usuario autenticado
+     */
+    public function getMediosContactoUsuario()
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            $mediosDisponibles = [];
+            
+            // 1. Verificar Email (siempre disponible si tiene email)
+            if ($user->email) {
+                $mediosDisponibles[] = [
+                    'id' => 2,
+                    'tipo' => 'Email',
+                    'valor' => $user->email,
+                    'icono' => '✉️',
+                    'disponible' => true
+                ];
+            }
+            
+            // 2. Verificar Teléfono/WhatsApp desde ContactoUsuario
+            if ($user->userable && $user->userable->contacto) {
+                $contacto = $user->userable->contacto;
+                
+                if ($contacto->telefono) {
+                    $mediosDisponibles[] = [
+                        'id' => 1,
+                        'tipo' => 'WhatsApp',
+                        'valor' => $contacto->telefono,
+                        'icono' => '📱',
+                        'disponible' => true
+                    ];
+                }
+            }
+            
+            // 3. Verificar Telegram desde el modelo User
+            if ($user->telegram_chat_id && $user->telegram_username) {
+                $mediosDisponibles[] = [
+                    'id' => 3,
+                    'tipo' => 'Telegram',
+                    'valor' => '@' . $user->telegram_username,
+                    'username' => $user->telegram_username,
+                    'icono' => '📨',
+                    'disponible' => true
+                ];
+            }
+            
+            Log::info('Medios de contacto obtenidos para usuario', [
+                'user_id' => $user->id,
+                'medios' => $mediosDisponibles
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $mediosDisponibles
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error al obtener medios de contacto: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener medios de contacto',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

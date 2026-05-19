@@ -101,7 +101,20 @@ const mascota = ref({
   imagen: ''
 })
 
-const motivos = ref([])
+// Constantes de motivos de baja - VERIFICA QUE ESTOS IDs EXISTAN EN TU BD
+// Ejecuta en tu BD: SELECT * FROM motivos_baja;
+const MOTIVOS_BAJA = [
+  { id: 1, descripcion: "Fallecimiento de la mascota" },
+  { id: 2, descripcion: "Extraviada" },
+  { id: 3, descripcion: "Adoptada por otra persona" },
+  { id: 4, descripcion: "Traslado de domicilio" },
+  { id: 5, descripcion: "Problemas de convivencia" },
+  { id: 6, descripcion: "Problemas de salud" },
+  { id: 7, descripcion: "Cambio de situación familiar" },
+  { id: 8, descripcion: "Otra razón" },
+]
+
+const motivos = MOTIVOS_BAJA
 const motivoSeleccionado = ref('')
 const observacion = ref('')
 
@@ -115,12 +128,11 @@ const verificarAutenticacion = () => {
   return true
 }
 
-// Cargar datos de la mascota y motivos
+// Cargar datos de la mascota
 onMounted(async () => {
   if (!verificarAutenticacion()) return
   
   await cargarDatosMascota()
-  await cargarMotivosBaja()
 })
 
 const cargarDatosMascota = async () => {
@@ -132,14 +144,11 @@ const cargarDatosMascota = async () => {
     })
 
     if (response.data.success) {
-      // CORREGIR: Acceder a response.data.data en lugar de response.data.mascota
       const mascotaData = response.data.data
       
       mascota.value = {
         id: mascotaData.id,
         nombre: mascotaData.nombre,
-        // CORREGIR: Ajustar según la estructura real de la respuesta
-        // La API devuelve 'edad_formateada' directamente, no 'edad' y 'unidad_edad' separados
         edad: mascotaData.edad_formateada || 'Edad no disponible',
         sexo: mascotaData.sexo === 'macho' ? 'Macho' : 'Hembra',
         imagen: mascotaData.fotos && mascotaData.fotos.length > 0 
@@ -149,7 +158,7 @@ const cargarDatosMascota = async () => {
     }
   } catch (error) {
     console.error('Error al cargar mascota:', error)
-    console.error('Respuesta completa:', error.response?.data) // ← Agregar para depurar
+    console.error('Respuesta completa:', error.response?.data)
     
     if (error.response?.status === 401) {
       alert('Tu sesión ha expirado. Por favor inicia sesión nuevamente.')
@@ -161,49 +170,8 @@ const cargarDatosMascota = async () => {
     volver()
   }
 }
-const cargarMotivosBaja = async () => {
-  try {
-    const response = await axios.get('/api/mascotas/motivos/baja', {
-      headers: {
-        'Authorization': `Bearer ${accessToken.value}` // Usar accessToken del composable
-      }
-    })
-
-    if (response.data.success) {
-      motivos.value = response.data.motivos
-    } else {
-      // Fallback a motivos por defecto
-      motivos.value = [
-        { id: 1, descripcion: "Fallecimiento de la mascota" },
-        { id: 2, descripcion: "Extraviada" },
-        { id: 3, descripcion: "Adoptada por otra persona" },
-        { id: 4, descripcion: "Traslado de domicilio" },
-        { id: 5, descripcion: "Problemas de convivencia" },
-      ]
-    }
-  } catch (error) {
-    console.error('Error al cargar motivos:', error)
-    
-    // Manejar errores de autenticación
-    if (error.response?.status === 401) {
-      alert('Tu sesión ha expirado. Por favor inicia sesión nuevamente.')
-      router.push('/login')
-      return
-    }
-    
-    // Fallback a motivos por defecto
-    motivos.value = [
-      { id: 1, descripcion: "Fallecimiento de la mascota" },
-      { id: 2, descripcion: "Extraviada" },
-      { id: 3, descripcion: "Adoptada por otra persona" },
-      { id: 4, descripcion: "Traslado de domicilio" },
-      { id: 5, descripcion: "Problemas de convivencia" },
-    ]
-  }
-}
 
 const confirmarBaja = async () => {
-  // Verificar autenticación antes de proceder
   if (!verificarAutenticacion()) return
   
   if (!motivoSeleccionado.value) {
@@ -214,18 +182,26 @@ const confirmarBaja = async () => {
   loading.value = true
 
   try {
+    // Agrega logs para depuración
+    const motivoId = parseInt(motivoSeleccionado.value)
+    console.log('Enviando baja con:', {
+      motivo_baja_id: motivoId,
+      observacion: observacion.value,
+      tipo: typeof motivoId
+    })
+
     const response = await axios.post(`/api/mascotas/${route.params.id}/baja`, {
-      motivo_baja_id: parseInt(motivoSeleccionado.value),
+      motivo_baja_id: motivoId,
       observacion: observacion.value
     }, {
       headers: {
-        'Authorization': `Bearer ${accessToken.value}` // Usar accessToken del composable
+        'Authorization': `Bearer ${accessToken.value}`,
+        'Content-Type': 'application/json'
       }
     })
 
     if (response.data.success) {
       alert('Mascota dada de baja correctamente')
-      // Volver a la lista de mascotas
       router.push(route.query.from || '/explorar/perfil/mascotas')
     } else {
       alert(response.data.message || 'Error al dar de baja la mascota')
@@ -233,7 +209,21 @@ const confirmarBaja = async () => {
   } catch (error) {
     console.error('Error al dar de baja:', error)
     
-    // Manejar errores de autenticación
+    // Mostrar detalles del error de validación
+    if (error.response?.status === 422) {
+      console.error('Detalles de validación:', error.response.data)
+      const errors = error.response.data.errors
+      if (errors) {
+        const errorMessages = Object.values(errors).flat().join('\n')
+        alert(`Error de validación:\n${errorMessages}`)
+      } else if (error.response.data.message) {
+        alert(error.response.data.message)
+      } else {
+        alert('Los datos enviados no son válidos. Verifica el motivo seleccionado.')
+      }
+      return
+    }
+    
     if (error.response?.status === 401) {
       alert('Tu sesión ha expirado. Por favor inicia sesión nuevamente.')
       router.push('/login')

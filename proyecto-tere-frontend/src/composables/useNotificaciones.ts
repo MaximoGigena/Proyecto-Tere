@@ -1,3 +1,4 @@
+// useNotificaciones.ts
 import { ref, computed } from 'vue';
 import api from '@/services/api';
 
@@ -58,45 +59,46 @@ export default function useNotificaciones() {
 
       const response = await api.get('/notificaciones', { params });
       
-      // Verificar la estructura de la respuesta y extraer las notificaciones
-      let notificacionesData: Notificacion[] = [];
+      console.log('📢 Respuesta del servidor:', response.data); // 👈 LOG para depurar
       
-      if (response.data?.data?.notificaciones && Array.isArray(response.data.data.notificaciones)) {
-        // Estructura: { data: { notificaciones: [...], paginacion: {...} } }
-        notificacionesData = response.data.data.notificaciones;
-        currentPage.value = response.data.data.paginacion?.current_page || page;
-        lastPage.value = response.data.data.paginacion?.last_page || 1;
-      } else if (response.data?.data?.data && Array.isArray(response.data.data.data)) {
-        // Estructura: { data: { data: [...], current_page, last_page } } (paginación de Laravel)
-        notificacionesData = response.data.data.data;
-        currentPage.value = response.data.data.current_page || page;
-        lastPage.value = response.data.data.last_page || 1;
-      } else if (Array.isArray(response.data?.data)) {
-        // Estructura: { data: [...] }
-        notificacionesData = response.data.data;
-        currentPage.value = page;
-        lastPage.value = 1;
-      } else if (Array.isArray(response.data)) {
-        // Estructura: [...] (directo)
-        notificacionesData = response.data;
-        currentPage.value = page;
-        lastPage.value = 1;
-      }
-      
-      if (loadMore) {
-        notificaciones.value = [...notificaciones.value, ...notificacionesData];
+      // ✅ CORREGIDO: Tu backend devuelve { success, data: { notificaciones, paginacion }, total_no_leidas }
+      if (response.data?.success && response.data?.data?.notificaciones) {
+        const notificacionesData = response.data.data.notificaciones;
+        const paginacion = response.data.data.paginacion;
+        
+        console.log('📢 Notificaciones recibidas:', notificacionesData); // 👈 LOG
+        
+        if (loadMore) {
+          notificaciones.value = [...notificaciones.value, ...notificacionesData];
+        } else {
+          notificaciones.value = notificacionesData;
+        }
+        
+        currentPage.value = paginacion?.current_page || page;
+        lastPage.value = paginacion?.last_page || 1;
+        
+        // Actualizar estadísticas desde el total_no_leidas que envía el backend
+        if (!loadMore && response.data.total_no_leidas !== undefined) {
+          estadisticas.value = {
+            total: paginacion?.total || notificacionesData.length,
+            no_leidas: response.data.total_no_leidas,
+            por_tipo: {}
+          };
+        }
       } else {
-        notificaciones.value = notificacionesData;
+        console.error('Estructura de respuesta inesperada:', response.data);
+        if (!loadMore) {
+          notificaciones.value = [];
+        }
       }
       
-      // Cargar estadísticas solo si es la primera página
+      // Cargar estadísticas detalladas solo si es la primera página
       if (!loadMore) {
         await cargarEstadisticas();
       }
     } catch (err: any) {
-      error.value = err.response?.data?.message || 'Error al cargar notificaciones';
-      console.error('Error al cargar notificaciones:', err);
-      // Asegurar que notificaciones sea siempre un array
+      console.error('Error detallado al cargar notificaciones:', err);
+      error.value = err.response?.data?.message || err.message || 'Error al cargar notificaciones';
       if (!loadMore) {
         notificaciones.value = [];
       }
@@ -115,31 +117,25 @@ export default function useNotificaciones() {
   const cargarEstadisticas = async () => {
     try {
       const response = await api.get('/notificaciones/estadisticas');
+      console.log('📊 Estadísticas recibidas:', response.data); // 👈 LOG
+      
       if (response.data?.success && response.data?.data) {
-        estadisticas.value = response.data.data;
-      } else if (response.data?.data) {
         estadisticas.value = response.data.data;
       }
     } catch (err: any) {
       console.error('Error al cargar estadísticas:', err);
-      // No propagar el error para no bloquear la UI
+      // No propagar el error
     }
   };
 
   const marcarComoLeida = async (id: number) => {
     try {
-      // Intentar con PUT primero, si falla probar con POST
-      try {
-        await api.put(`/notificaciones/${id}/leer`);
-      } catch (putError) {
-        // Si PUT falla, intentar con POST como fallback
-        await api.post(`/notificaciones/${id}/leer`);
-      }
+      // Usar la ruta correcta de tu backend
+      await api.put(`/notificaciones/${id}/leer`);
       
       // Actualizar localmente
       const index = notificaciones.value.findIndex(n => n.id === id);
       if (index !== -1) {
-        // Crear un nuevo array para reactividad
         const updatedNotifications = [...notificaciones.value];
         updatedNotifications[index] = {
           ...updatedNotifications[index],
@@ -171,7 +167,7 @@ export default function useNotificaciones() {
     try {
       await api.post('/notificaciones/marcar-todas-leidas');
       
-      // Actualizar localmente - crear nuevo array
+      // Actualizar localmente
       notificaciones.value = notificaciones.value.map(n => ({
         ...n,
         leida: true,
@@ -197,13 +193,9 @@ export default function useNotificaciones() {
     try {
       await api.delete(`/notificaciones/${id}`);
       
-      // Guardar la notificación eliminada para actualizar estadísticas
       const notificacionEliminada = notificaciones.value.find(n => n.id === id);
-      
-      // Eliminar localmente - crear nuevo array
       notificaciones.value = notificaciones.value.filter(n => n.id !== id);
       
-      // Actualizar estadísticas
       if (estadisticas.value && notificacionEliminada) {
         estadisticas.value = {
           ...estadisticas.value,

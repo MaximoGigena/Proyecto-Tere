@@ -112,12 +112,6 @@
           <font-awesome-icon :icon="['fas', 'paw']" class="text-gray-500 mr-2"/>
           <span class="text-gray-700">{{ perfil.convivenciaMascotas === 'si' ? 'Con mascotas' : 'Sin mascotas' }}</span>
         </div>
-        
-        <!-- Ubicación -->
-        <div v-if="perfil.ubicacion" class="bg-white rounded-full shadow-sm border border-gray-200 px-4 py-2 flex items-center hover:shadow-2xl transition-all duration-300" title="Ubicación">
-          <font-awesome-icon :icon="['fas', 'map-marker-alt']" class="text-gray-500 mr-2"/>
-          <span class="text-gray-700">{{ perfil.ubicacion }}</span>
-        </div>
       </div>
 
       <!-- Galería de fotos -->

@@ -14,7 +14,13 @@ return new class extends Migration
         Schema::create('usuarios', function (Blueprint $table) {
             $table->id();
             $table->string('nombre', 100);
-            $table->integer('edad')->nullable();
+            $table->integer('edad_original')->nullable();
+            $table->integer('edad_dias')->nullable()->after('edad_original');
+            $table->integer('edad_meses')->nullable()->after('edad_dias');
+            $table->integer('edad_años')->nullable()->after('edad_meses');
+            $table->string('edad_formateada')->nullable()->after('edad_años');
+            $table->timestamp('fecha_nacimiento')->nullable()->after('edad_formateada');
+            $table->timestamp('ultima_actualizacion_edad')->useCurrent()->after('fecha_nacimiento');
             $table->boolean('activo')->default(true);
             $table->string('foto_perfil')->nullable();
             $table->string('user_type')->default('free');

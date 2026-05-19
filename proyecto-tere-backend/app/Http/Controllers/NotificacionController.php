@@ -16,6 +16,13 @@ class NotificacionController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
+
+        Log::info('Usuario autenticado en notificaciones', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'userable_type' => $user->userable_type,
+            'userable_id' => $user->userable_id
+        ]);
         
         // ✅ Ahora usamos directamente el ID del User (autenticación)
         $userId = $user->id;
@@ -24,6 +31,16 @@ class NotificacionController extends Controller
             'user_id' => $userId,
             'user_type' => $user->userable_type,
             'userable_id' => $user->userable_id
+        ]);
+
+        // ✅ Verificar cuántas notificaciones existen en total para este usuario
+        $totalExistentes = Notificacion::where('user_id', $userId)->count();
+        $totalActivas = Notificacion::where('user_id', $userId)->where('activa', true)->count();
+        
+        Log::info('Estado de notificaciones en BD', [
+            'user_id' => $userId,
+            'total_existentes' => $totalExistentes,
+            'total_activas' => $totalActivas
         ]);
         
         // ✅ Usar user_id del modelo User directamente

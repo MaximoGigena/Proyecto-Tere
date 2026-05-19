@@ -639,7 +639,7 @@ class SolicitudAdopcionController extends Controller
                 'mascota' => function($query) {
                     $query->with('fotos');
                 },
-                'usuarioSolicitante.userable' // ← Esta es la relación correcta
+                'usuarioSolicitante.userable' // Cargar el perfil del usuario
             ])
             ->where('idSolicitud', $id)
             ->first();
@@ -666,17 +666,15 @@ class SolicitudAdopcionController extends Controller
             
             // Verificar que la mascota pertenece al usuario autenticado
             // COMPARANDO con usuario_id (que es el ID de la tabla Usuario)
-            if ($solicitud->mascota->usuario_id !== $usuarioAutenticadoId) {
-                Log::error('Usuario no autorizado para ver esta solicitud', [
-                    'mascota_usuario_id' => $solicitud->mascota->usuario_id,
-                    'usuario_autenticado_id' => $usuarioAutenticadoId,
-                    'user_id' => $user->id
-                ]);
-                
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No autorizado para ver esta solicitud'
-                ], 403);
+            if ($solicitud->mascota->user_id !== $user->id) {
+                // Opción 2: Si la mascota almacena usuario_id del Usuario (userable)
+                $usuarioId = $user->userable->id ?? null;
+                if ($solicitud->mascota->usuario_id !== $usuarioId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No autorizado para ver esta solicitud'
+                    ], 403);
+                }
             }
             
             // Obtener datos del solicitante - CORREGIDO

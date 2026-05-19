@@ -33,9 +33,19 @@ export interface DatosContacto {
   nombre_completo: string
 }
 
+// ✅ AGREGAR INTERFAZ PARA FOTO
+export interface FotoUsuario {
+  ruta_foto: string
+  url: string
+  es_principal: boolean
+}
+
+// ✅ ACTUALIZAR INTERFAZ UsuarioModificacion
 export interface UsuarioModificacion extends UsuarioBasico, DatosOpcionales, DatosContacto {
   foto_perfil?: string | null
   user_id?: number | null
+  fecha_nacimiento?: string | null  // ✅ AGREGAR fecha_nacimiento como string
+  fotos?: FotoUsuario[]  // ✅ AGREGAR array de fotos
 }
 
 export interface DatosBasicosActualizar {
@@ -50,7 +60,7 @@ export interface DatosBasicosActualizar {
 export interface ApiResponse<T = any> {
   success: boolean
   data?: T
-  usuario?: T  // La respuesta puede tener usuario directamente
+  usuario?: T
   message?: string
   error?: string
   debug_info?: any
@@ -63,6 +73,7 @@ export interface UsuarioShowResponse {
   nombre: string
   email: string
   edad: number | null
+  fecha_nacimiento: string | null
   ubicacion?: string | null
   tiempo_registro?: string
   dias_registrado?: number
@@ -90,11 +101,12 @@ export interface UsuarioShowResponse {
 }
 
 export function useUsuarioModificacion() {
-  const { accessToken, isAuthenticated } = useAuthToken()
+  // ✅ ELIMINAR isAuthenticated ya que no se usa
+  const { accessToken } = useAuthToken()
   
   // Refs con tipos explícitos
-  const usuarioId = ref<number | null>(null) // ID del Usuario (tabla usuarios)
-  const userId = ref<number | null>(null) // ID del User (tabla users)
+  const usuarioId = ref<number | null>(null)
+  const userId = ref<number | null>(null)
   const cargando = ref<boolean>(false)
   const error = ref<string | null>(null)
 
@@ -108,6 +120,10 @@ export function useUsuarioModificacion() {
       mes: '',
       anio: null,
     },
+    // ✅ AGREGAR fecha_nacimiento como string
+    fecha_nacimiento: null,
+    // ✅ AGREGAR array de fotos
+    fotos: [],
     // Datos opcionales
     ocupacion: '',
     tipoVivienda: '',
@@ -127,8 +143,6 @@ export function useUsuarioModificacion() {
 
   /**
    * Cargar datos del usuario para modificación
-   * @param id - ID del User (tabla users) que viene de la URL
-   * @returns Promise<boolean> - True si se cargó correctamente
    */
   const cargarDatosUsuario = async (id: number): Promise<boolean> => {
     cargando.value = true
@@ -136,7 +150,6 @@ export function useUsuarioModificacion() {
     
     try {
       console.log('📥 Cargando usuario con User ID:', id)
-      console.log('🔑 Token usado:', accessToken.value?.substring(0, 30) + '...')
       
       const response = await axios.get<ApiResponse<UsuarioShowResponse>>(`/api/usuarios/${id}`, {
         headers: {
@@ -147,8 +160,6 @@ export function useUsuarioModificacion() {
 
       console.log('📥 Respuesta completa del servidor:', response.data)
 
-      // ✅ CORRECCIÓN: La respuesta tiene 'usuario' directamente en la raíz
-      // No está dentro de 'data'
       if (response.data.success && response.data.usuario) {
         const datos = response.data.usuario as UsuarioShowResponse
         
@@ -157,13 +168,25 @@ export function useUsuarioModificacion() {
           user_id: datos.user_id,
           nombre: datos.nombre,
           email: datos.email,
-          tiene_caracteristicas: !!datos.caracteristicas,
-          tiene_contacto: !!datos.contacto
+          fecha_nacimiento: datos.fecha_nacimiento,
+          tiene_fotos: !!datos.fotos?.length
         })
         
         // Guardar ambos IDs
         userId.value = datos.user_id || id
         usuarioId.value = datos.id
+
+        // ✅ ASIGNAR fecha_nacimiento correctamente
+        if (datos.fecha_nacimiento) {
+          usuarioModificacion.fecha_nacimiento = datos.fecha_nacimiento
+          console.log('📅 Fecha de nacimiento cargada:', datos.fecha_nacimiento)
+        }
+    
+        // ✅ ASIGNAR lista de fotos correctamente
+        if (datos.fotos && datos.fotos.length > 0) {
+          usuarioModificacion.fotos = datos.fotos
+          console.log('📸 Fotos cargadas:', datos.fotos.length)
+        }
         
         // Cargar datos básicos
         usuarioModificacion.nombre = datos.nombre || ''
@@ -176,9 +199,6 @@ export function useUsuarioModificacion() {
           usuarioModificacion.foto_perfil = datos.foto_principal
           console.log('📸 Foto de perfil cargada:', datos.foto_principal)
         }
-        
-        // Nota: La fecha de nacimiento no viene en esta respuesta
-        // Si necesitas fecha de nacimiento, tendrías que agregarla al controlador
         
         // Cargar datos opcionales desde características
         if (datos.caracteristicas) {
@@ -204,14 +224,7 @@ export function useUsuarioModificacion() {
           console.log('⚠️ No hay datos de contacto para este usuario')
         }
         
-        console.log('✅ Datos cargados exitosamente en usuarioModificacion:', {
-          usuarioId: usuarioId.value,
-          userId: userId.value,
-          nombre: usuarioModificacion.nombre,
-          email: usuarioModificacion.email,
-          ocupacion: usuarioModificacion.ocupacion,
-          telefono: usuarioModificacion.telefono_contacto
-        })
+        console.log('✅ Datos cargados exitosamente en usuarioModificacion')
         
         return true
       } else {
@@ -223,7 +236,6 @@ export function useUsuarioModificacion() {
       console.error('❌ Error al cargar datos del usuario:', err)
       const axiosError = err as AxiosError<ApiResponse>
       error.value = axiosError.response?.data?.message || 'Error al cargar los datos del usuario'
-      console.error('❌ Detalle del error:', axiosError.response?.data)
       return false
     } finally {
       cargando.value = false
@@ -232,87 +244,77 @@ export function useUsuarioModificacion() {
 
   /**
    * Actualizar datos básicos del usuario
-   * @param datosBasicos - Datos básicos a actualizar
-   * @returns Promise<boolean> - True si se actualizó correctamente
    */
-  // composables/useUsuarioModificacion.ts
-
-   const actualizarDatosBasicos = async (datosBasicos: DatosBasicosActualizar): Promise<boolean> => {
-        if (!usuarioId.value) {
-            throw new Error('No hay usuario seleccionado para actualizar')
-        }
-        
-        try {
-            console.log('🔧 Actualizando datos básicos del Usuario ID:', usuarioId.value)
-            
-            const formData = new FormData()
-            
-            // ✅ Agregar _method para simular PUT
-            formData.append('_method', 'PUT')
-            formData.append('nombre', datosBasicos.nombre)
-            
-            if (datosBasicos.edad) {
-                formData.append('edad', datosBasicos.edad.toString())
-            }
-            
-            if (datosBasicos.fechaNacimiento) {
-                const { anio, mes, dia } = datosBasicos.fechaNacimiento
-                if (anio && mes && dia) {
-                    const fechaCompleta = `${anio}-${mes}-${dia}`
-                    formData.append('fecha_nacimiento', fechaCompleta)
-                }
-            }
-            
-            if (datosBasicos.fotoPerfil) {
-                formData.append('foto_perfil', datosBasicos.fotoPerfil)
-            }
-            
-            if (datosBasicos.password) {
-                formData.append('password', datosBasicos.password)
-            }
-
-            // ✅ Usar POST en lugar de PUT
-            const response = await axios.post<ApiResponse>(
-                `/api/usuarios/${usuarioId.value}`,
-                formData,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken.value}`,
-                        'Accept': 'application/json',
-                        'Content-Type': 'multipart/form-data'
-                    }
-                }
-            )
-
-            console.log('✅ Respuesta actualización básicos:', response.data)
-            return response.data.success
-            
-        } catch (err) {
-            console.error('❌ Error al actualizar datos básicos:', err)
-            throw err
-        }
+  const actualizarDatosBasicos = async (datosBasicos: DatosBasicosActualizar): Promise<boolean> => {
+    if (!usuarioId.value) {
+      throw new Error('No hay usuario seleccionado para actualizar')
     }
+    
+    try {
+      console.log('🔧 Actualizando datos básicos del Usuario ID:', usuarioId.value)
+      
+      const formData = new FormData()
+      
+      formData.append('_method', 'PUT')
+      formData.append('nombre', datosBasicos.nombre)
+      
+      if (datosBasicos.edad) {
+        formData.append('edad', datosBasicos.edad.toString())
+      }
+      
+      if (datosBasicos.fechaNacimiento) {
+        const { anio, mes, dia } = datosBasicos.fechaNacimiento
+        if (anio && mes && dia) {
+          const fechaCompleta = `${anio}-${mes}-${dia}`
+          formData.append('fecha_nacimiento', fechaCompleta)
+        }
+      }
+      
+      if (datosBasicos.fotoPerfil) {
+        formData.append('foto_perfil', datosBasicos.fotoPerfil)
+      }
+      
+      if (datosBasicos.password) {
+        formData.append('password', datosBasicos.password)
+      }
+
+      const response = await axios.post<ApiResponse>(
+        `/api/usuarios/${usuarioId.value}`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken.value}`,
+            'Accept': 'application/json',
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      )
+
+      console.log('✅ Respuesta actualización básicos:', response.data)
+      return response.data.success
+      
+    } catch (err) {
+      console.error('❌ Error al actualizar datos básicos:', err)
+      throw err
+    }
+  }
 
   /**
    * Actualizar datos opcionales del usuario
-   * @param datos - Datos opcionales a actualizar
-   * @returns Promise<boolean> - True si se actualizó correctamente
    */
   const actualizarDatosOpcionales = async (datos: Partial<DatosOpcionales>): Promise<boolean> => {
-    // Usar usuarioId (ID del Usuario)
     if (!usuarioId.value) {
       throw new Error('No hay usuario seleccionado para actualizar')
     }
     
     try {
       console.log('🔧 Actualizando datos opcionales del Usuario ID:', usuarioId.value)
-      console.log('🔧 Datos opcionales:', datos)
       
       const response = await axios.post<ApiResponse>(
         `/api/actualizar-datos-opcionales`,
         {
-            usuario_id: usuarioId.value, // 👈 AÑADIR ESTO
-            ...datos
+          usuario_id: usuarioId.value,
+          ...datos
         },
         {
           headers: {
@@ -332,24 +334,20 @@ export function useUsuarioModificacion() {
 
   /**
    * Actualizar datos de contacto del usuario
-   * @param datos - Datos de contacto a actualizar
-   * @returns Promise<boolean> - True si se actualizó correctamente
    */
   const actualizarDatosContacto = async (datos: Partial<DatosContacto>): Promise<boolean> => {
-    // Usar usuarioId (ID del Usuario)
     if (!usuarioId.value) {
       throw new Error('No hay usuario seleccionado para actualizar')
     }
     
     try {
       console.log('🔧 Actualizando datos de contacto del Usuario ID:', usuarioId.value)
-      console.log('🔧 Datos de contacto:', datos)
       
       const response = await axios.post<ApiResponse>(
         `/api/actualizar-datos-contacto`,
         {
-            usuario_id: usuarioId.value, // 👈 AÑADIR ESTO
-            ...datos
+          usuario_id: usuarioId.value,
+          ...datos
         },
         {
           headers: {
@@ -379,6 +377,8 @@ export function useUsuarioModificacion() {
       mes: '',
       anio: null,
     }
+    usuarioModificacion.fecha_nacimiento = null  // ✅ LIMPIAR también
+    usuarioModificacion.fotos = []  // ✅ LIMPIAR fotos
     usuarioModificacion.ocupacion = ''
     usuarioModificacion.tipoVivienda = ''
     usuarioModificacion.experienciaMascotas = ''
@@ -451,7 +451,7 @@ export function useUsuarioModificacion() {
   }
 }
 
-// Helper para crear una función readonly (útil para evitar mutaciones accidentales)
+// Helper para crear una función readonly
 function readonly<T>(ref: Ref<T>): Ref<T> {
   return ref as Ref<T>
 }

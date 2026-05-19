@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ContactoUsuario;
+use App\Models\User;
 use App\Models\Mascota;
 use App\Models\ProcedimientosMedicos\Vacuna;
 use App\Models\ProcedimientosMedicos\Desparasitacion;
@@ -49,6 +50,9 @@ class EnvioDocumentosService
             // Obtener datos del tutor desde ContactoUsuario
             $tutor = ContactoUsuario::where('usuario_id', $mascota->usuario_id)->first();
             
+            $user = $mascota->usuario->user; // Asumiendo que Mascota tiene relación usuario, y usuario tiene user
+        
+
             if (!$tutor) {
                 throw new \Exception('No se encontró información de contacto del tutor');
             }
@@ -74,10 +78,10 @@ class EnvioDocumentosService
                     return $this->enviarVacunaPorEmail($tutor, $pdfInfo, $mascota, $vacuna);
                 
                 case 'telegram':
-                    return $this->enviarVacunaPorTelegram($tutor, $pdfInfo, $mascota);
+                     return $this->enviarVacunaPorTelegram($user, $pdfInfo, $mascota);
                 
                 case 'whatsapp':
-                    return $this->enviarVacunaPorWhatsapp($tutor, $pdfInfo, $mascota);
+                    return $this->enviarVacunaPorWhatsapp($tutor, $pdfInfo, $mascota, $vacuna);
                 
                 default:
                     throw new \Exception('Medio de envío no soportado: ' . $medioEnvio);
@@ -132,9 +136,9 @@ class EnvioDocumentosService
         }
     }
 
-    private function enviarVacunaPorTelegram(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
+    private function enviarVacunaPorTelegram(User $user, array $pdfInfo, Mascota $mascota)
     {
-        if (!$tutor->telegram_chat_id) {
+        if (!$user->telegram_chat_id) {
             throw new \Exception('El tutor no tiene Telegram configurado');
         }
 
@@ -144,7 +148,7 @@ class EnvioDocumentosService
                   "Documento generado automáticamente por el Sistema Veterinario TERE";
 
         $result = $this->telegramService->sendDocument(
-            $tutor->telegram_chat_id,
+            $user->telegram_chat_id,
             $pdfInfo['full_path'],
             $caption
         );
@@ -156,43 +160,46 @@ class EnvioDocumentosService
         return ['success' => true, 'message' => 'Certificado enviado por Telegram'];
     }
 
-    private function enviarVacunaPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
+    private function enviarVacunaPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, Vacuna $vacuna)
     {
         try {
             if (!$tutor->telefono) {
                 throw new \Exception('El tutor no tiene número de teléfono registrado para WhatsApp');
             }
 
-            // Limpiar y formatear el número
             $telefono = $this->limpiarNumeroTelefono($tutor->telefono);
             
-            Log::info('📱 Enviando WhatsApp', [
-                'original' => $tutor->telefono,
-                'limpio' => $telefono,
-                'archivo' => $pdfInfo['full_path']
-            ]);
-
-            $caption = "🏥 *CERTIFICADO DE VACUNACIÓN*\n\n" .
-                    "🐾 *Mascota:* {$mascota->nombre}\n" .
-                    "📅 *Fecha:* " . now()->format('d/m/Y') . "\n\n" .
-                    "Documento generado automáticamente por el Sistema Veterinario TERE.";
-
-            // SOLO usar sendDocument, NUNCA sendDocumentBase64
-            $result = $this->whatsAppService->sendDocument(
+            // Usar el método con fallback
+            $result = $this->whatsAppService->sendCertificateWithFallback(
                 $telefono,
                 $pdfInfo['full_path'],
-                $caption,
-                "certificado_vacuna_{$mascota->id}.pdf"
+                'CERTIFICADO DE VACUNACIÓN',
+                $tutor->nombre ?? 'Tutor',
+                $mascota->nombre,
+                "certificado_vacuna_{$mascota->id}_{$vacuna->id}.pdf"
             );
+
+            // Limpiar archivo temporal
+            $this->limpiarArchivoTemporal($pdfInfo['full_path']);
 
             if (!$result['success']) {
                 throw new \Exception($result['message']);
             }
 
+            Log::info('✅ Vacuna enviada exitosamente', [
+                'telefono' => $telefono,
+                'mascota' => $mascota->nombre,
+                'method' => $result['method'] ?? 'standard'
+            ]);
+
             return ['success' => true, 'message' => 'Certificado enviado por WhatsApp'];
 
         } catch (\Exception $e) {
-            Log::error('Error WhatsApp: ' . $e->getMessage());
+            if (isset($pdfInfo['full_path'])) {
+                $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+            }
+            
+            Log::error('❌ Error enviando vacuna: ' . $e->getMessage());
             throw $e;
         }
     }
@@ -232,6 +239,8 @@ class EnvioDocumentosService
                 throw new \Exception('No se encontró información de contacto del tutor');
             }
 
+            $user = $mascota->usuario->user;
+
             // Obtener centro veterinario desde la relación
             $centroVeterinario = $desparasitacion->procesoMedico->centroVeterinario;
 
@@ -244,10 +253,10 @@ class EnvioDocumentosService
                     return $this->enviarDesparasitacionPorEmail($tutor, $pdfInfo, $mascota, $desparasitacion);
                 
                 case 'telegram':
-                    return $this->enviarDesparasitacionPorTelegram($tutor, $pdfInfo, $mascota);
+                    return $this->enviarDesparasitacionPorTelegram($user, $pdfInfo, $mascota, $desparasitacion);
                 
                 case 'whatsapp':
-                    return $this->enviarDesparasitacionPorWhatsapp($tutor, $pdfInfo, $mascota);
+                    return $this->enviarDesparasitacionPorWhatsapp($tutor, $pdfInfo, $mascota, $desparasitacion);
                 
                 default:
                     throw new \Exception('Medio de envío no soportado: ' . $medioEnvio);
@@ -301,10 +310,10 @@ class EnvioDocumentosService
         }
     }
 
-    private function enviarDesparasitacionPorTelegram(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
+    private function enviarDesparasitacionPorTelegram(User $user, array $pdfInfo, Mascota $mascota)
     {
-        if (!$tutor->telegram_chat_id) {
-            throw new \Exception('El tutor no tiene Telegram configurado');
+        if (!$user->telegram_chat_id) {
+            throw new \Exception('El usuario no tiene Telegram configurado');
         }
 
         $caption = "💊 Certificado de Desparasitación\n\n" .
@@ -313,7 +322,7 @@ class EnvioDocumentosService
                   "Documento generado automáticamente por el Sistema Veterinario TERE";
 
         $result = $this->telegramService->sendDocument(
-            $tutor->telegram_chat_id,
+            $user->telegram_chat_id,
             $pdfInfo['full_path'],
             $caption
         );
@@ -327,28 +336,55 @@ class EnvioDocumentosService
 
     private function enviarDesparasitacionPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
     {
-        if (!$tutor->telefono) {
-            throw new \Exception('El tutor no tiene número de teléfono registrado');
+        try {
+            if (!$tutor->telefono) {
+                throw new \Exception('El tutor no tiene número de teléfono registrado para WhatsApp');
+            }
+
+            $telefono = $this->limpiarNumeroTelefono($tutor->telefono);
+            
+            Log::info('📱 Enviando WhatsApp - Desparasitación', [
+                'original' => $tutor->telefono,
+                'limpio' => $telefono,
+                'mascota' => $mascota->nombre,
+                'archivo' => $pdfInfo['full_path']
+            ]);
+
+            // Usando el método con plantilla de WhatsApp
+            $result = $this->whatsAppService->sendCertificateWithFallback(
+                $telefono,
+                $pdfInfo['full_path'],
+                'CERTIFICADO DE DESPARASITACIÓN',
+                $tutor->nombre ?? 'Tutor',
+                $mascota->nombre,
+                "certificado_desparasitacion_{$mascota->id}.pdf"
+            );
+
+            // Limpiar archivo temporal después del envío
+            $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+
+            if (!$result['success']) {
+                throw new \Exception($result['message']);
+            }
+
+            Log::info('✅ WhatsApp de desparasitación enviado exitosamente', [
+                'telefono' => $telefono,
+                'mascota' => $mascota->nombre,
+                'method' => $result['method'] ?? 'plantilla_whatsapp'
+            ]);
+
+            return ['success' => true, 'message' => 'Certificado de desparasitación enviado por WhatsApp'];
+
+        } catch (\Exception $e) {
+            if (isset($pdfInfo['full_path'])) {
+                $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+            }
+            
+            Log::error('❌ Error enviando WhatsApp de desparasitación: ' . $e->getMessage(), [
+                'mascota_id' => $mascota->id ?? null
+            ]);
+            throw $e;
         }
-
-        $caption = "💊 *CERTIFICADO DE DESPARASITACIÓN*\n\n" .
-                "🐾 *Mascota:* {$mascota->nombre}\n" .
-                "📅 *Fecha de emisión:* " . now()->format('d/m/Y') . "\n\n" .
-                "📎 *Documento adjunto:* Certificado de desparasitación\n\n" .
-                "Documento generado automáticamente por el Sistema Veterinario TERE.";
-
-        $result = $this->whatsAppService->sendDocument(
-            $tutor->telefono,
-            $pdfInfo['full_path'],
-            $caption,
-            "certificado_desparasitacion_{$mascota->nombre}.pdf"
-        );
-
-        if (!$result['success']) {
-            throw new \Exception('Error enviando por WhatsApp: ' . $result['message']);
-        }
-
-        return ['success' => true, 'message' => 'Certificado de desparasitación enviado por WhatsApp'];
     }
 
     private function generarPdfDesparasitacion(Desparasitacion $desparasitacion, Mascota $mascota, ContactoUsuario $tutor, $centroVeterinario): array
@@ -388,6 +424,8 @@ class EnvioDocumentosService
                 throw new \Exception('No se encontró información de contacto del tutor');
             }
 
+            $user = $mascota->usuario->user; 
+
             // Obtener centro veterinario desde la relación
             $centroVeterinario = $revision->procesoMedico->centroVeterinario;
 
@@ -400,10 +438,10 @@ class EnvioDocumentosService
                     return $this->enviarRevisionPorEmail($tutor, $pdfInfo, $mascota, $revision);
                 
                 case 'telegram':
-                    return $this->enviarRevisionPorTelegram($tutor, $pdfInfo, $mascota, $revision);
+                    return $this->enviarRevisionPorTelegram($user, $pdfInfo, $mascota, $revision);
                 
                 case 'whatsapp':
-                    return $this->enviarRevisionPorWhatsapp($tutor, $pdfInfo, $mascota);
+                    return $this->enviarRevisionPorWhatsapp($tutor, $pdfInfo, $mascota, $revision);
                 
                 default:
                     throw new \Exception('Medio de envío no soportado: ' . $medioEnvio);
@@ -457,10 +495,10 @@ class EnvioDocumentosService
         }
     }
 
-    private function enviarRevisionPorTelegram(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, Revision $revision)
+    private function enviarRevisionPorTelegram(User $user, array $pdfInfo, Mascota $mascota, Revision $revision)
     {
-        if (!$tutor->telegram_chat_id) {
-            throw new \Exception('El tutor no tiene Telegram configurado');
+        if (!$user->telegram_chat_id) {
+            throw new \Exception('El usuario no tiene Telegram configurado');
         }
 
         $tipoRevision = $revision->tipoRevision->nombre ?? 'Revisión Médica';
@@ -480,7 +518,7 @@ class EnvioDocumentosService
                   "📝 **Informe generado automáticamente por el Sistema Veterinario TERE**";
 
         $result = $this->telegramService->sendDocument(
-            $tutor->telegram_chat_id,
+            $user->telegram_chat_id,
             $pdfInfo['full_path'],
             $caption
         );
@@ -492,30 +530,60 @@ class EnvioDocumentosService
         return ['success' => true, 'message' => 'Informe de revisión enviado por Telegram'];
     }
 
-    private function enviarRevisionPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
+    private function enviarRevisionPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, Revision $revision = null)
     {
-        if (!$tutor->telefono) {
-            throw new \Exception('El tutor no tiene número de teléfono registrado');
+        try {
+            if (!$tutor->telefono) {
+                throw new \Exception('El tutor no tiene número de teléfono registrado para WhatsApp');
+            }
+
+            $telefono = $this->limpiarNumeroTelefono($tutor->telefono);
+            
+            Log::info('📱 Enviando WhatsApp - Revisión Médica', [
+                'original' => $tutor->telefono,
+                'limpio' => $telefono,
+                'mascota' => $mascota->nombre,
+                'revision_id' => $revision->id ?? null,
+                'archivo' => $pdfInfo['full_path']
+            ]);
+
+            // Usando el método con plantilla de WhatsApp
+            $result = $this->whatsAppService->sendCertificateWithFallback(
+                $telefono,
+                $pdfInfo['full_path'],
+                'INFORME DE REVISIÓN MÉDICA',
+                $tutor->nombre ?? 'Tutor',
+                $mascota->nombre,
+                "informe_revision_{$mascota->id}" . ($revision ? "_{$revision->id}" : "") . ".pdf"
+            );
+
+            // Limpiar archivo temporal después del envío
+            $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+
+            if (!$result['success']) {
+                throw new \Exception($result['message']);
+            }
+
+            Log::info('✅ WhatsApp de revisión enviado exitosamente', [
+                'telefono' => $telefono,
+                'mascota' => $mascota->nombre,
+                'revision_id' => $revision->id ?? null,
+                'method' => $result['method'] ?? 'plantilla_whatsapp'
+            ]);
+
+            return ['success' => true, 'message' => 'Informe de revisión enviado por WhatsApp'];
+
+        } catch (\Exception $e) {
+            if (isset($pdfInfo['full_path'])) {
+                $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+            }
+            
+            Log::error('❌ Error enviando WhatsApp de revisión: ' . $e->getMessage(), [
+                'revision_id' => $revision->id ?? null,
+                'mascota_id' => $mascota->id ?? null
+            ]);
+            throw $e;
         }
-
-        $caption = "🏥 *INFORME DE REVISIÓN MÉDICA*\n\n" .
-                "🐾 *Mascota:* {$mascota->nombre}\n" .
-                "📅 *Fecha de emisión:* " . now()->format('d/m/Y H:i') . "\n\n" .
-                "📎 *Documento adjunto:* Informe completo de revisión\n\n" .
-                "Documento generado automáticamente por el Sistema Veterinario TERE.";
-
-        $result = $this->whatsAppService->sendDocument(
-            $tutor->telefono,
-            $pdfInfo['full_path'],
-            $caption,
-            "informe_revision_{$mascota->nombre}.pdf"
-        );
-
-        if (!$result['success']) {
-            throw new \Exception('Error enviando por WhatsApp: ' . $result['message']);
-        }
-
-        return ['success' => true, 'message' => 'Informe de revisión enviado por WhatsApp'];
     }
 
     private function generarPdfRevision(Revision $revision, Mascota $mascota, ContactoUsuario $tutor, $centroVeterinario = null): array
@@ -562,6 +630,8 @@ class EnvioDocumentosService
             // Obtener centro veterinario desde la relación
             $centroVeterinario = $alergia->procesoMedico->centroVeterinario ?? null;
 
+            $user = $mascota->usuario->user; 
+
             // Generar PDF
             $pdfInfo = $this->pdfService->generarRegistroAlergia(
                 $alergia, 
@@ -576,10 +646,10 @@ class EnvioDocumentosService
                     return $this->enviarAlergiaPorEmail($tutor, $pdfInfo, $mascota, $alergia);
                 
                 case 'telegram':
-                    return $this->enviarAlergiaPorTelegram($tutor, $pdfInfo, $mascota, $alergia);
+                    return $this->enviarAlergiaPorTelegram($user, $pdfInfo, $mascota, $alergia);
                 
                 case 'whatsapp':
-                    return $this->enviarAlergiaPorWhatsapp($tutor, $pdfInfo, $mascota);
+                    return $this->enviarAlergiaPorWhatsapp($tutor, $pdfInfo, $mascota, $alergia);
                 
                 default:
                     throw new \Exception('Medio de envío no soportado: ' . $medioEnvio);
@@ -633,9 +703,9 @@ class EnvioDocumentosService
         }
     }
 
-    private function enviarAlergiaPorTelegram(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, Alergia $alergia)
+    private function enviarAlergiaPorTelegram(User $user, array $pdfInfo, Mascota $mascota, Alergia $alergia)
     {
-        if (!$tutor->telegram_chat_id) {
+        if (!$user->telegram_chat_id) {
             throw new \Exception('El tutor no tiene Telegram configurado');
         }
 
@@ -666,7 +736,7 @@ class EnvioDocumentosService
                 "📝 **Documento generado automáticamente por el Sistema Veterinario TERE**";
 
         $result = $this->telegramService->sendDocument(
-            $tutor->telegram_chat_id,
+            $user->telegram_chat_id,
             $pdfInfo['full_path'],
             $caption
         );
@@ -678,14 +748,60 @@ class EnvioDocumentosService
         return ['success' => true, 'message' => 'Registro de alergia enviado por Telegram'];
     }
 
-    private function enviarAlergiaPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
+    private function enviarAlergiaPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, Alergia $alergia)
     {
-        Log::info('Envío por WhatsApp preparado - Registro de Alergia', [
-            'telefono' => $tutor->telefono,
-            'mascota' => $mascota->nombre
-        ]);
+        try {
+            if (!$tutor->telefono) {
+                throw new \Exception('El tutor no tiene número de teléfono registrado para WhatsApp');
+            }
 
-        return ['success' => true, 'message' => 'Envío por WhatsApp configurado (implementar servicio)'];
+            $telefono = $this->limpiarNumeroTelefono($tutor->telefono);
+            
+            Log::info('📱 Enviando WhatsApp - Alergia', [
+                'original' => $tutor->telefono,
+                'limpio' => $telefono,
+                'mascota' => $mascota->nombre,
+                'alergia_id' => $alergia->id,
+                'archivo' => $pdfInfo['full_path']
+            ]);
+
+            // Usando el método con plantilla de WhatsApp
+            $result = $this->whatsAppService->sendCertificateWithFallback(
+                $telefono,
+                $pdfInfo['full_path'],
+                'REGISTRO DE ALERGIA/SENSIBILIDAD',
+                $tutor->nombre ?? 'Tutor',
+                $mascota->nombre,
+                "registro_alergia_{$mascota->id}_{$alergia->id}.pdf"
+            );
+
+            // Limpiar archivo temporal después del envío
+            $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+
+            if (!$result['success']) {
+                throw new \Exception($result['message']);
+            }
+
+            Log::info('✅ WhatsApp de alergia enviado exitosamente', [
+                'telefono' => $telefono,
+                'mascota' => $mascota->nombre,
+                'alergia_id' => $alergia->id,
+                'method' => $result['method'] ?? 'plantilla_whatsapp'
+            ]);
+
+            return ['success' => true, 'message' => 'Registro de alergia enviado por WhatsApp'];
+
+        } catch (\Exception $e) {
+            if (isset($pdfInfo['full_path'])) {
+                $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+            }
+            
+            Log::error('❌ Error enviando WhatsApp de alergia: ' . $e->getMessage(), [
+                'alergia_id' => $alergia->id ?? null,
+                'mascota_id' => $mascota->id ?? null
+            ]);
+            throw $e;
+        }
     }
 
     // Agregar este método a la clase EnvioDocumentosService
@@ -701,6 +817,8 @@ class EnvioDocumentosService
 
             // Obtener centro veterinario desde la relación
             $centroVeterinario = $diagnostico->procesoMedico->centroVeterinario ?? null;
+                
+            $user = $mascota->usuario->user; 
 
             // Generar PDF
             $pdfInfo = $this->generarPdfDiagnostico($diagnostico, $mascota, $tutor, $centroVeterinario);
@@ -711,10 +829,10 @@ class EnvioDocumentosService
                     return $this->enviarDiagnosticoPorEmail($tutor, $pdfInfo, $mascota, $diagnostico);
                 
                 case 'telegram':
-                    return $this->enviarDiagnosticoPorTelegram($tutor, $pdfInfo, $mascota, $diagnostico);
+                    return $this->enviarDiagnosticoPorTelegram($user, $pdfInfo, $mascota, $diagnostico);
                 
                 case 'whatsapp':
-                    return $this->enviarDiagnosticoPorWhatsapp($tutor, $pdfInfo, $mascota);
+                    return $this->enviarDiagnosticoPorWhatsapp($tutor, $pdfInfo, $mascota, $diagnostico);
                 
                 default:
                     throw new \Exception('Medio de envío no soportado: ' . $medioEnvio);
@@ -768,10 +886,10 @@ class EnvioDocumentosService
         }
     }
 
-    private function enviarDiagnosticoPorTelegram(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, Diagnostico $diagnostico)
+    private function enviarDiagnosticoPorTelegram(User $user, array $pdfInfo, Mascota $mascota, Diagnostico $diagnostico)
     {
-        if (!$tutor->telegram_chat_id) {
-            throw new \Exception('El tutor no tiene Telegram configurado');
+        if (!$user->telegram_chat_id) {
+            throw new \Exception('El usuario no tiene Telegram configurado');
         }
 
         $estadoLabels = [
@@ -791,7 +909,7 @@ class EnvioDocumentosService
                 "📝 **Documento generado automáticamente por el Sistema Veterinario TERE**";
 
         $result = $this->telegramService->sendDocument(
-            $tutor->telegram_chat_id,
+            $user->telegram_chat_id,
             $pdfInfo['full_path'],
             $caption
         );
@@ -805,12 +923,53 @@ class EnvioDocumentosService
 
     private function enviarDiagnosticoPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
     {
-        Log::info('Envío por WhatsApp preparado - Diagnóstico', [
-            'telefono' => $tutor->telefono,
-            'mascota' => $mascota->nombre
-        ]);
+        try {
+            if (!$tutor->telefono) {
+                throw new \Exception('El tutor no tiene número de teléfono registrado para WhatsApp');
+            }
 
-        return ['success' => true, 'message' => 'Envío por WhatsApp configurado (implementar servicio)'];
+            $telefono = $this->limpiarNumeroTelefono($tutor->telefono);
+            
+            Log::info('📱 Enviando WhatsApp - Diagnóstico', [
+                'original' => $tutor->telefono,
+                'limpio' => $telefono,
+                'mascota' => $mascota->nombre,
+                'archivo' => $pdfInfo['full_path']
+            ]);
+
+            // Usando el método con plantilla de WhatsApp (igual que vacunas)
+            $result = $this->whatsAppService->sendCertificateWithFallback(
+                $telefono,
+                $pdfInfo['full_path'],
+                'INFORME DE DIAGNÓSTICO',
+                $tutor->nombre ?? 'Tutor',
+                $mascota->nombre,
+                "informe_diagnostico_{$mascota->id}.pdf"
+            );
+
+            // Limpiar archivo temporal
+            $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+
+            if (!$result['success']) {
+                throw new \Exception($result['message']);
+            }
+
+            Log::info('✅ Diagnóstico enviado exitosamente', [
+                'telefono' => $telefono,
+                'mascota' => $mascota->nombre,
+                'method' => $result['method'] ?? 'plantilla_whatsapp'
+            ]);
+
+            return ['success' => true, 'message' => 'Informe de diagnóstico enviado por WhatsApp'];
+
+        } catch (\Exception $e) {
+            if (isset($pdfInfo['full_path'])) {
+                $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+            }
+            
+            Log::error('❌ Error enviando diagnóstico: ' . $e->getMessage());
+            throw $e;
+        }
     }
 
     private function generarPdfDiagnostico(Diagnostico $diagnostico, Mascota $mascota, ContactoUsuario $tutor, $centroVeterinario = null): array
@@ -868,6 +1027,8 @@ class EnvioDocumentosService
             // Obtener centro veterinario desde la relación
             $centroVeterinario = $farmaco->procesoMedico->centroVeterinario ?? null;
 
+            $user = $mascota->usuario->user; 
+
             // Generar PDF
             $pdfInfo = $this->pdfService->generarRecetaFarmaco(
                 $farmaco, 
@@ -882,7 +1043,7 @@ class EnvioDocumentosService
                     return $this->enviarFarmacoPorEmail($tutor, $pdfInfo, $mascota, $farmaco);
                 
                 case 'telegram':
-                    return $this->enviarFarmacoPorTelegram($tutor, $pdfInfo, $mascota, $farmaco);
+                    return $this->enviarFarmacoPorTelegram($user, $pdfInfo, $mascota, $farmaco);
                 
                 case 'whatsapp':
                     return $this->enviarFarmacoPorWhatsapp($tutor, $pdfInfo, $mascota, $farmaco);
@@ -939,10 +1100,10 @@ class EnvioDocumentosService
         }
     }
 
-    private function enviarFarmacoPorTelegram(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, Farmaco $farmaco)
+    private function enviarFarmacoPorTelegram(User $user, array $pdfInfo, Mascota $mascota, Farmaco $farmaco)
     {
-        if (!$tutor->telegram_chat_id) {
-            throw new \Exception('El tutor no tiene Telegram configurado');
+        if (!$user->telegram_chat_id) {
+            throw new \Exception('El usuario no tiene Telegram configurado');
         }
 
         $caption = "💊 **RECETA MÉDICA - TRATAMIENTO FARMACOLÓGICO**\n\n" .
@@ -957,7 +1118,7 @@ class EnvioDocumentosService
                   "⚠️ **Consulte con su veterinario antes de cualquier modificación**";
 
         $result = $this->telegramService->sendDocument(
-            $tutor->telegram_chat_id,
+            $user->telegram_chat_id,
             $pdfInfo['full_path'],
             $caption
         );
@@ -971,14 +1132,59 @@ class EnvioDocumentosService
 
     private function enviarFarmacoPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, Farmaco $farmaco)
     {
-        Log::info('Envío por WhatsApp preparado - Receta de Fármaco', [
-            'telefono' => $tutor->telefono,
-            'mascota' => $mascota->nombre,
-            'farmaco_id' => $farmaco->id
-        ]);
+        try {
+            if (!$tutor->telefono) {
+                throw new \Exception('El tutor no tiene número de teléfono registrado para WhatsApp');
+            }
 
-        return ['success' => true, 'message' => 'Envío por WhatsApp configurado (implementar servicio)'];
-    }    
+            $telefono = $this->limpiarNumeroTelefono($tutor->telefono);
+            
+            Log::info('📱 Enviando WhatsApp - Receta de Fármaco', [
+                'original' => $tutor->telefono,
+                'limpio' => $telefono,
+                'mascota' => $mascota->nombre,
+                'farmaco_id' => $farmaco->id,
+                'archivo' => $pdfInfo['full_path']
+            ]);
+
+            // Usando el método con plantilla de WhatsApp
+            $result = $this->whatsAppService->sendCertificateWithFallback(
+                $telefono,
+                $pdfInfo['full_path'],
+                'RECETA DE FÁRMACO',
+                $tutor->nombre ?? 'Tutor',
+                $mascota->nombre,
+                "receta_farmaco_{$mascota->id}_{$farmaco->id}.pdf"
+            );
+
+            // Limpiar archivo temporal
+            $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+
+            if (!$result['success']) {
+                throw new \Exception($result['message']);
+            }
+
+            Log::info('✅ Receta de fármaco enviada exitosamente', [
+                'telefono' => $telefono,
+                'mascota' => $mascota->nombre,
+                'farmaco_id' => $farmaco->id,
+                'method' => $result['method'] ?? 'plantilla_whatsapp'
+            ]);
+
+            return ['success' => true, 'message' => 'Receta de fármaco enviada por WhatsApp'];
+
+        } catch (\Exception $e) {
+            if (isset($pdfInfo['full_path'])) {
+                $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+            }
+            
+            Log::error('❌ Error enviando receta de fármaco: ' . $e->getMessage(), [
+                'farmaco_id' => $farmaco->id ?? null,
+                'mascota_id' => $mascota->id ?? null
+            ]);
+            throw $e;
+        }
+    }   
 
     // Agrega este método a la clase:
     public function enviarCertificadoTerapia(Terapia $terapia, Mascota $mascota, string $medioEnvio)
@@ -994,6 +1200,8 @@ class EnvioDocumentosService
             // Obtener centro veterinario desde la relación
             $centroVeterinario = $terapia->procesoMedico->centroVeterinario ?? null;
 
+            $user = $mascota->usuario->user; 
+
             // Generar PDF
             $pdfInfo = $this->generarPdfTerapia($terapia, $mascota, $tutor, $centroVeterinario);
 
@@ -1003,10 +1211,10 @@ class EnvioDocumentosService
                     return $this->enviarTerapiaPorEmail($tutor, $pdfInfo, $mascota, $terapia);
                 
                 case 'telegram':
-                    return $this->enviarTerapiaPorTelegram($tutor, $pdfInfo, $mascota, $terapia);
+                    return $this->enviarTerapiaPorTelegram($user, $pdfInfo, $mascota, $terapia);
                 
                 case 'whatsapp':
-                    return $this->enviarTerapiaPorWhatsapp($tutor, $pdfInfo, $mascota);
+                    return $this->enviarTerapiaPorWhatsapp($tutor, $pdfInfo, $mascota, $terapia);
                 
                 default:
                     throw new \Exception('Medio de envío no soportado: ' . $medioEnvio);
@@ -1060,10 +1268,10 @@ class EnvioDocumentosService
         }
     }
 
-    private function enviarTerapiaPorTelegram(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, Terapia $terapia)
+    private function enviarTerapiaPorTelegram(User $user, array $pdfInfo, Mascota $mascota, Terapia $terapia)
     {
-        if (!$tutor->telegram_chat_id) {
-            throw new \Exception('El tutor no tiene Telegram configurado');
+        if (!$user->telegram_chat_id) {
+            throw new \Exception('El usuario no tiene Telegram configurado');
         }
 
         $evolucionLabels = [
@@ -1084,7 +1292,7 @@ class EnvioDocumentosService
                 "📝 **Documento generado automáticamente por el Sistema Veterinario TERE**";
 
         $result = $this->telegramService->sendDocument(
-            $tutor->telegram_chat_id,
+            $user->telegram_chat_id,
             $pdfInfo['full_path'],
             $caption
         );
@@ -1098,12 +1306,55 @@ class EnvioDocumentosService
 
     private function enviarTerapiaPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota)
     {
-        Log::info('Envío por WhatsApp preparado - Terapia', [
-            'telefono' => $tutor->telefono,
-            'mascota' => $mascota->nombre
-        ]);
+        try {
+            if (!$tutor->telefono) {
+                throw new \Exception('El tutor no tiene número de teléfono registrado para WhatsApp');
+            }
 
-        return ['success' => true, 'message' => 'Envío por WhatsApp configurado (implementar servicio)'];
+            $telefono = $this->limpiarNumeroTelefono($tutor->telefono);
+            
+            Log::info('📱 Enviando WhatsApp - Terapia', [
+                'original' => $tutor->telefono,
+                'limpio' => $telefono,
+                'mascota' => $mascota->nombre,
+                'archivo' => $pdfInfo['full_path']
+            ]);
+
+            // Usando el método con plantilla de WhatsApp
+            $result = $this->whatsAppService->sendCertificateWithFallback(
+                $telefono,
+                $pdfInfo['full_path'],
+                'INFORME DE TERAPIA',
+                $tutor->nombre ?? 'Tutor',
+                $mascota->nombre,
+                "informe_terapia_{$mascota->id}.pdf"
+            );
+
+            // Limpiar archivo temporal
+            $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+
+            if (!$result['success']) {
+                throw new \Exception($result['message']);
+            }
+
+            Log::info('✅ Informe de terapia enviado exitosamente', [
+                'telefono' => $telefono,
+                'mascota' => $mascota->nombre,
+                'method' => $result['method'] ?? 'plantilla_whatsapp'
+            ]);
+
+            return ['success' => true, 'message' => 'Informe de terapia enviado por WhatsApp'];
+
+        } catch (\Exception $e) {
+            if (isset($pdfInfo['full_path'])) {
+                $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+            }
+            
+            Log::error('❌ Error enviando informe de terapia: ' . $e->getMessage(), [
+                'mascota_id' => $mascota->id ?? null
+            ]);
+            throw $e;
+        }
     }
 
     private function generarPdfTerapia(Terapia $terapia, Mascota $mascota, ContactoUsuario $tutor, $centroVeterinario = null): array
@@ -1161,6 +1412,8 @@ class EnvioDocumentosService
             // Obtener centro veterinario desde la relación
             $centroVeterinario = $cirugia->procesoMedico->centroVeterinario ?? null;
 
+            $user = $mascota->usuario->user; 
+
             // Generar PDF
             $pdfInfo = $this->generarPdfCirugia($cirugia, $mascota, $tutor, $centroVeterinario);
 
@@ -1170,7 +1423,7 @@ class EnvioDocumentosService
                     return $this->enviarCirugiaPorEmail($tutor, $pdfInfo, $mascota, $cirugia);
                 
                 case 'telegram':
-                    return $this->enviarCirugiaPorTelegram($tutor, $pdfInfo, $mascota, $cirugia);
+                    return $this->enviarCirugiaPorTelegram($user, $pdfInfo, $mascota, $cirugia);
                 
                 case 'whatsapp':
                     return $this->enviarCirugiaPorWhatsapp($tutor, $pdfInfo, $mascota, $cirugia);
@@ -1227,10 +1480,10 @@ class EnvioDocumentosService
         }
     }
 
-    private function enviarCirugiaPorTelegram(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, $cirugia)
+    private function enviarCirugiaPorTelegram(User $user, array $pdfInfo, Mascota $mascota, $cirugia)
     {
-        if (!$tutor->telegram_chat_id) {
-            throw new \Exception('El tutor no tiene Telegram configurado');
+        if (!$user->telegram_chat_id) {
+            throw new \Exception('El usuario no tiene Telegram configurado');
         }
 
         $resultadoLabels = [
@@ -1261,7 +1514,7 @@ class EnvioDocumentosService
                 "\n\n📝 **Documento generado automáticamente por el Sistema Veterinario TERE**";
 
         $result = $this->telegramService->sendDocument(
-            $tutor->telegram_chat_id,
+            $user->telegram_chat_id,
             $pdfInfo['full_path'],
             $caption
         );
@@ -1275,13 +1528,58 @@ class EnvioDocumentosService
 
     private function enviarCirugiaPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, $cirugia)
     {
-        Log::info('Envío por WhatsApp preparado - Cirugía', [
-            'telefono' => $tutor->telefono,
-            'mascota' => $mascota->nombre,
-            'cirugia_id' => $cirugia->id
-        ]);
+        try {
+            if (!$tutor->telefono) {
+                throw new \Exception('El tutor no tiene número de teléfono registrado para WhatsApp');
+            }
 
-        return ['success' => true, 'message' => 'Envío por WhatsApp configurado (implementar servicio)'];
+            $telefono = $this->limpiarNumeroTelefono($tutor->telefono);
+            
+            Log::info('📱 Enviando WhatsApp - Cirugía', [
+                'original' => $tutor->telefono,
+                'limpio' => $telefono,
+                'mascota' => $mascota->nombre,
+                'cirugia_id' => $cirugia->id,
+                'archivo' => $pdfInfo['full_path']
+            ]);
+
+            // Usando el método con plantilla de WhatsApp
+            $result = $this->whatsAppService->sendCertificateWithFallback(
+                $telefono,
+                $pdfInfo['full_path'],
+                'INFORME DE CIRUGÍA',
+                $tutor->nombre ?? 'Tutor',
+                $mascota->nombre,
+                "informe_cirugia_{$mascota->id}_{$cirugia->id}.pdf"
+            );
+
+            // Limpiar archivo temporal
+            $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+
+            if (!$result['success']) {
+                throw new \Exception($result['message']);
+            }
+
+            Log::info('✅ Informe de cirugía enviado exitosamente', [
+                'telefono' => $telefono,
+                'mascota' => $mascota->nombre,
+                'cirugia_id' => $cirugia->id,
+                'method' => $result['method'] ?? 'plantilla_whatsapp'
+            ]);
+
+            return ['success' => true, 'message' => 'Informe de cirugía enviado por WhatsApp'];
+
+        } catch (\Exception $e) {
+            if (isset($pdfInfo['full_path'])) {
+                $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+            }
+            
+            Log::error('❌ Error enviando informe de cirugía: ' . $e->getMessage(), [
+                'cirugia_id' => $cirugia->id ?? null,
+                'mascota_id' => $mascota->id ?? null
+            ]);
+            throw $e;
+        }
     }
 
     private function generarPdfCirugia($cirugia, $mascota, $tutor, $centroVeterinario = null): array
@@ -1356,6 +1654,8 @@ class EnvioDocumentosService
             // Obtener centro veterinario desde la relación
             $centroVeterinario = $paliativo->procesoMedico->centroVeterinario ?? null;
 
+            $user = $mascota->usuario->user; 
+
             // Generar PDF
             $pdfInfo = $this->generarPdfPaliativo($paliativo, $mascota, $tutor, $centroVeterinario);
 
@@ -1365,7 +1665,7 @@ class EnvioDocumentosService
                     return $this->enviarPaliativoPorEmail($tutor, $pdfInfo, $mascota, $paliativo);
                 
                 case 'telegram':
-                    return $this->enviarPaliativoPorTelegram($tutor, $pdfInfo, $mascota, $paliativo);
+                    return $this->enviarPaliativoPorTelegram($user, $pdfInfo, $mascota, $paliativo);
                 
                 case 'whatsapp':
                     return $this->enviarPaliativoPorWhatsapp($tutor, $pdfInfo, $mascota, $paliativo);
@@ -1422,10 +1722,10 @@ class EnvioDocumentosService
         }
     }
 
-    private function enviarPaliativoPorTelegram(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, CuidadoPaliativo $paliativo)
+    private function enviarPaliativoPorTelegram(User $user, array $pdfInfo, Mascota $mascota, CuidadoPaliativo $paliativo)
     {
-        if (!$tutor->telegram_chat_id) {
-            throw new \Exception('El tutor no tiene Telegram configurado');
+        if (!$user->telegram_chat_id) {
+            throw new \Exception('El usuario no tiene Telegram configurado');
         }
 
         $resultadoLabels = [
@@ -1465,7 +1765,7 @@ class EnvioDocumentosService
                 "\n📝 **Documento generado automáticamente por el Sistema Veterinario TERE**";
 
         $result = $this->telegramService->sendDocument(
-            $tutor->telegram_chat_id,
+            $user->telegram_chat_id,
             $pdfInfo['full_path'],
             $caption
         );
@@ -1479,13 +1779,58 @@ class EnvioDocumentosService
 
     private function enviarPaliativoPorWhatsapp(ContactoUsuario $tutor, array $pdfInfo, Mascota $mascota, CuidadoPaliativo $paliativo)
     {
-        Log::info('Envío por WhatsApp preparado - Procedimiento Paliativo', [
-            'telefono' => $tutor->telefono,
-            'mascota' => $mascota->nombre,
-            'paliativo_id' => $paliativo->id
-        ]);
+        try {
+            if (!$tutor->telefono) {
+                throw new \Exception('El tutor no tiene número de teléfono registrado para WhatsApp');
+            }
 
-        return ['success' => true, 'message' => 'Envío por WhatsApp configurado (implementar servicio)'];
+            $telefono = $this->limpiarNumeroTelefono($tutor->telefono);
+            
+            Log::info('📱 Enviando WhatsApp - Procedimiento Paliativo', [
+                'original' => $tutor->telefono,
+                'limpio' => $telefono,
+                'mascota' => $mascota->nombre,
+                'paliativo_id' => $paliativo->id,
+                'archivo' => $pdfInfo['full_path']
+            ]);
+
+            // Usando el método con plantilla de WhatsApp
+            $result = $this->whatsAppService->sendCertificateWithFallback(
+                $telefono,
+                $pdfInfo['full_path'],
+                'INFORME DE CUIDADO PALIATIVO',
+                $tutor->nombre ?? 'Tutor',
+                $mascota->nombre,
+                "informe_paliativo_{$mascota->id}_{$paliativo->id}.pdf"
+            );
+
+            // Limpiar archivo temporal
+            $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+
+            if (!$result['success']) {
+                throw new \Exception($result['message']);
+            }
+
+            Log::info('✅ Informe de cuidado paliativo enviado exitosamente', [
+                'telefono' => $telefono,
+                'mascota' => $mascota->nombre,
+                'paliativo_id' => $paliativo->id,
+                'method' => $result['method'] ?? 'plantilla_whatsapp'
+            ]);
+
+            return ['success' => true, 'message' => 'Informe de cuidado paliativo enviado por WhatsApp'];
+
+        } catch (\Exception $e) {
+            if (isset($pdfInfo['full_path'])) {
+                $this->limpiarArchivoTemporal($pdfInfo['full_path']);
+            }
+            
+            Log::error('❌ Error enviando informe de cuidado paliativo: ' . $e->getMessage(), [
+                'paliativo_id' => $paliativo->id ?? null,
+                'mascota_id' => $mascota->id ?? null
+            ]);
+            throw $e;
+        }
     }
 
     private function generarPdfPaliativo(CuidadoPaliativo $paliativo, Mascota $mascota, ContactoUsuario $tutor, $centroVeterinario = null): array

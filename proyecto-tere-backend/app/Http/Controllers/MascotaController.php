@@ -86,7 +86,7 @@ class MascotaController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Mascota registrada correctamente',
-            'mascota' => $mascota->load(['caracteristicas', 'fotos', 'edadRelacion']), 
+            'mascota' => $mascota->load(['caracteristicas', 'fotos']), 
             'caracteristicas' => $caracteristicas ?? null
         ], 201);
     }
@@ -97,7 +97,6 @@ class MascotaController extends Controller
             $mascota = Mascota::with([
                 'caracteristicas', 
                 'fotos', 
-                'edadRelacion', // Usar edadRelacion en lugar de edad
                 'usuario'
             ])
             ->where('id', $id)
@@ -130,7 +129,7 @@ class MascotaController extends Controller
                         'dias' => $mascota->edadRelacion->dias,
                         'meses' => $mascota->edadRelacion->meses,
                         'años' => $mascota->edadRelacion->años,
-                        'edad_formateada' => $mascota->edadRelacion->edad_formateada
+                        'edad_formateada' => $mascota->edad_formateada
                     ] : null,
                     'edad_formateada' => $mascota->edad_formateada, // Usar el accessor
                     'usuario' => [
@@ -233,7 +232,7 @@ class MascotaController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Mascota actualizada correctamente',
-            'mascota' => $mascota->fresh(['caracteristicas', 'fotos', 'edadRelacion'])
+            'mascota' => $mascota->fresh(['caracteristicas', 'fotos'])
         ]);
     }
 
@@ -246,23 +245,36 @@ class MascotaController extends Controller
             'caracteristicas', 
             'fotos', 
             'baja', 
-            'edadRelacion',
-            'usuario'  // Asegurar que se carga el usuario
+            'usuario'
         ])
         ->where('usuario_id', $usuario->id)
         ->whereNull('deleted_at')
         ->get()
         ->map(function ($mascota) {
+            // Procesar fotos para asegurar URLs correctas
+            $fotosProcesadas = $mascota->fotos->map(function ($foto) {
+                // Asegurar que los accessors se carguen
+                return [
+                    'id' => $foto->id,
+                    'mascota_id' => $foto->mascota_id,
+                    'ruta_foto' => $foto->ruta_foto,
+                    'es_principal' => $foto->es_principal,
+                    'url' => $foto->url, // Esto llama al accessor
+                    'is_external' => $foto->is_external,
+                    'optimized_urls' => $foto->optimized_urls // Esto llama al accessor con caché
+                ];
+            });
+            
             return [
                 'id' => $mascota->id,
                 'nombre' => $mascota->nombre,
                 'especie' => $mascota->especie,
                 'fecha_nacimiento' => $mascota->fecha_nacimiento,
                 'sexo' => $mascota->sexo,
-                'edad_formateada' => $mascota->edadRelacion ? $mascota->edadRelacion->edad_formateada : 'Edad no disponible',
+                'edad_formateada' => $mascota->edadRelacion ? $mascota->edad_formateada : 'Edad no disponible',
                 'foto_principal_url' => $mascota->foto_principal_url,
                 'caracteristicas' => $mascota->caracteristicas,
-                'fotos' => $mascota->fotos,
+                'fotos' => $fotosProcesadas, // Usar fotos procesadas
                 'cantidadFotos' => $mascota->fotos->count(),
                 'usuario' => $mascota->usuario ? [
                     'id' => $mascota->usuario->id,
@@ -295,9 +307,9 @@ class MascotaController extends Controller
             ], 422);
         }
 
-        // Validar los datos de la baja
+        // ✅ CAMBIO AQUÍ: Eliminar la validación 'exists:motivos_baja,id'
         $request->validate([
-            'motivo_baja_id' => 'required|integer|exists:motivos_baja,id',
+            'motivo_baja_id' => 'required|integer|min:1|max:8', // Solo validar que sea 1-8
             'observacion' => 'nullable|string|max:500'
         ]);
 
@@ -325,6 +337,8 @@ class MascotaController extends Controller
             }
 
             // Usar el método del modelo para dar de baja
+            // NOTA: Si tu modelo Mascota::darDeBaja() espera un ID de motivo,
+            // puedes guardarlo como número nada más
             $resultado = $mascota->darDeBaja(
                 $request->motivo_baja_id,
                 $request->observacion,
@@ -396,30 +410,24 @@ class MascotaController extends Controller
         Log::info('Término:', ['termino' => $termino, 'tipo' => $tipo]);
 
         $query = Mascota::with([
-            'usuario.user', // Cargar la relación usuario y su user asociado
+            'usuario.user',
             'usuario.contacto',
-            'fotos',
+            'fotos',  // Cargar las fotos
             'caracteristicas'
         ])->whereNull('deleted_at');
 
         switch ($tipo) {
             case 'nombre':
                 $query->where('nombre', 'LIKE', "%{$termino}%");
-                Log::info('Buscando por nombre');
                 break;
-                
             case 'tutor':
-                // CORRECCIÓN: Buscar en la tabla users a través de la relación polimórfica
                 $query->whereHas('usuario.user', function($q) use ($termino) {
                     $q->where('name', 'LIKE', "%{$termino}%")
                     ->orWhere('email', 'LIKE', "%{$termino}%");
                 });
-                Log::info('Buscando por tutor en users');
                 break;
-                
             case 'especie':
                 $query->where('especie', 'LIKE', "%{$termino}%");
-                Log::info('Buscando por especie');
                 break;
         }
 
@@ -430,35 +438,47 @@ class MascotaController extends Controller
             'mascotas_ids' => $mascotas->pluck('id')->toArray()
         ]);
 
-        // Transformar los datos para la respuesta
+        // ✅ TRANSFORMACIÓN CORREGIDA - Mantener los objetos con sus accessors
         $mascotasTransformadas = $mascotas->map(function($mascota) {
-            $mascotaData = $mascota->toArray();
-            
-            // Asegurar que la información del usuario esté completa
-            if ($mascota->usuario) {
-                $usuario = $mascota->usuario;
-                $user = $usuario->user; // Obtener el User asociado
-                
-                $mascotaData['usuario'] = [
-                    'id' => $usuario->id,
-                    'nombre' => $usuario->nombre,
-                    'user_id' => $user ? $user->id : null,
-                    'email' => $user ? $user->email : null,
-                    'contacto' => $usuario->contacto ? [
-                        'email' => $usuario->contacto->email,
-                        'telefono' => $usuario->contacto->telefono
+            // Mantener como objetos Eloquent (no convertir a array todavía)
+            $mascotaData = [
+                'id' => $mascota->id,
+                'nombre' => $mascota->nombre,
+                'especie' => $mascota->especie,
+                'sexo' => $mascota->sexo,
+                'castrado' => $mascota->castrado,
+                'fecha_nacimiento' => $mascota->fecha_nacimiento,
+                'usuario_id' => $mascota->usuario_id,
+                'created_at' => $mascota->created_at,
+                'updated_at' => $mascota->updated_at,
+                'deleted_at' => $mascota->deleted_at,
+                'fotos' => $mascota->fotos->map(function($foto) {
+                    // ✅ Incluir TODOS los atributos y accessors
+                    return [
+                        'id' => $foto->id,
+                        'mascota_id' => $foto->mascota_id,
+                        'ruta_foto' => $foto->ruta_foto,
+                        'es_principal' => $foto->es_principal,
+                        'created_at' => $foto->created_at,
+                        'updated_at' => $foto->updated_at,
+                        'url' => $foto->url,  // ✅ Accessor
+                        'is_external' => $foto->is_external,  // ✅ Accessor
+                        'optimized_urls' => $foto->optimized_urls  // ✅ Accessor
+                    ];
+                }),
+                'caracteristicas' => $mascota->caracteristicas,
+                'foto_principal_url' => $mascota->foto_principal_url,  // ✅ Accessor del modelo Mascota
+                'usuario' => $mascota->usuario ? [
+                    'id' => $mascota->usuario->id,
+                    'nombre' => $mascota->usuario->nombre,
+                    'user_id' => $mascota->usuario->user_id,
+                    'email' => $mascota->usuario->user ? $mascota->usuario->user->email : null,
+                    'contacto' => $mascota->usuario->contacto ? [
+                        'email' => $mascota->usuario->contacto->email,
+                        'telefono' => $mascota->usuario->contacto->telefono
                     ] : null
-                ];
-            }
-            
-            $mascotaData['foto_principal_url'] = $mascota->foto_principal_url;
-            
-            if (isset($mascotaData['fotos']) && is_array($mascotaData['fotos'])) {
-                $mascotaData['fotos'] = array_map(function($foto) {
-                    $foto['url_completa'] = asset('storage/' . $foto['ruta_foto']);
-                    return $foto;
-                }, $mascotaData['fotos']);
-            }
+                ] : null
+            ];
             
             return $mascotaData;
         });
@@ -478,7 +498,6 @@ class MascotaController extends Controller
         $mascotas = Mascota::with([
             'caracteristicas', 
             'fotos', 
-            'edadRelacion'
         ])
         ->where('usuario_id', $usuario->id)
         ->whereNull('deleted_at')
@@ -528,7 +547,6 @@ class MascotaController extends Controller
         $mascotasDisponibles = Mascota::with([
             'caracteristicas', 
             'fotos', 
-            'edadRelacion'
         ])
         ->where('usuario_id', $usuario->id)
         ->whereNull('deleted_at')
@@ -577,7 +595,6 @@ class MascotaController extends Controller
         $mascotasEnAdopcion = Mascota::with([
             'caracteristicas', 
             'fotos', 
-            'edadRelacion'
         ])
         ->where('usuario_id', $usuario->id)
         ->whereNull('deleted_at')

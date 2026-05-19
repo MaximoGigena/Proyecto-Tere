@@ -16,7 +16,13 @@ return new class extends Migration
             $table->string('nombre');
             $table->enum('especie', ['canino', 'felino', 'equino', 'bovino', 'ave', 'pez', 'otro']);
             $table->date('fecha_nacimiento')->nullable();
-            $table->string('edad_actual')->nullable();
+
+            $table->integer('edad_dias')->nullable();
+            $table->integer('edad_meses')->nullable();
+            $table->integer('edad_años')->nullable();
+            $table->string('edad_formateada')->nullable();
+            $table->timestamp('ultima_actualizacion_edad')->useCurrent();
+
             $table->enum('sexo', ['macho', 'hembra']);
             $table->boolean('castrado')->nullable();
             $table->timestamp('deleted_at')->nullable();

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\FacebookAuthController;
+use App\Http\Controllers\ImageController;
 use Illuminate\Http\Request;
 
 Route::get('/', function () {
@@ -66,3 +67,7 @@ Route::middleware(['auth', \App\Http\Middleware\CheckUserSuspended::class])->gro
         return view('dashboard');
     });
 });
+
+Route::get('/image/dynamic/{path}/{size}', [ImageController::class, 'dynamic'])
+    ->where('path', '.*')
+    ->name('image.dynamic');

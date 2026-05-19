@@ -5,7 +5,6 @@ namespace App\Services;
 
 use Twilio\Rest\Client;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class WhatsAppService
 {
@@ -24,10 +23,17 @@ class WhatsAppService
     }
 
     /**
-     * Enviar documento usando Base64 (más confiable que URL)
+     * Enviar documento USANDO PLANTILLA (recomendado)
+     * Esta es la solución para el error 63016
      */
-    public function sendDocumentAsBase64(string $to, string $pdfPath, ?string $caption = null, ?string $filename = null): array
-    {
+    public function sendDocumentWithTemplate(
+        string $to, 
+        string $pdfPath, 
+        string $tipoProcedimiento,
+        string $nombreTutor,
+        string $nombreMascota,
+        ?string $filename = null
+    ): array {
         try {
             if (!file_exists($pdfPath)) {
                 throw new \Exception("El archivo PDF no existe: {$pdfPath}");
@@ -35,36 +41,132 @@ class WhatsAppService
 
             $to = $this->formatPhoneNumberForTwilio($to);
             
-            // Leer el PDF y convertirlo a Base64
-            $pdfContent = file_get_contents($pdfPath);
-            $base64Content = base64_encode($pdfContent);
+            // Primero, subir el archivo a Twilio Media
+            $mediaUrl = $this->uploadMediaToTwilio($pdfPath, $filename);
             
-            // Crear URI data
-            $mediaUrl = 'data:application/pdf;base64,' . $base64Content;
+            // Obtener SID de la plantilla (debes crearla en Twilio Console)
+            $templateSid = env('TWILIO_TEMPLATE_CERTIFICADO_SID');
+            if (!$templateSid) {
+                throw new \Exception('No se ha configurado el SID de la plantilla de WhatsApp');
+            }
             
-            Log::info('📤 Enviando documento como Base64', [
+            Log::info('📤 Enviando documento usando plantilla de WhatsApp', [
                 'to' => $to,
+                'template_sid' => $templateSid,
                 'filename' => $filename,
-                'size' => strlen($pdfContent)
+                'tipo_procedimiento' => $tipoProcedimiento
             ]);
+
+            // Enviar mensaje usando Content Template
+            $message = $this->twilioClient->messages->create(
+                $to,
+                [
+                    'from' => $this->whatsappNumber,
+                    'contentSid' => $templateSid,
+                    'contentVariables' => json_encode([
+                        '1' => $tipoProcedimiento,      // Tipo de certificado
+                        '2' => $nombreTutor,            // Nombre del tutor
+                        '3' => $nombreMascota,          // Nombre de la mascota
+                        '4' => $filename ?? 'documento.pdf'  // Nombre del archivo
+                    ]),
+                    'mediaUrl' => [$mediaUrl]  // Adjuntar el documento
+                ]
+            );
+
+            Log::info('✅ Documento enviado exitosamente con plantilla', [
+                'to' => $to,
+                'message_sid' => $message->sid,
+                'status' => $message->status
+            ]);
+
+            return [
+                'success' => true,
+                'message' => 'Documento enviado correctamente con plantilla',
+                'message_id' => $message->sid,
+                'status' => $message->status
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('❌ Error enviando documento con plantilla', [
+                'error' => $e->getMessage(),
+                'to' => $to ?? null
+            ]);
+            
+            return [
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Subir archivo a Twilio Media para usar como attachment
+     */
+    private function uploadMediaToTwilio(string $pdfPath, ?string $filename = null): string
+    {
+        // Leer el archivo
+        $pdfContent = file_get_contents($pdfPath);
+        $base64Content = base64_encode($pdfContent);
+        
+        $filename = $filename ?? 'certificado_' . time() . '.pdf';
+        
+        // Subir a Twilio Media Service
+        $media = $this->twilioClient->media->v1->media->create([
+            'contentType' => 'application/pdf',
+            'friendlyName' => $filename,
+            'media' => $base64Content
+        ]);
+        
+        Log::info('📎 Archivo subido a Twilio Media', [
+            'media_sid' => $media->sid,
+            'filename' => $filename
+        ]);
+        
+        // Retornar la URL del media en Twilio
+        return "https://api.twilio.com/2010-04-01/Accounts/{$this->twilioClient->accountSid}/Messages/Media/{$media->sid}";
+    }
+
+    /**
+     * Método alternativo: Enviar documento con URL pública usando plantilla
+     * (Si la plantilla ya incluye la URL como variable)
+     */
+    public function sendDocumentWithTemplateAndUrl(
+        string $to,
+        string $publicUrl,
+        string $tipoProcedimiento,
+        string $nombreTutor,
+        string $nombreMascota
+    ): array {
+        try {
+            $to = $this->formatPhoneNumberForTwilio($to);
+            $templateSid = env('TWILIO_TEMPLATE_CERTIFICADO_SID');
+            
+            if (!$templateSid) {
+                throw new \Exception('No se ha configurado el SID de la plantilla de WhatsApp');
+            }
 
             $message = $this->twilioClient->messages->create(
                 $to,
                 [
                     'from' => $this->whatsappNumber,
-                    'body' => $caption ?? '📄 Documento generado por Sistema Veterinario TERE',
-                    'mediaUrl' => [$mediaUrl]
+                    'contentSid' => $templateSid,
+                    'contentVariables' => json_encode([
+                        '1' => $tipoProcedimiento,
+                        '2' => $nombreTutor,
+                        '3' => $nombreMascota,
+                        '4' => $publicUrl  // La URL pública de tu PDF
+                    ])
                 ]
             );
 
             return [
                 'success' => true,
-                'message' => 'Documento enviado correctamente',
+                'message' => 'Documento enviado correctamente con plantilla',
                 'message_id' => $message->sid
             ];
 
         } catch (\Exception $e) {
-            Log::error('❌ Error enviando documento Base64', [
+            Log::error('❌ Error enviando documento con plantilla y URL', [
                 'error' => $e->getMessage()
             ]);
             
@@ -76,51 +178,59 @@ class WhatsAppService
     }
 
     /**
-     * Enviar un documento PDF por WhatsApp
+     * Enviar mensaje de texto usando plantilla (para mensajes fuera de ventana)
+     */
+    public function sendTextMessageWithTemplate(string $to, string $templateSid, array $variables): array
+    {
+        try {
+            $to = $this->formatPhoneNumberForTwilio($to);
+
+            $message = $this->twilioClient->messages->create(
+                $to,
+                [
+                    'from' => $this->whatsappNumber,
+                    'contentSid' => $templateSid,
+                    'contentVariables' => json_encode($variables)
+                ]
+            );
+
+            return [
+                'success' => true,
+                'message_id' => $message->sid
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('❌ Error enviando mensaje con plantilla: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Enviar documento (FALLBACK: solo funciona dentro de ventana de 24h)
      */
     public function sendDocument(string $to, string $pdfPath, ?string $caption = null, ?string $filename = null): array
     {
         try {
-            // Verificar que el archivo existe
             if (!file_exists($pdfPath)) {
                 throw new \Exception("El archivo PDF no existe en la ruta: {$pdfPath}");
             }
 
-            // Formatear número para Twilio (formato: whatsapp:+549XXXXXXXXXX)
             $to = $this->formatPhoneNumberForTwilio($to);
             
-            // Verificar si el número está verificado en modo trial
-            if ($this->isTrial && !$this->isVerifiedNumber($to)) {
-                $errorMsg = "⚠️ Modo trial: El número {$to} no está verificado. Debes verificarlo en Twilio Console.";
-                Log::warning($errorMsg);
-                
-                return [
-                    'success' => false,
-                    'message' => $errorMsg,
-                    'needs_verification' => true
-                ];
-            }
+            // Obtener URL pública
+            $mediaUrl = $this->getPublicUrl($pdfPath, $filename ?? 'documento.pdf');
 
-            // Preparar el nombre del archivo
-            if (!$filename) {
-                $filename = 'documento_' . time() . '.pdf';
-            } elseif (!str_ends_with($filename, '.pdf')) {
-                $filename .= '.pdf';
-            }
-
-            // Obtener URL pública del archivo
-            $mediaUrl = $this->getPublicUrl($pdfPath, $filename);
-
-            Log::info('📤 Enviando documento por Twilio WhatsApp', [
+            Log::info('📤 Enviando documento por Twilio WhatsApp (intentando método estándar)', [
                 'to' => $to,
                 'from' => $this->whatsappNumber,
-                'filename' => $filename,
                 'url' => $mediaUrl
             ]);
 
-            // Enviar mensaje con documento usando Twilio
             $message = $this->twilioClient->messages->create(
-                $to, // Número destino (formato whatsapp:+...)
+                $to,
                 [
                     'from' => $this->whatsappNumber,
                     'body' => $caption ?? '📄 Documento generado por Sistema Veterinario TERE',
@@ -142,74 +252,25 @@ class WhatsAppService
             ];
 
         } catch (\Twilio\Exceptions\RestException $e) {
-            Log::error('❌ Error de Twilio REST API', [
-                'to' => $to ?? null,
-                'error_code' => $e->getCode(),
-                'error_message' => $e->getMessage(),
-                'more_info' => $e->getMoreInfo()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'Error Twilio: ' . $e->getMessage(),
-                'code' => $e->getCode()
-            ];
-            
-        } catch (\Exception $e) {
-            Log::error('❌ Excepción al enviar documento por WhatsApp', [
-                'to' => $to ?? null,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'Error: ' . $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Enviar mensaje de texto simple
-     */
-    public function sendTextMessage(string $to, string $message): array
-    {
-        try {
-            $to = $this->formatPhoneNumberForTwilio($to);
-            
-            // Verificar si el número está verificado en modo trial
-            if ($this->isTrial && !$this->isVerifiedNumber($to)) {
-                $errorMsg = "⚠️ Modo trial: El número {$to} no está verificado.";
-                Log::warning($errorMsg);
+            // Si el error es 63016, intentar con plantilla
+            if ($e->getCode() == 63016) {
+                Log::warning('⚠️ Error 63016: Fora de ventana de 24h, intentando con plantilla...');
                 
+                // Intentar con plantilla (necesitas los datos del tutor)
                 return [
                     'success' => false,
-                    'message' => $errorMsg,
-                    'needs_verification' => true
+                    'message' => 'Se requiere usar plantilla de WhatsApp para este envío',
+                    'error_code' => 63016,
+                    'needs_template' => true
                 ];
             }
-
-            $twilioMessage = $this->twilioClient->messages->create(
-                $to,
-                [
-                    'from' => $this->whatsappNumber,
-                    'body' => $message
-                ]
-            );
-
-            Log::info('✅ Mensaje de texto enviado por Twilio', [
-                'to' => $to,
-                'message_sid' => $twilioMessage->sid
+            
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('❌ Excepción al enviar documento por WhatsApp', [
+                'error' => $e->getMessage()
             ]);
 
-            return [
-                'success' => true,
-                'message' => 'Mensaje enviado correctamente',
-                'message_id' => $twilioMessage->sid
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Error enviando mensaje de texto: ' . $e->getMessage());
             return [
                 'success' => false,
                 'message' => 'Error: ' . $e->getMessage()
@@ -218,118 +279,70 @@ class WhatsAppService
     }
 
     /**
-     * Formatear número para Twilio (formato E.164 con prefijo whatsapp:)
-     * Ejemplo: 5493758526513 -> whatsapp:+5493758526513
+     * Método principal que decide qué estrategia usar
      */
+    public function sendCertificateWithFallback(
+        string $to,
+        string $pdfPath,
+        string $tipoProcedimiento,
+        string $nombreTutor,
+        string $nombreMascota,
+        ?string $filename = null
+    ): array {
+        // Primero intentar con el método estándar (si está dentro de la ventana)
+        $result = $this->sendDocument($to, $pdfPath, null, $filename);
+        
+        // Si falla por ventana de tiempo, usar plantilla
+        if (isset($result['needs_template']) && $result['needs_template'] === true) {
+            Log::info('🔄 Cambiando a método con plantilla por ventana de tiempo cerrada');
+            
+            return $this->sendDocumentWithTemplate(
+                $to,
+                $pdfPath,
+                $tipoProcedimiento,
+                $nombreTutor,
+                $nombreMascota,
+                $filename
+            );
+        }
+        
+        return $result;
+    }
+
     private function formatPhoneNumberForTwilio(string $phone): string
     {
-        // Limpiar número (solo dígitos)
         $phone = preg_replace('/[^0-9]/', '', $phone);
         
-        // Para Argentina, SIEMPRE debe tener el 9 después del 54
-        // 543758526513 -> 5493758526513
-        
-        // CASO 1: Viene con 54 (12 dígitos) - Ej: 543758526513
         if (strlen($phone) === 12 && str_starts_with($phone, '54')) {
-            // Agregar el 9 después del 54
-            $phone = '549' . substr($phone, 2); // 549 + 3758526513
-        }
-        // CASO 2: Viene con 549 (13 dígitos) - Ej: 5493758526513
-        elseif (strlen($phone) === 13 && str_starts_with($phone, '549')) {
-            // Ya está bien, no hacer nada
-        }
-        // CASO 3: Viene sin código de país (10 dígitos) - Ej: 3758526513
-        elseif (strlen($phone) === 10) {
+            $phone = '549' . substr($phone, 2);
+        } elseif (strlen($phone) === 13 && str_starts_with($phone, '549')) {
+            // Ya está bien
+        } elseif (strlen($phone) === 10) {
             $phone = '549' . $phone;
-        }
-        // CASO 4: Viene con 9 pero sin 54 (11 dígitos) - Ej: 93758526513
-        elseif (strlen($phone) === 11 && str_starts_with($phone, '9')) {
+        } elseif (strlen($phone) === 11 && str_starts_with($phone, '9')) {
             $phone = '54' . $phone;
         }
         
-        // Formato final: whatsapp:+5493758526513
-        $formatted = 'whatsapp:+' . $phone;
-        
-        Log::info('📞 Número formateado para Twilio', [
-            'original_input' => $phone,
-            'formatted' => $formatted,
-            'length' => strlen($formatted)
-        ]);
-        
-        return $formatted;
+        return 'whatsapp:+' . $phone;
     }
-    /**
-     * Obtener URL pública del archivo (mismo método que tenías)
-     */
-    /**
-     * Obtener URL pública del archivo
-     */
+
     private function getPublicUrl(string $localPath, string $filename): string
     {
-        // Crear directorio público si no existe
         $publicDir = public_path('temp_whatsapp');
         if (!file_exists($publicDir)) {
             mkdir($publicDir, 0777, true);
         }
 
-        // Copiar archivo al directorio público
         $publicPath = $publicDir . '/' . $filename;
         copy($localPath, $publicPath);
-        
-        // Asegurar permisos correctos
         chmod($publicPath, 0644);
         
-        // Verificar que el archivo se copió correctamente
-        if (!file_exists($publicPath)) {
-            throw new \Exception("No se pudo copiar el archivo al directorio público: {$publicPath}");
-        }
-        
-        // Construir URL PÚBLICA accesible externamente
-        // Usar la URL del BACKEND (ngrok) no la de localhost
         $baseUrl = env('APP_URL_BACKEND', env('APP_URL', 'http://localhost:8000'));
-        $publicUrl = rtrim($baseUrl, '/') . '/temp_whatsapp/' . $filename;
-        
-        Log::info('🔗 URL pública generada', [
-            'local_path' => $localPath,
-            'public_path' => $publicPath,
-            'public_url' => $publicUrl,
-            'file_exists' => file_exists($publicPath),
-            'file_size' => file_exists($publicPath) ? filesize($publicPath) : 0
-        ]);
-        
-        // Programar eliminación después de 5 minutos
-        $this->scheduleFileDeletion($publicPath, 300);
-        
-        return $publicUrl;
+        return rtrim($baseUrl, '/') . '/temp_whatsapp/' . $filename;
     }
 
-    /**
-     * Programar eliminación de archivo temporal (igual)
-     */
-    private function scheduleFileDeletion(string $filePath, int $delaySeconds = 300): void
-    {
-        if (function_exists('fastcgi_finish_request')) {
-            register_shutdown_function(function() use ($filePath, $delaySeconds) {
-                sleep($delaySeconds);
-                if (file_exists($filePath)) {
-                    unlink($filePath);
-                    Log::info('🗑️ Archivo temporal eliminado: ' . $filePath);
-                }
-            });
-        } else {
-            $cleanupLog = storage_path('logs/whatsapp_files_to_cleanup.log');
-            $expirationTime = time() + $delaySeconds;
-            file_put_contents($cleanupLog, "{$filePath}|{$expirationTime}\n", FILE_APPEND);
-        }
-    }
-
-    /**
-     * Verificar si un número está en la lista de números verificados (modo trial)
-     */
     private function isVerifiedNumber(string $to): bool
     {
-        // En modo trial, Twilio solo permite enviar a números verificados
-        // Puedes obtener la lista de la API o mantener una lista local
         $verifiedNumbers = explode(',', env('TWILIO_VERIFIED_NUMBERS', ''));
         
         foreach ($verifiedNumbers as $verified) {

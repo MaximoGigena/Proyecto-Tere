@@ -2,6 +2,7 @@
 import historialLayout from '@/components/módulo_mascotas/carpetaHistoriales.vue'
 import propietarios from '@/components/módulo_mascotas/historialDueños.vue'
 import Episodios from '@/components/módulo_mascotas/historialEpisodios.vue'
+import fichaMedica from '@/components/módulo_mascotas/fichaMedica.vue'
 import vacunas from '@/components/módulo_mascotas/historialPreventivos.vue'
 import HistorialMedicoLayout from '@/components/módulo_mascotas/historialClinico.vue'
 import Procedimientos from '@/components/módulo_seguimiento/historiaClinica/cirugías.vue' 
@@ -28,9 +29,9 @@ const baseRoutes = [
     })
   },
   { 
-    path: 'episodios/:id?', 
-    name: 'episodios', 
-    component: Episodios,
+    path: 'ficha-medica/:id?', 
+    name: 'fichaMedica', 
+    component: fichaMedica,
     meta: { overlay: false },
     props: (route) => ({
       mascotaId: route.params.id,
@@ -199,9 +200,9 @@ export const overlayVeterinario = [
             })
           },
           { 
-            path: 'episodios',
-            name: 'veterinario-episodios',
-            component: Episodios,
+            path: 'ficha-medica',
+            name: 'veterinario-fichaMedica',
+            component: fichaMedica,
             meta: { overlay: true },
             props: (route) => ({
               mascotaId: route.params.id,

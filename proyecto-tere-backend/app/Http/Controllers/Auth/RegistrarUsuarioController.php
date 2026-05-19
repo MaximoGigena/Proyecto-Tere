@@ -27,7 +27,7 @@ class RegistrarUsuarioController extends Controller
                 'nombre' => 'required|string|max:100',
                 'email' => 'required|email|unique:users,email|max:100',
                 'password' => 'required|string|min:8',
-                'edad' => 'nullable|integer|min:14',
+                'fecha_nacimiento' => 'nullable|date|before:today|before:' . now()->subYears(14)->format('Y-m-d'),
                 'foto_perfil' => 'required|image|max:2048',
                 
                 // Características
@@ -48,7 +48,7 @@ class RegistrarUsuarioController extends Controller
             // Crear usuario
             $usuario = Usuario::create([
                 'nombre' => $validatedData['nombre'],
-                'edad' => $validatedData['edad'] ?? null,
+                'fecha_nacimiento' => $validatedData['fecha_nacimiento'] ?? null,
                 'activo' => true,
             ]);
 
@@ -223,49 +223,24 @@ class RegistrarUsuarioController extends Controller
     public function show($id)
     {
         try {
-            Log::info('🔍 ===== INICIANDO SOLICITUD DE USUARIO =====');
-            Log::info('🔍 ID recibido en show():', ['id' => $id]);
-            Log::info('🔍 Tipo de ID esperado: User ID (no Usuario ID)');
+            Log::info('🔍 ===== INICIANDO SOLICITUD DE USUARIO =====', ['id' => $id]);
 
-            $userAuth = Auth::user();
-            Log::info('🔍 Usuario autenticado actualmente:', [
-                'auth_user_id' => $userAuth ? $userAuth->id : null,
-                'auth_user_type' => $userAuth ? $userAuth->userable_type : null
-            ]);
-            
-            // ✅ CORRECCIÓN: El parámetro $id es el ID de User, no de Usuario
-            // Primero buscar el User
             $user = User::with([
                 'userable' => function($query) {
-                    // Cargar Usuario con todas sus relaciones
                     if ($query->getModel() instanceof \App\Models\Usuario) {
                         $query->with(['caracteristicas', 'contacto', 'ubicaciones', 'fotos']);
                     }
                 }
             ])->find($id);
-
-            Log::info('🔍 User encontrado:', [
-                'user_id' => $user->id,
-                'email' => $user->email,
-                'userable_type' => $user->userable_type,
-                'userable_id' => $user->userable_id
-            ]);
             
             if (!$user) {
-                Log::warning('❌ User no encontrado con ID:', ['user_id' => $id]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Usuario no encontrado'
                 ], 404);
             }
             
-            // Verificar que el userable sea un Usuario
             if (!$user->userable || !($user->userable instanceof \App\Models\Usuario)) {
-                Log::warning('❌ El User no tiene un Usuario asociado:', [
-                    'user_id' => $user->id,
-                    'userable_type' => $user->userable_type,
-                    'userable_id' => $user->userable_id
-                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Perfil de usuario no encontrado'
@@ -274,22 +249,24 @@ class RegistrarUsuarioController extends Controller
             
             $usuario = $user->userable;
             
-            Log::info('✅ Usuario encontrado:', [
-                'user_id' => $user->id,
-                'usuario_id' => $usuario->id,
-                'nombre' => $usuario->nombre,
-                'tiene_caracteristicas' => $usuario->caracteristicas ? 'SI' : 'NO'
-            ]);
-            
-            // Obtener ubicación actual (más reciente)
+            // 🔥 CORREGIDO: Obtener ubicación actual con formato de texto
             $ubicacionActual = $usuario->ubicaciones()->latest('location_updated_at')->first();
+            
+            // 🔥 NUEVO: Formatear la ubicación para mostrarla como texto
+            $ubicacionTexto = null;
+            if ($ubicacionActual) {
+                // Priorizar ciudad, estado y país en ese orden
+                $ubicacionPartes = [];
+                if ($ubicacionActual->city) $ubicacionPartes[] = $ubicacionActual->city;
+                if ($ubicacionActual->state) $ubicacionPartes[] = $ubicacionActual->state;
+                if ($ubicacionActual->country) $ubicacionPartes[] = $ubicacionActual->country;
+                
+                $ubicacionTexto = !empty($ubicacionPartes) ? implode(', ', $ubicacionPartes) : 'Ubicación registrada';
+            }
             
             // Calcular tiempo de registro
             $createdAt = $usuario->created_at;
-            $now = now();
-            $diasRegistrado = $createdAt->diffInDays($now);
-            
-            // Calcular tiempo de registro
+            $diasRegistrado = $createdAt->diffInDays(now());
             $tiempoRegistro = $this->formatearTiempoRegistro($diasRegistrado, $createdAt);
             
             // Obtener foto principal
@@ -298,21 +275,19 @@ class RegistrarUsuarioController extends Controller
                 $fotoPrincipal = $usuario->fotos()->first();
             }
             
-            // Estructura más clara para el frontend
-            $response = [
+            return response()->json([
                 'success' => true,
                 'usuario' => [
-                    'id' => $usuario->id, // ID del Usuario
-                    'user_id' => $user->id, // ID del User
+                    'id' => $usuario->id,
+                    'user_id' => $user->id,
                     'nombre' => $usuario->nombre,
-                    'edad' => $usuario->edad,
-                    'ubicacion' => $ubicacionActual ? $ubicacionActual->location : null,
                     'email' => $user->email,
-                    // DATOS DE TIEMPO DE REGISTRO
+                    'edad' => $usuario->edad,
+                    'fecha_nacimiento' => $usuario->fecha_nacimiento ? $usuario->fecha_nacimiento->format('Y-m-d') : null,
+                    'ubicacion' => $ubicacionTexto, // 🔥 AHORA DEVUELVE TEXTO FORMATEADO
                     'tiempo_registro' => $tiempoRegistro,
                     'dias_registrado' => $diasRegistrado,
                     'created_at' => $createdAt->toISOString(),
-                    // FOTO DE PERFIL
                     'foto_principal' => $fotoPrincipal ? asset('storage/' . $fotoPrincipal->ruta_foto) : null,
                     'caracteristicas' => $usuario->caracteristicas ? [
                         'ocupacion' => $usuario->caracteristicas->ocupacion,
@@ -335,34 +310,9 @@ class RegistrarUsuarioController extends Controller
                             'es_principal' => $foto->es_principal
                         ];
                     })
-                ],
-                'debug_info' => [
-                    'input_id' => $id,
-                    'user_id_found' => $user->id,
-                    'usuario_id_found' => $usuario->id,
-                    'userable_type' => $user->userable_type,
-                    'es_usuario' => $user->userable instanceof \App\Models\Usuario
                 ]
-            ];
-            
-            Log::info('📤 Enviando respuesta JSON:', [
-                'user_id' => $response['usuario']['user_id'],
-                'usuario_id' => $response['usuario']['id'],
-                'usuario_nombre' => $response['usuario']['nombre'],
-                'tiempo_registro' => $response['usuario']['tiempo_registro']
             ]);
             
-            return response()->json($response);
-            
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            Log::error('❌ Modelo no encontrado:', [
-                'id' => $id,
-                'error' => $e->getMessage()
-            ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Usuario no encontrado'
-            ], 404);
         } catch (\Exception $e) {
             Log::error('❌ Error al obtener usuario: ' . $e->getMessage());
             return response()->json([
@@ -384,17 +334,19 @@ class RegistrarUsuarioController extends Controller
             Log::info('🔧 ===== INICIANDO ACTUALIZACIÓN DE USUARIO =====', ['usuario_id' => $id]);
             Log::info('🔧 Datos recibidos del frontend:', $request->all());
 
+            // ✅ CORRECCIÓN: Buscar por ID de USUARIO (no de User)
             $usuario = Usuario::findOrFail($id);
+            
             Log::info('🔧 Usuario encontrado en BD:', [
                 'id' => $usuario->id,
                 'nombre_actual' => $usuario->nombre,
-                'edad_actual' => $usuario->edad
+                'fecha_nacimiento_actual' => $usuario->fecha_nacimiento
             ]);
 
-            // ✅ AGREGAR 'nombre' A LA VALIDACIÓN
+            // ✅ AGREGAR VALIDACIÓN PARA FECHA DE NACIMIENTO
             $validatedData = $request->validate([
-                'nombre' => 'nullable|string|max:100',  // 👈 ESTO FALTABA
-                'edad' => 'nullable|integer|min:14',
+                'nombre' => 'nullable|string|max:100',
+                'fecha_nacimiento' => 'nullable|date|before:today|before:' . now()->subYears(14)->format('Y-m-d'),
                 'tipoVivienda' => 'nullable|string',
                 'ocupacion' => 'nullable|string',
                 'experiencia' => 'nullable|string',
@@ -410,10 +362,21 @@ class RegistrarUsuarioController extends Controller
 
             Log::info('🔧 Datos validados:', $validatedData);
 
+            // ✅ ACTUALIZAR CON LA FECHA DE NACIMIENTO CORRECTAMENTE
+            $updateData = [
+                'nombre' => $validatedData['nombre'] ?? $usuario->nombre,
+            ];
+            
+            // Solo actualizar fecha_nacimiento si viene en la petición
+            if (isset($validatedData['fecha_nacimiento'])) {
+                $updateData['fecha_nacimiento'] = $validatedData['fecha_nacimiento'];
+                Log::info('🔧 Actualizando fecha_nacimiento a:', ['fecha' => $validatedData['fecha_nacimiento']]);
+            }
+
             // ✅ ACTUALIZAR EL NOMBRE
             $usuario->update([
                 'nombre' => $validatedData['nombre'] ?? $usuario->nombre,  // 👈 ESTO FALTABA
-                'edad' => $validatedData['edad'] ?? $usuario->edad,
+                'fecha_nacimiento' => $validatedData['fecha_nacimiento'] ?? $usuario->fecha_nacimiento,
             ]);
             
             Log::info('🔧 Usuario actualizado - Nuevo nombre:', ['nuevo_nombre' => $usuario->nombre]);
@@ -494,12 +457,18 @@ class RegistrarUsuarioController extends Controller
 
             $usuario->load(['caracteristicas', 'contacto', 'fotos']);
 
+            // ✅ INCLUIR LA FOTO PRINCIPAL EN LA RESPUESTA
+            $fotoPrincipal = $usuario->fotos()->where('es_principal', true)->first();
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Usuario actualizado exitosamente',
-                'usuario' => $usuario
+                'usuario' => $usuario,
+                'foto_principal_url' => $fotoPrincipal ? asset('storage/' . $fotoPrincipal->ruta_foto) : null,
+                'fecha_nacimiento' => $usuario->fecha_nacimiento ? $usuario->fecha_nacimiento->format('Y-m-d') : null,
+                'edad' => $usuario->edad
             ]);
-
+        
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('❌ ===== ERROR AL MODIFICAR USUARIO =====');
@@ -817,5 +786,30 @@ class RegistrarUsuarioController extends Controller
                 'message' => 'Error al actualizar datos de contacto'
             ], 500);
         }
+    }
+
+    // En UserController.php o AuthController.php
+    public function getCurrentUser(Request $request)
+    {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'No autenticado'], 401);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'user' => [
+                'id' => $user->id,
+                'userable_id' => $user->userable->id ?? null,
+                'userable_type' => $user->userable_type,
+                'name' => $user->name,
+                'email' => $user->email
+            ],
+            'usuario' => $user->userable ? [
+                'id' => $user->userable->id,
+                'nombre' => $user->userable->nombre ?? null
+            ] : null
+        ]);
     }
 }

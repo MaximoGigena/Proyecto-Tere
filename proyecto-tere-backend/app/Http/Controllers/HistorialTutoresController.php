@@ -42,9 +42,9 @@ class HistorialTutoresController extends Controller
                 'data' => [
                     'mascota_id' => $mascota->id,
                     'mascota_nombre' => $mascota->nombre,
-                    'especie' => $mascota->especie, // Añadir especie
-                    'edad_formateada' => $mascota->edad_formateada, // AÑADIR ESTA LÍNEA
-                    'foto_principal' => $mascota->foto_principal_url, // Añadir foto
+                    'especie' => $mascota->especie,
+                    'edad_formateada' => $mascota->edad_formateada,
+                    'foto_principal' => $mascota->foto_principal_url,
                     'tutor_actual_id' => $mascota->usuario_id,
                     'historial' => $historialTransformado->values(),
                     'cantidad_tutores' => $historial->count()
@@ -182,21 +182,31 @@ class HistorialTutoresController extends Controller
         }
     }
 
-    public function getHistorial($mascotaId)
+    /**
+     * Obtener historial con medios de contacto según el rol del usuario
+     */
+    public function getHistorial($mascotaId, Request $request)
     {
         try {
             $mascota = Mascota::with([
                 'transferencias.tutorAnterior',
                 'transferencias.tutorNuevo',
                 'usuario',
-                'edadRelacion' // Asegúrate de cargar la relación
             ])->findOrFail($mascotaId);
             
             // Forzar actualización y regenerar la edad
             $mascota->actualizarEdad();
             
-            // Recargar la relación para obtener los datos actualizados
-            $mascota->load('edadRelacion');
+            // Obtener el usuario autenticado
+            $user = Auth::user();
+            $currentUsuarioId = $user->userable->id ?? null;
+            
+            // 🔥 NUEVA LÓGICA: Verificar si el usuario es veterinario
+            $esVeterinario = $this->esVeterinario($user);
+            
+            // Verificar si se solicitó explícitamente la vista de veterinario
+            $vistaVeterinario = $request->has('veterinario') && $request->veterinario === 'true';
+            $mostrarTodosContactos = $esVeterinario || $vistaVeterinario;
             
             $ofertaActiva = OfertaAdopcion::where('id_mascota', $mascotaId)
                 ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
@@ -204,11 +214,75 @@ class HistorialTutoresController extends Controller
             
             $historialCompleto = $mascota->historialTutoresCompleto();
             
-            $historial = $historialCompleto->map(function($item) use ($ofertaActiva) {
+            $historial = $historialCompleto->map(function($item) use ($ofertaActiva, $mostrarTodosContactos, $currentUsuarioId) {
                 $mediosContacto = [];
                 $contactable = false;
                 
-                if ($item['es_actual'] && $ofertaActiva && $ofertaActiva->permiso_contacto_tutor) {
+                // 🔥 NUEVA LÓGICA: Si es veterinario o vista veterinario, mostrar TODOS los contactos del usuario
+                if ($mostrarTodosContactos) {
+                    $usuario = Usuario::with('contacto')->find($item['usuario_id']);
+                    
+                    if ($usuario && $usuario->contacto) {
+                        // Verificar si este usuario tiene contactos en ofertas activas (para marcarlos)
+                        $ofertasActivasDelUsuario = OfertaAdopcion::where('id_usuario_responsable', $item['usuario_id'])
+                            ->whereIn('estado_oferta', ['publicada', 'en_proceso'])
+                            ->get();
+                        
+                        $mediosEnOfertasActivas = [];
+                        foreach ($ofertasActivasDelUsuario as $oferta) {
+                            $mediosSeleccionados = $oferta->medios_contacto_seleccionados ?? [];
+                            $mediosEnOfertasActivas = array_merge($mediosEnOfertasActivas, $mediosSeleccionados);
+                        }
+                        $mediosEnOfertasActivas = array_unique($mediosEnOfertasActivas);
+                        
+                        // Teléfono/WhatsApp
+                        if ($usuario->contacto->telefono) {
+                            $tieneOfertaActiva = in_array(1, $mediosEnOfertasActivas);
+                            $mediosContacto[] = [
+                                'id' => 1,
+                                'tipo' => 'WhatsApp',
+                                'valor' => $usuario->contacto->telefono,
+                                'icono' => '📱',
+                                'color' => 'green',
+                                'origen' => $tieneOfertaActiva ? 'Oferta de adopción activa' : 'Perfil del usuario',
+                                'oferta_activa' => $tieneOfertaActiva
+                            ];
+                        }
+                        
+                        // Email
+                        if ($usuario->contacto->email) {
+                            $tieneOfertaActiva = in_array(2, $mediosEnOfertasActivas);
+                            $mediosContacto[] = [
+                                'id' => 2,
+                                'tipo' => 'Email',
+                                'valor' => $usuario->contacto->email,
+                                'icono' => '✉️',
+                                'color' => 'orange',
+                                'origen' => $tieneOfertaActiva ? 'Oferta de adopción activa' : 'Perfil del usuario',
+                                'oferta_activa' => $tieneOfertaActiva
+                            ];
+                        }
+                        
+                        // Telegram
+                        if ($usuario->contacto->telegram_chat_id) {
+                            $tieneOfertaActiva = in_array(3, $mediosEnOfertasActivas);
+                            $mediosContacto[] = [
+                                'id' => 3,
+                                'tipo' => 'Telegram',
+                                'valor' => $usuario->contacto->telegram_chat_id,
+                                'icono' => '📨',
+                                'color' => 'blue',
+                                'origen' => $tieneOfertaActiva ? 'Oferta de adopción activa' : 'Perfil del usuario',
+                                'oferta_activa' => $tieneOfertaActiva
+                            ];
+                        }
+                    }
+                    
+                    $contactable = count($mediosContacto) > 0;
+                    
+                } 
+                // Lógica normal (no veterinario) - solo mostrar contactos si hay oferta activa
+                else if ($item['es_actual'] && $ofertaActiva && $ofertaActiva->permiso_contacto_tutor) {
                     $contactable = true;
                     $mediosSeleccionados = $ofertaActiva->medios_contacto_seleccionados ?? [];
                     $usuario = Usuario::with('contacto')->find($item['usuario_id']);
@@ -220,7 +294,8 @@ class HistorialTutoresController extends Controller
                                 'tipo' => 'WhatsApp',
                                 'valor' => $usuario->contacto->telefono,
                                 'icono' => '📱',
-                                'color' => 'green'
+                                'color' => 'green',
+                                'origen' => 'Oferta de adopción activa'
                             ];
                         }
                         
@@ -230,7 +305,8 @@ class HistorialTutoresController extends Controller
                                 'tipo' => 'Email',
                                 'valor' => $usuario->contacto->email,
                                 'icono' => '✉️',
-                                'color' => 'orange'
+                                'color' => 'orange',
+                                'origen' => 'Oferta de adopción activa'
                             ];
                         }
                         
@@ -240,7 +316,8 @@ class HistorialTutoresController extends Controller
                                 'tipo' => 'Telegram',
                                 'valor' => $usuario->contacto->telegram_chat_id,
                                 'icono' => '📨',
-                                'color' => 'blue'
+                                'color' => 'blue',
+                                'origen' => 'Oferta de adopción activa'
                             ];
                         }
                     }
@@ -248,6 +325,7 @@ class HistorialTutoresController extends Controller
                 
                 return [
                     'id' => $item['id'],
+                    'usuario_id' => $item['usuario_id'],
                     'nombre' => $item['nombre'],
                     'foto' => $item['foto'],
                     'adopcion' => $item['adopcion'],
@@ -266,9 +344,10 @@ class HistorialTutoresController extends Controller
                     'historial' => $historial->values(),
                     'mascota_nombre' => $mascota->nombre,
                     'especie' => $mascota->especie,
-                    'edad_formateada' => $mascota->edad_formateada, // Esto ya está bien
+                    'edad_formateada' => $mascota->edad_formateada,
                     'foto_principal' => $mascota->foto_principal_url,
-                    'cantidad_tutores' => $historial->count()
+                    'cantidad_tutores' => $historial->count(),
+                    'es_veterinario' => $mostrarTodosContactos // Indicar si se está mostrando vista de veterinario
                 ]
             ]);
             
@@ -281,5 +360,32 @@ class HistorialTutoresController extends Controller
                 'message' => 'Error al cargar el historial: ' . $e->getMessage()
             ], 500);
         }
+    }
+    
+    /**
+     * Verificar si el usuario es veterinario
+     */
+    private function esVeterinario($user)
+    {
+        if (!$user) {
+            return false;
+        }
+        
+        // Verificar por tipo de usuario
+        if ($user->userable_type === 'App\\Models\\Veterinario') {
+            return true;
+        }
+        
+        // Verificar si tiene rol de veterinario (si usas spatie/permission)
+        if (method_exists($user, 'hasRole') && $user->hasRole('veterinario')) {
+            return true;
+        }
+        
+        // Verificar por atributo
+        if (isset($user->tipo_usuario) && $user->tipo_usuario === 'veterinario') {
+            return true;
+        }
+        
+        return false;
     }
 }

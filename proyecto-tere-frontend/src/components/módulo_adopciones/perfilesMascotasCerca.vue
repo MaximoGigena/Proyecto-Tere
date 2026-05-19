@@ -1,7 +1,7 @@
 <!-- perfilesMascotasCerca.vue -->
 <template>
   <div class="flex flex-col h-screen bg-white relative">
-    <!-- Header fijo (sin cambios) -->
+    <!-- Header fijo -->
     <div class="sticky top-0 z-30 bg-white px-4 py-1 flex items-center justify-between shadow-sm">
       <h1 class="text-2xl font-bold text-gray-800">Mascotas cerca de ti</h1>
       <button
@@ -10,7 +10,6 @@
       >
         <span class="font-medium text-sm sm:text-base">Filtrar Mascotas</span>
         <font-awesome-icon :icon="['fas', 'filter']" class="text-lg sm:text-xl" />
-        <!-- Mostrar indicador si hay filtros activos -->
         <span 
           v-if="filtrosActivos" 
           class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
@@ -50,8 +49,9 @@
           <div
             v-for="(oferta) in ofertas"
             :key="oferta.id_oferta"
-            class="text-center relative"
+            class="text-center relative cursor-pointer"
             :data-mascota-id="oferta.mascota.id"
+            @click="abrirModalMascota(oferta.mascota.id, oferta.id_oferta)"
           >
             <!-- 🔥 BADGE DE SOLICITUD ACTIVA -->
             <div 
@@ -61,22 +61,15 @@
               ¡Solicitud enviada!
             </div>
             
-            <router-link :to="{
-              path: `/explorar/cerca/${oferta.id_oferta}`,
-              query: { 
-                from: 'cerca',
-                mascota_id: oferta.mascota.id,
-                oferta_id: oferta.id_oferta,
-                tiene_solicitud: solicitudesActivasMap.get(oferta.mascota.id)?.tieneSolicitudActiva ? '1' : '0'
-              }
-            }" class="block group">
+            <div class="block group">
               <!-- Imagen de la mascota -->
               <div class="relative overflow-hidden rounded-lg shadow group-hover:shadow-lg transition-shadow duration-200">
                 <img
+                  :key="`img-${oferta.id_oferta}-${imageVersion}`"
                   :src="obtenerFotoMascota(oferta.mascota)"
                   :alt="oferta.mascota.nombre"
                   class="w-[220px] h-[220px] object-cover transform group-hover:scale-105 transition-transform duration-300"
-                  @error="manejarErrorImagen"
+                  @error="(e) => manejarErrorImagen(e, oferta)"
                 />
                 <!-- Badge de especie -->
                 <div class="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full">
@@ -87,24 +80,37 @@
               </div>
               
               <!-- Información de la mascota -->
-              <div class="mt-3" v-if="oferta.mascota.edad_relacion">
+              <div class="mt-3">
                 <p class="text-sm text-gray-800">
-                  {{ determinarRangoEtario(oferta.mascota.especie, oferta.mascota.edad_relacion.dias) }} / 
+                  {{ oferta.mascota.edad_formateada || 'Edad no disponible' }} / 
                   {{ oferta.mascota.sexo === 'macho' ? 'Macho' : 'Hembra' }}
                 </p>
-                <p class="text-lg font-semibold text-gray-900 mt-1">{{ oferta.mascota.nombre }}</p>
+                <p class="text-lg font-semibold text-gray-900 mt-1">{{ oferta.mascota.nombre || 'Mascota sin nombre' }}</p>
               </div>
-            </router-link>
+            </div>
           </div>
         </div>
       </div>
     </div>
     
+    <!-- Modal Overlay para el detalle de la mascota -->
+    <ModalOverlay 
+      :visible="showMascotaModal" 
+      @close="cerrarModalMascota"
+    >
+      <contenidoMascota 
+        :mascotaId="selectedMascotaId"
+        :ofertaId="selectedOfertaId"
+        :esTarjetaActiva="true"
+        @close="cerrarModalMascota"
+      />
+    </ModalOverlay>
+    
     <!-- Overlay de filtros -->
     <transition name="fade-overlay">
       <div 
         v-show="mostrarOverlay" 
-        class="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
         @click.self="cerrarOverlayFondo"
       >
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -115,7 +121,6 @@
                 <font-awesome-icon :icon="['fas', 'times']" class="text-3xl" />
               </button>
             </div>
-            <!-- Componente de filtros -->
             <FiltrosComponente 
               @cerrar="cerrarOverlay" 
               @filtrar="aplicarFiltros"
@@ -133,6 +138,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import FiltrosComponente from './filtrosAdopciones.vue'
+import ModalOverlay from '@/components/módulo_adopciones/ModalOverlay.vue'
+import contenidoMascota from '@/components/módulo_mascotas/contenidoMascota.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -144,6 +151,11 @@ const filtrosActuales = ref({})
 const ubicacionUsuario = ref(null)
 const ubicacionCargada = ref(false)
 
+// Estado para el modal de mascota
+const showMascotaModal = ref(false)
+const selectedMascotaId = ref(null)
+const selectedOfertaId = ref(null)
+
 // 🔥 NUEVO: Mapa de solicitudes activas
 const solicitudesActivasMap = ref(new Map())
 const verificandoSolicitudes = ref(false)
@@ -151,6 +163,13 @@ const verificandoSolicitudes = ref(false)
 // Cache para solicitudes
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
 const solicitudesCache = ref(new Map())
+
+const imageVersion = ref(0)
+
+// Función para forzar recarga de imágenes
+const forceRefreshImages = () => {
+  imageVersion.value++
+}
 
 // Computed para verificar si hay filtros activos
 const filtrosActivos = computed(() => {
@@ -172,6 +191,21 @@ const endpointAAUsar = computed(() => {
   return '/api/adopciones/ofertas-disponibles';
 });
 
+// Función para abrir el modal de mascota
+const abrirModalMascota = (mascotaId, ofertaId) => {
+  selectedMascotaId.value = mascotaId
+  selectedOfertaId.value = ofertaId
+  showMascotaModal.value = true
+}
+
+// Función para cerrar el modal de mascota
+const cerrarModalMascota = () => {
+  showMascotaModal.value = false
+  selectedMascotaId.value = null
+  selectedOfertaId.value = null
+}
+
+
 // ============================================
 // 🔥 FUNCIÓN PRINCIPAL: Verificar solicitudes en lote
 // ============================================
@@ -180,7 +214,6 @@ async function verificarSolicitudesEnLote(mascotasIds) {
   
   console.log('🔍 Verificando solicitudes para', mascotasIds.length, 'mascotas')
   
-  // Filtrar IDs que no están en cache o están expirados
   const ahora = Date.now()
   const idsAVerificar = mascotasIds.filter(id => {
     const cache = solicitudesCache.value.get(id)
@@ -206,7 +239,6 @@ async function verificarSolicitudesEnLote(mascotasIds) {
     if (response.data.success) {
       const resultados = response.data.data.resultados
       
-      // Actualizar cache y mapa
       const nuevoMapa = new Map(solicitudesActivasMap.value)
       
       Object.values(resultados).forEach(resultado => {
@@ -215,7 +247,6 @@ async function verificarSolicitudesEnLote(mascotasIds) {
           timestamp: Date.now()
         })
         
-        // Actualizar cache
         solicitudesCache.value.set(resultado.mascotaId, {
           ...resultado,
           timestamp: Date.now()
@@ -231,6 +262,7 @@ async function verificarSolicitudesEnLote(mascotasIds) {
     verificandoSolicitudes.value = false
   }
 }
+
 
 // ============================================
 // 🔥 MODIFICAR cargarOfertas para incluir verificación
@@ -263,8 +295,18 @@ const cargarOfertas = async () => {
     if (response.data.success) {
       ofertas.value = response.data.data || []
       console.log(`✅ Cargadas ${ofertas.value.length} ofertas`)
+
+      if (ofertas.value.length > 0) {
+          console.log('🔍 Primera oferta:', JSON.stringify(ofertas.value[0], null, 2))
+          
+          // Verificar específicamente las fotos
+          const primeraMascota = ofertas.value[0].mascota
+          console.log('📸 Fotos de primera mascota:', primeraMascota.fotos)
+          console.log('📸 optimized_urls de primera foto:', primeraMascota.fotos?.[0]?.optimized_urls)
+          console.log('📸 foto_principal_url:', primeraMascota.foto_principal_url)
+      }
+
       
-      // 🔥 DESPUÉS DE CARGAR OFERTAS, VERIFICAR SOLICITUDES
       if (ofertas.value.length > 0) {
         const mascotasIds = ofertas.value
           .map(oferta => oferta.mascota?.id)
@@ -283,11 +325,10 @@ const cargarOfertas = async () => {
   }
 }
 
+
 // ============================================
 // 🔥 NUEVO: Verificar cuando el usuario hace scroll (opcional)
 // ============================================
-const scrollContainer = ref(null)
-let scrollTimeout = null
 
 function handleScroll() {
   if (scrollTimeout) clearTimeout(scrollTimeout)
@@ -398,6 +439,8 @@ const obtenerUbicacionUsuario = async () => {
   }
 }
 
+
+
 const solicitarPermisosUbicacion = () => {
   if (!navigator.geolocation) {
     console.error('Geolocalización no soportada por el navegador')
@@ -495,6 +538,16 @@ const solicitarPermisosUbicacion = () => {
   return true
 }
 
+// Agrega esto después de cargar las ofertas
+watch(ofertas, (newOfertas) => {
+  if (newOfertas.length > 0) {
+    // Pequeño delay para asegurar que el DOM se actualice
+    setTimeout(() => {
+      forceRefreshImages()
+    }, 100)
+  }
+}, { deep: true })
+
 const aplicarFiltros = (nuevosFiltros) => {
   const filtrosReales = {}
   
@@ -543,27 +596,109 @@ const cargarFiltrosGuardados = () => {
 const obtenerFotoMascota = (mascota) => {
   if (!mascota) return 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg'
   
-  if (mascota.foto_principal_url) {
-    return mascota.foto_principal_url
-  }
+  // ✅ Usar la URL del backend (Laravel) en lugar del frontend (Vite)
+  const backendUrl = 'http://localhost:8000' // Cambia esto si tu backend está en otro puerto
   
-  if (mascota.foto_principal && mascota.foto_principal.url) {
-    return mascota.foto_principal.url
-  }
-  
-  if (mascota.fotos && mascota.fotos.length > 0) {
-    if (typeof mascota.fotos[0] === 'string') {
-      return mascota.fotos[0]
-    } else if (mascota.fotos[0].url) {
-      return mascota.fotos[0].url
+  if (mascota.fotos && Array.isArray(mascota.fotos)) {
+    const fotoPrincipal = mascota.fotos.find(f => f.es_principal === true || f.es_principal === 1)
+    
+    if (fotoPrincipal) {
+      let url = null
+      
+      if (fotoPrincipal.url) {
+        // Si la URL ya es absoluta, usarla; si no, construir con backendUrl
+        if (fotoPrincipal.url.startsWith('http')) {
+          url = fotoPrincipal.url
+        } else {
+          url = `${backendUrl}${fotoPrincipal.url}`
+        }
+      } else if (fotoPrincipal.ruta_foto) {
+        url = `${backendUrl}/storage/${fotoPrincipal.ruta_foto}`
+      }
+      
+      if (url) {
+        console.log('✅ URL generada para', mascota.nombre, ':', url)
+        return url
+      }
+    }
+    
+    if (mascota.fotos.length > 0) {
+      const primeraFoto = mascota.fotos[0]
+      let url = null
+      
+      if (primeraFoto.url) {
+        if (primeraFoto.url.startsWith('http')) {
+          url = primeraFoto.url
+        } else {
+          url = `${backendUrl}${primeraFoto.url}`
+        }
+      } else if (primeraFoto.ruta_foto) {
+        url = `${backendUrl}/storage/${primeraFoto.ruta_foto}`
+      }
+      
+      if (url) {
+        console.log('✅ Usando primera foto para', mascota.nombre, ':', url)
+        return url
+      }
     }
   }
   
-  return 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg'
+  // Imagen por defecto
+  const imagenesPorDefecto = {
+    'perro': 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg',
+    'gato': 'https://cdn.pixabay.com/photo/2017/11/09/21/41/cat-2934720_1280.jpg',
+    'caballo': 'https://cdn.pixabay.com/photo/2016/01/15/11/05/horse-1141296_1280.jpg'
+  }
+  
+  const especie = (mascota.especie || '').toLowerCase()
+  return imagenesPorDefecto[especie] || imagenesPorDefecto['perro']
 }
 
-const manejarErrorImagen = (event) => {
-  event.target.src = 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg'
+const manejarErrorImagen = (event, oferta) => {
+  console.log(`❌ Error cargando imagen para: ${oferta.mascota.nombre}`, event.target.src)
+  
+  // No hacer nada si ya es la imagen por defecto
+  if (event.target.src.includes('pixabay.com')) return
+  
+  const mascota = oferta.mascota
+  const backendUrl = 'http://localhost:8000'
+  const posiblesUrls = []
+  
+  if (mascota.fotos && mascota.fotos.length > 0) {
+    const fotoPrincipal = mascota.fotos.find(f => f.es_principal) || mascota.fotos[0]
+    
+    if (fotoPrincipal.url) {
+      if (fotoPrincipal.url.startsWith('http')) {
+        posiblesUrls.push(fotoPrincipal.url)
+      } else {
+        posiblesUrls.push(`${backendUrl}${fotoPrincipal.url}`)
+        posiblesUrls.push(fotoPrincipal.url) // URL relativa como fallback
+      }
+    }
+    
+    if (fotoPrincipal.ruta_foto) {
+      posiblesUrls.push(`${backendUrl}/storage/${fotoPrincipal.ruta_foto}`)
+      posiblesUrls.push(`/storage/${fotoPrincipal.ruta_foto}`)
+    }
+  }
+  
+  // Encontrar la primera URL que no sea la actual
+  const nextUrl = posiblesUrls.find(url => url !== event.target.src)
+  if (nextUrl) {
+    console.log(`🔄 Intentando URL alternativa para ${mascota.nombre}:`, nextUrl)
+    event.target.src = nextUrl
+    return
+  }
+  
+  // Si todo falla, usar imagen por defecto
+  const imagenesPorDefecto = {
+    'perro': 'https://cdn.pixabay.com/photo/2020/06/11/20/06/dog-5288071_1280.jpg',
+    'gato': 'https://cdn.pixabay.com/photo/2017/11/09/21/41/cat-2934720_1280.jpg',
+    'caballo': 'https://cdn.pixabay.com/photo/2016/01/15/11/05/horse-1141296_1280.jpg'
+  }
+  
+  const especie = (mascota.especie || '').toLowerCase()
+  event.target.src = imagenesPorDefecto[especie] || imagenesPorDefecto['perro']
 }
 
 const determinarRangoEtario = (especie, dias) => {
@@ -640,6 +775,8 @@ const cerrarOverlay = () => {
 }
 
 const overlayKey = ref(0)
+const scrollContainer = ref(null)
+let scrollTimeout = null
 
 // ============================================
 // LIFECYCLE HOOKS
@@ -663,9 +800,35 @@ onMounted(async () => {
     await cargarOfertas()
   }
   
-  // Agregar listener de scroll para verificación bajo demanda
   if (scrollContainer.value) {
     scrollContainer.value.addEventListener('scroll', handleScroll)
+  }
+
+  // ✅ Verificar si debemos abrir una mascota específica al cargar
+  const abrirMascotaId = route.query.abrir_mascota
+  const ofertaIdFromQuery = route.query.oferta_id
+  
+  if (abrirMascotaId) {
+    // Esperar a que carguen las ofertas
+    const checkOfertas = setInterval(() => {
+      if (!cargando.value && ofertas.value.length > 0) {
+        clearInterval(checkOfertas)
+        
+        // Buscar la oferta que contiene esta mascota
+        const oferta = ofertas.value.find(o => o.mascota?.id == abrirMascotaId)
+        
+        if (oferta) {
+          // Abrir el modal con esta mascota
+          abrirModalMascota(abrirMascotaId, oferta.id_oferta)
+        } else if (ofertaIdFromQuery) {
+          // Si no encontramos la oferta pero tenemos oferta_id
+          abrirModalMascota(abrirMascotaId, ofertaIdFromQuery)
+        }
+        
+        // Limpiar query params
+        router.replace({ query: { ...route.query, abrir_mascota: undefined, oferta_id: undefined } })
+      }
+    }, 100)
   }
 })
 

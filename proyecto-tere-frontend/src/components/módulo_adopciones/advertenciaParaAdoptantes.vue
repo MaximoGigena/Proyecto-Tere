@@ -185,13 +185,36 @@ const mascotaId = ref(null)
 
 // ---------- ADVERTENCIAS ----------
 const items = reactive([
-  { id: "cuidado", title: "Cuidaré a la mascota de por vida.", description: "Requiere atención diaria.", checked: false },
-  { id: "vacunas", title: "Acepto vacunas y esterilización.", description: "Prevención sanitaria obligatoria.", checked: false },
-  { id: "veterinario", title: "Realizaré controles veterinarios.", description: "Seguiré indicaciones profesionales.", checked: false },
-  { id: "legal", title: "Cumpliré normativas legales.", description: "Registros, patente y convivencia.", checked: false },
-  { id: "recursos", title: "Dispongo de recursos y tiempo.", description: "Garantizo bienestar y espacio.", checked: false },
-  { id: "fotos", title: "Autorizo uso de fotos.", description: "Para seguimiento o difusión.", checked: false },
-  { id: "no-regalo", title: "No la regalaré ni abandonaré.", description: "Evitar prácticas irresponsables.", checked: false }
+  { 
+    id: "bienestar", 
+    title: "Me comprometo a obrar por el bienestar de la mascota.", 
+    description: "Garantizaré su cuidado, alimentación, salud y calidad de vida.", 
+    checked: false 
+  },
+  { 
+    id: "seguimiento", 
+    title: "Acepto el seguimiento post-adopción.", 
+    description: "Permitiré contacto o visitas para verificar su estado.", 
+    checked: false 
+  },
+  { 
+    id: "respeto", 
+    title: "Mantendré un trato respetuoso con el otro usuario.", 
+    description: "La comunicación será responsable y cordial durante todo el proceso.", 
+    checked: false 
+  },
+  { 
+    id: "responsabilidad", 
+    title: "Asumo la responsabilidad total de la mascota.", 
+    description: "No la abandonaré, regalaré ni descuidaré bajo ninguna circunstancia.", 
+    checked: false 
+  },
+  { 
+    id: "condiciones", 
+    title: "Cuento con las condiciones adecuadas para adoptarla.", 
+    description: "Dispongo de tiempo, espacio y recursos necesarios para su bienestar.", 
+    checked: false 
+  }
 ])
 
 const allChecked = computed(() => items.every(i => i.checked))

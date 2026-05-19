@@ -7,6 +7,7 @@ use App\Models\UbicacionUsuario;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Auth;
 
 class UserLocationController extends Controller
 {
@@ -335,6 +336,122 @@ class UserLocationController extends Controller
             return response()->json([
                 'message' => 'Error al obtener la ubicación',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    public function getUbicacionActual(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            // Obtener la ubicación más reciente del usuario
+            $ubicacion = UbicacionUsuario::where('user_id', $user->id)
+                ->orderBy('location_updated_at', 'desc')
+                ->first();
+            
+            if (!$ubicacion) {
+                // Intentar obtener del usuario (si el modelo User tiene ubicación)
+                $ubicacion = $user->ubicacionActual;
+            }
+            
+            if ($ubicacion) {
+                return response()->json([
+                    'success' => true,
+                    'ubicacion' => [
+                        'city' => $ubicacion->city,
+                        'state' => $ubicacion->state,
+                        'country' => $ubicacion->country,
+                        'latitude' => $ubicacion->latitude,
+                        'longitude' => $ubicacion->longitude
+                    ]
+                ]);
+            }
+            
+            // Si no hay ubicación guardada, devolver un mensaje
+            return response()->json([
+                'success' => false,
+                'message' => 'No hay ubicación registrada',
+                'ubicacion' => null
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error obteniendo ubicación actual:', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener ubicación'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener ubicación de un usuario específico por su ID
+     */
+    public function getUbicacionByUserId($userId)
+    {
+        try {
+            // Buscar la ubicación más reciente del usuario
+            $ubicacion = UbicacionUsuario::where('user_id', $userId)
+                ->orderBy('location_updated_at', 'desc')
+                ->first();
+            
+            if ($ubicacion) {
+                return response()->json([
+                    'success' => true,
+                    'ubicacion' => [
+                        'city' => $ubicacion->city,
+                        'state' => $ubicacion->state,
+                        'country' => $ubicacion->country,
+                        'latitude' => $ubicacion->latitude,
+                        'longitude' => $ubicacion->longitude,
+                        'updated_at' => $ubicacion->location_updated_at
+                    ]
+                ]);
+            }
+            
+            // Si no hay ubicación en user_locations, buscar en otros lugares
+            $user = \App\Models\User::find($userId);
+            if ($user && $user->userable_type === 'App\Models\Usuario') {
+                $usuario = $user->userable;
+                if ($usuario && $usuario->ciudad) {
+                    return response()->json([
+                        'success' => true,
+                        'ubicacion' => [
+                            'city' => $usuario->ciudad,
+                            'state' => $usuario->provincia ?? null,
+                            'country' => 'Argentina'
+                        ]
+                    ]);
+                }
+            }
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'No hay ubicación registrada para este usuario',
+                'ubicacion' => null
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error obteniendo ubicación de usuario:', [
+                'user_id' => $userId,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener ubicación',
+                'ubicacion' => null
             ], 500);
         }
     }

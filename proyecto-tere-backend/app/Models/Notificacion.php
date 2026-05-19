@@ -142,12 +142,12 @@ class Notificacion extends Model
         }
         
         if (!$sancion->relationLoaded('usuario')) {
-            $sancion->load('usuario');
+            $sancion->load('usuario.user');
         }
         
-        $usuario = $sancion->usuario;
+        $user = $sancion->user;
         
-        if (!$usuario) {
+        if (!$user) {
             return null;
         }
         
@@ -164,7 +164,7 @@ class Notificacion extends Model
         }
         
         return self::create([
-            'user_id' => $usuario->id,
+            'user_id' => $user->id,
             'tipo' => 'ADVERTENCIA',
             'titulo' => '⚠️ Has recibido una advertencia formal',
             'contenido' => self::generarContenidoAdvertencia($sancion, $denunciaInfo),
@@ -199,7 +199,7 @@ class Notificacion extends Model
                      ($denuncia->notas_admin ? "\nNotas del administrador: {$denuncia->notas_admin}" : "");
         
         return self::create([
-            'user_id' => $denuncia->usuario_id,
+            'user_id' => $denuncia->user_id,
             'tipo' => 'DENUNCIA',
             'titulo' => $titulo,
             'contenido' => $contenido,
@@ -226,7 +226,7 @@ class Notificacion extends Model
         ]);
     }
 
-    public static function notificarBloqueoUsuario($usuario, $bloqueado, $motivo = null)
+    public static function notificarBloqueoUsuario($user, $bloqueado, $motivo = null)
     {
         $titulo = $bloqueado ? 'Tu cuenta ha sido bloqueada' : 'Tu cuenta ha sido desbloqueada';
         $contenido = $bloqueado 
@@ -234,13 +234,13 @@ class Notificacion extends Model
             : "Tu cuenta ha sido desbloqueada. Ya puedes acceder a todas las funciones de la plataforma.";
         
         return self::create([
-            'user_id' => $usuario->id,
+            'user_id' => $user->id,
             'tipo' => 'SISTEMA',
             'titulo' => $titulo,
             'contenido' => $contenido,
             'origen' => 'ADMINISTRADOR',
             'referencia_tipo' => 'usuario',
-            'referencia_id' => $usuario->id,
+            'referencia_id' => $user->id,
             'leida' => false,
             'activa' => true
         ]);

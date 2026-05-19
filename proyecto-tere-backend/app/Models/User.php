@@ -274,9 +274,9 @@ class User extends Authenticatable
     }
 
     // Para compatibilidad (si algún código llama a ubicacion() sin paréntesis)
-    public function getUbicacionAttribute()
+    public function getUbicacionActualAttribute()
     {
-        return $this->ubicacionActual;
+        return $this->ubicacionActual()->first();
     }
 
     // Agregar accesor para obtener el nombre completo de Telegram

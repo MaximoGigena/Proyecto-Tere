@@ -158,15 +158,16 @@ class UsersSeeder extends Seeder
             foreach ($usuariosData as $index => $usuarioData) {
                 // Crear Usuario primero
                 $usuario = Usuario::firstOrCreate(
-                    ['nombre' => $usuarioData['nombre']],
-                    [
-                        'edad' => rand(20, 50),
-                        'foto_perfil' => null,
-                        'activo' => true,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]
-                );
+                ['nombre' => $usuarioData['nombre']],
+                [
+                    'fecha_nacimiento' => now()->subYears(rand(20, 50)), // ✅ Usa fecha de nacimiento
+                    'foto_perfil' => null,
+                    'activo' => true,
+                    'user_type' => 'free',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
 
                 // Crear User
                 $user = User::firstOrCreate(

@@ -38,16 +38,6 @@
         </div>
       </div>
     </div>
-    
-    <!-- Sugerencia de acción -->
-    <button 
-      v-if="puedeContactar && !contactando"
-      @click="irAContacto"
-      class="mt-6 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
-    >
-      <font-awesome-icon :icon="['fas', 'comment']" />
-      <span>Contactar al tutor</span>
-    </button>
   </div>
 </template>
 

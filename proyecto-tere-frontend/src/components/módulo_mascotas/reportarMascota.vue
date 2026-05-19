@@ -89,7 +89,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import axios from 'axios'
 import { useAuth } from '@/composables/useAuth'
 import { useRoute } from 'vue-router'
@@ -161,7 +161,6 @@ const getIdentificadorDenuncia = () => {
   
   // Para la modalidad swipe (encuentros)
   if (route.path.startsWith('/explorar/encuentros')) {
-    // Intentar obtener del query o params
     if (query.mascota_id) {
       return { mascota_id: query.mascota_id }
     }
@@ -169,7 +168,6 @@ const getIdentificadorDenuncia = () => {
       return { oferta_id: query.oferta_id }
     }
     if (params.id) {
-      // En swipe, generalmente es oferta_id
       return { oferta_id: params.id }
     }
   }
@@ -207,38 +205,45 @@ const enviarDenuncia = async () => {
   error.value = null
 
   try {
-    const payload = {
-      ...identificador,
-      categoria: razonSeleccionada.value,
-      subcategoria: causaSeleccionada.value,
-      descripcion: descripcion.value
+    let tipo = null
+    let payload = {}
+    
+    if (identificador.mascota_id) {
+      tipo = 'mascota'
+      payload = {
+        tipo: tipo,
+        mascota_id: identificador.mascota_id,
+        categoria: razonSeleccionada.value,
+        subcategoria: causaSeleccionada.value,
+        descripcion: descripcion.value
+      }
+    } else if (identificador.oferta_id) {
+      tipo = 'oferta'
+      payload = {
+        tipo: tipo,
+        oferta_id: identificador.oferta_id,
+        categoria: razonSeleccionada.value,
+        subcategoria: causaSeleccionada.value,
+        descripcion: descripcion.value
+      }
     }
 
     console.log('🔍 Enviando denuncia con payload:', payload)
-    console.log('🔍 Token de acceso disponible:', !!accessToken.value)
-    console.log('🔍 Ruta actual:', route.fullPath)
-    console.log('🔍 Parámetros de ruta:', route.params)
-    console.log('🔍 Query params:', route.query)
-
+    
     const response = await axios.post('/api/denuncias', payload, {
       headers: {
         'Authorization': `Bearer ${accessToken.value}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      timeout: 10000 // 10 segundos timeout
+      timeout: 30000
     })
 
     console.log('✅ Respuesta del servidor:', response.data)
 
     if (response.data.success) {
-      // Mostrar notificación de éxito
       mostrarNotificacion('Denuncia enviada correctamente. Será revisada por nuestro equipo.', 'success')
-      
-      // Resetear formulario
       resetFormulario()
-      
-      // Cerrar modal
       cerrar()
     } else {
       error.value = response.data.message || 'Error al enviar la denuncia'
@@ -276,9 +281,7 @@ const resetFormulario = () => {
 }
 
 const mostrarNotificacion = (mensaje, tipo = 'info') => {
-  // Implementa tu sistema de notificaciones aquí
   console.log(`${tipo.toUpperCase()}: ${mensaje}`)
-  // Ejemplo con alert temporal:
   alert(mensaje)
 }
 </script>

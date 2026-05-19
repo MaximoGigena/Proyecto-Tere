@@ -156,7 +156,7 @@
                 :required="!esModificacion"
                 class="w-1/3 border rounded p-2"
               >
-                <option disabled value="">Mes</option>
+                <option :value="null" disabled>Mes</option> 
                 <option value="1">Enero</option>
                 <option value="2">Febrero</option>
                 <option value="3">Marzo</option>
@@ -275,6 +275,7 @@ const {
 // Detectar si es modificación o registro
 const esModificacion = ref(false)
 const userId = ref(null)
+const usuarioId = ref(null) // Para referencia interna, no para API
 
 // Estado del usuario
 const usuario = reactive({
@@ -284,14 +285,12 @@ const usuario = reactive({
   confirmPassword: '',
   nuevaPassword: '',
   confirmNuevaPassword: '',
-  edad: null,
-  fechaNacimiento: {
+  fechaNacimiento: {  
     dia: null,
-    mes: '',
+    mes: null,  
     anio: null,
   }
 })
-
 // Estados para overlays
 const showOverlayDatosOpcionales = ref(false)
 const showOverlayDatosContacto = ref(false)
@@ -334,28 +333,38 @@ const quitarFoto = (index) => {
   fotos.value[index].preview = null
 }
 
-const calcularEdad = () => {
-  if (usuario.fechaNacimiento.dia && usuario.fechaNacimiento.mes && usuario.fechaNacimiento.anio) {
-    const hoy = new Date();
-    const fechaNac = new Date(
-      usuario.fechaNacimiento.anio,
-      usuario.fechaNacimiento.mes - 1,
-      usuario.fechaNacimiento.dia
-    );
-    
-    let edad = hoy.getFullYear() - fechaNac.getFullYear();
-    const mes = hoy.getMonth() - fechaNac.getMonth();
-    
-    if (mes < 0 || (mes === 0 && hoy.getDate() < fechaNac.getDate())) {
-      edad--;
-    }
-    
-    usuario.edad = edad;
+// Método para obtener fecha formateada para el backend
+const getFechaNacimientoFormateada = () => {
+  if (!usuario.fechaNacimiento.dia || !usuario.fechaNacimiento.mes || !usuario.fechaNacimiento.anio) {
+    return null
   }
+  
+  // Formato: YYYY-MM-DD (formato que espera el backend)
+  const anio = usuario.fechaNacimiento.anio
+  const mes = String(usuario.fechaNacimiento.mes).padStart(2, '0')
+  const dia = String(usuario.fechaNacimiento.dia).padStart(2, '0')
+  
+  return `${anio}-${mes}-${dia}`
+}
+
+// Función de validación de edad mínima (14 años)
+const validarEdadMinima = () => {
+  const fechaNac = getFechaNacimientoFormateada()
+  if (!fechaNac) return false
+  
+  const hoy = new Date()
+  const nacimiento = new Date(fechaNac)
+  let edad = hoy.getFullYear() - nacimiento.getFullYear()
+  const mes = hoy.getMonth() - nacimiento.getMonth()
+  
+  if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
+    edad--
+  }
+  
+  return edad >= 14
 }
 
 const mostrarModal = () => {
-  calcularEdad();
   
   if (!esModificacion.value && usuario.password !== usuario.confirmPassword) {
     alert('Las contraseñas no coinciden');
@@ -382,12 +391,11 @@ const confirmarAccion = async () => {
 // Función para modificar usuario
 const modificarUsuario = async () => {
   try {
-    // Preparar datos básicos
+    // Preparar datos básicos con FECHA DE NACIMIENTO
     const datosBasicos = {
       nombre: usuario.nombre,
       email: usuario.email,
-      edad: usuario.edad,
-      fechaNacimiento: usuario.fechaNacimiento,
+      fecha_nacimiento: getFechaNacimientoFormateada(), // ← Enviar fecha, no edad
       fotoPerfil: fotos.value[0]?.archivo
     }
     
@@ -399,10 +407,10 @@ const modificarUsuario = async () => {
     // 1. Actualizar datos básicos
     await actualizarDatosBasicos(datosBasicos)
     
-    // 2. Recargar los datos del usuario para tener los datos opcionales actualizados
+    // 2. Recargar los datos del usuario
     await cargarDatosUsuario(userId.value)
     
-    // 3. Configurar props para datos opcionales con los datos RECIÉN CARGADOS
+    // 3. Configurar props para datos opcionales
     propsDatosOpcionales.datosIniciales = {
       ocupacion: usuarioModificacion.ocupacion || '',
       tipoVivienda: usuarioModificacion.tipoVivienda || '',
@@ -413,8 +421,7 @@ const modificarUsuario = async () => {
     }
     
     // 4. Configurar props para datos de contacto
-    // ✅ CORRECCIÓN: Usar usuarioId (ID de la tabla usuarios) no userId
-    propsDatosContacto.usuarioId = usuarioModificacion.user_id // o usuarioId.value
+    propsDatosContacto.usuarioId = usuarioModificacion.id // ← Usar el ID del usuario
     propsDatosContacto.emailRegistro = usuario.email
     propsDatosContacto.esModificacion = true
     propsDatosContacto.datosIniciales = {
@@ -441,7 +448,12 @@ const registrarUsuario = async () => {
     formData.append('nombre', usuario.nombre);
     formData.append('email', usuario.email);
     formData.append('password', usuario.password);
-    if (usuario.edad) formData.append('edad', usuario.edad);
+    
+    // ✅ Enviar fecha de nacimiento en lugar de edad
+    const fechaNacimiento = getFechaNacimientoFormateada()
+    if (fechaNacimiento) {
+      formData.append('fecha_nacimiento', fechaNacimiento);
+    }
 
     if (fotos.value[0]?.archivo) {
       formData.append('foto_perfil', fotos.value[0].archivo);
@@ -462,9 +474,9 @@ const registrarUsuario = async () => {
         setToken(response.data.access_token);
       }
 
-      if (response.data.user?.id) {
-        propsDatosContacto.usuarioId = response.data.user.id;
-        userId.value = response.data.user.id;
+      if (response.data.usuario?.id) {
+        propsDatosContacto.usuarioId = response.data.usuario.id;
+        userId.value = response.data.usuario.id;
       }
 
       propsDatosContacto.emailRegistro = usuario.email;
@@ -481,6 +493,7 @@ const registrarUsuario = async () => {
     alert('Error al registrar usuario');
   }
 };
+
 
 // ========== MANEJO DE DATOS OPCIONALES ==========
 const guardarDatosOpcionales = async (datos) => {
@@ -602,33 +615,79 @@ const cerrar = () => {
 }
 
 // Cargar datos si es modo modificación
+// En la función onMounted, modificar la parte donde cargas la fecha:
+
 onMounted(async () => {
-  const userIdParam = route.params.id || route.query.id
+  const userIdParam = route.query.id || route.params.id
   
   if (userIdParam) {
     esModificacion.value = true
     userId.value = userIdParam
     
-    const cargado = await cargarDatosUsuario(userIdParam)
+    const cargado = await cargarDatosUsuario(userId.value)
     
     if (cargado) {
       // Llenar el formulario con los datos cargados
       usuario.nombre = usuarioModificacion.nombre
       usuario.email = usuarioModificacion.email
-      usuario.edad = usuarioModificacion.edad
-      usuario.fechaNacimiento = { ...usuarioModificacion.fechaNacimiento }
       
-      // Si hay foto de perfil, mostrarla
-      if (usuarioModificacion.foto_perfil) {
-        fotos.value[0].preview = usuarioModificacion.foto_perfil
-        // No es necesario archivo ya que es URL existente
+      // ✅ CORRECCIÓN: Parsear fecha_nacimiento correctamente
+      if (usuarioModificacion.fecha_nacimiento) {
+        const fechaStr = usuarioModificacion.fecha_nacimiento
+        console.log('📅 Fecha recibida:', fechaStr)
+        
+        // Si es string en formato YYYY-MM-DD
+        if (typeof fechaStr === 'string' && fechaStr.includes('-')) {
+          const [anio, mes, dia] = fechaStr.split('-')
+          usuario.fechaNacimiento = {
+            dia: parseInt(dia),
+            mes: parseInt(mes),
+            anio: parseInt(anio)
+          }
+        } 
+        // Si es objeto Date o timestamp
+        else {
+          const fecha = new Date(fechaStr)
+          if (!isNaN(fecha.getTime())) {
+            usuario.fechaNacimiento = {
+              dia: fecha.getDate(),
+              mes: fecha.getMonth() + 1,
+              anio: fecha.getFullYear()
+            }
+          }
+        }
+        
+        console.log('📅 Fecha parseada:', usuario.fechaNacimiento)
       }
+      
+      // ✅ CORRECCIÓN: Cargar fotos existentes
+      if (usuarioModificacion.foto_principal) {
+        fotos.value[0].preview = usuarioModificacion.foto_principal
+        fotos.value[0].archivo = null // No es un archivo nuevo, es existente
+        
+        console.log('📸 Foto principal cargada:', usuarioModificacion.foto_principal)
+      }
+      
+      // ✅ También cargar otras fotos si existen
+      if (usuarioModificacion.fotos && usuarioModificacion.fotos.length > 0) {
+        usuarioModificacion.fotos.forEach((foto, index) => {
+          if (index < fotos.value.length && foto.url) {
+            fotos.value[index].preview = foto.url
+            fotos.value[index].archivo = null
+          }
+        })
+      }
+      
+      console.log('✅ Usuario cargado:', {
+        nombre: usuario.nombre,
+        email: usuario.email,
+        fecha_nacimiento: usuario.fechaNacimiento,
+        foto_principal: usuarioModificacion.foto_principal
+      })
     } else {
       alert('Error al cargar los datos del usuario')
       router.back()
     }
   }
-  
-  console.log(esModificacion.value ? 'Modificación de usuario' : 'Registro de usuario');
 });
 </script>

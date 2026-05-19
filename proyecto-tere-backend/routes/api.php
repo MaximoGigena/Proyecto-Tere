@@ -41,6 +41,7 @@ use App\Http\Controllers\ProcesoAdopcionController;
 use App\Http\Controllers\Api\MetricasUsuarioController;
 use App\Http\Controllers\HistorialTransferenciaController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ReporteMascotaController;
 use App\Http\Controllers\MensajeController;
 use App\Http\Controllers\DenunciaController;
 use App\Http\Controllers\UsuarioMetricasController;
@@ -48,8 +49,10 @@ use App\Http\Controllers\FiltrosMascotasController;
 use App\Http\Controllers\SancionController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\ReporteUsuarioController;
+use App\Http\Controllers\ImageOptimizationController;
 use App\Http\Controllers\FiltroGeocodingController;
 use App\Http\Controllers\UserFilterPreferenceController;
+use App\Http\Controllers\FichaMedicaController;
 use App\Models\OfertaAdopcion;
 use App\Http\Controllers\MetricasController;
 use App\Models\ContactoUsuario;
@@ -169,6 +172,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     // Ofertas por región
     Route::get('/adopciones/por-region', [OfertasProximidadController::class, 'obtenerPorRegion']);
 
+    Route::get('/user/medios-contacto', [OfertaAdopcionController::class, 'getMediosContactoUsuario']);
+
     Route::get('usuarios/{id}/perfil', [\App\Http\Controllers\Auth\RegistrarUsuarioController::class, 'getPerfilCompleto'])
     ->middleware(['auth:sanctum', 'check.user.suspended']);
 
@@ -180,8 +185,16 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     // Ruta para obtener la ubicación del usuario autenticado
     Route::get('/user/location', [UserLocationController::class, 'show']);
 
+    Route::get('/user/ubicacion-actual', [UserLocationController::class, 'getUbicacionActual']);
+
+    Route::get('/user/actual', [RegistrarUsuarioController::class, 'getCurrentUser']);
+
+    Route::get('/user/ubicacion-actual', [UserLocationController::class, 'getUbicacionActual']);
+    Route::get('/usuarios/{userId}/ubicacion', [UserLocationController::class, 'getUbicacionByUserId']);
+    
     // En routes/api.php
     Route::get('/usuarios/{id}/contacto', [RegistrarUsuarioController::class, 'getContacto'])->middleware('auth:sanctum');
+
 
     // Rutas para la gestión de usuarios
     Route::post('/actualizar-datos-opcionales', [RegistrarUsuarioController::class, 'actualizarDatosOpcionales']);
@@ -202,6 +215,11 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    Route::get('/images/optimized/{path}', [ImageOptimizationController::class, 'getOptimizedImage'])
+        ->where('path', '.*')
+        ->name('api.images.optimized');
+    
 
     // Ruta temporal para debugging
     Route::get('/user-debug', function (Request $request) {
@@ -228,6 +246,12 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserSuspended::clas
     Route::post('/mascotas/{id}', [MascotaController::class, 'update']);
     Route::get('/mascotas/motivos/baja', [MascotaController::class, 'obtenerMotivosBaja']);
     Route::post('/mascotas/{id}/baja', [MascotaController::class, 'darDeBaja']);
+
+    Route::prefix('mascotas')->middleware('auth:sanctum')->group(function () {
+        // Ficha médica
+        Route::get('/{mascota}/ficha-medica', [FichaMedicaController::class, 'show']);
+        Route::put('/{mascota}/ficha-medica', [FichaMedicaController::class, 'update']);
+    });
 
     Route::get('/mascotas/{id}/historial-tutores', [HistorialTutoresController::class, 'getHistorial']);
 

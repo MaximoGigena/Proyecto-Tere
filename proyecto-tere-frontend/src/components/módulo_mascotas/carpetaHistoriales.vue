@@ -1,4 +1,4 @@
-<!-- carpetaHistoriales.vue -->
+<!-- carpetaHistoriales.vue - VERSIÓN CORREGIDA -->
 <template>
   <div 
     ref="animatedBg"
@@ -125,6 +125,14 @@ const tabs = computed(() => {
       activeNames: ['tutores', 'veterinario-tutores']  
     },
     { 
+      nombre: 'Ficha',  // 👈 CAMBIADO: antes era 'Episodios'
+      icon: 'id-card',          // 👈 CAMBIADO: antes era 'clock-rotate-left'
+      path: isOverlay 
+        ? { path: `${basePath}/${id}/ficha-medica`, query: queryParams }  // 👈 CAMBIADO
+        : { path: `${basePath}/ficha-medica/${id}`, query: queryParams },  // 👈 CAMBIADO
+      activeNames: ['fichaMedica', 'veterinario-fichaMedica']  // 👈 CAMBIADO
+    },
+    { 
       nombre: 'Preventivo', 
       icon: 'square-plus',
       path: isOverlay 
@@ -143,14 +151,6 @@ const tabs = computed(() => {
         'veterinario-historialClinico', 'veterinario-cirugias', 'veterinario-farmacos', 'veterinario-terapias', 'veterinario-diagnosticos', 'veterinario-paliativos'
       ]
     },
-    { 
-      nombre: 'Episodios', 
-      icon: 'clock-rotate-left',
-      path: isOverlay 
-        ? { path: `${basePath}/${id}/episodios`, query: queryParams }
-        : { path: `${basePath}/episodios/${id}`, query: queryParams },
-      activeNames: ['episodios', 'veterinario-episodios']  
-    }
   ];
 });
 
@@ -163,7 +163,8 @@ onMounted(() => {
     tienePermisoHistorial: tienePermisoHistorial.value,
     puedeContactarTutor: puedeContactarTutor.value,
     nombreMascota: nombreMascota.value,
-    origen: origen.value
+    origen: origen.value,
+    from: route.query.from
   });
   
   if (animatedBg.value) {
@@ -173,58 +174,81 @@ onMounted(() => {
   }
 })
 
-// Cierra la vista restaurando los valores originales
+// ✅ VERSIÓN CORREGIDA - Cierra la vista restaurando los valores originales
 async function cerrarVista() {
-  const from = route.query.from || route.matched[0]?.meta?.from;
-  const originalParams = route.query.originalParams 
-    ? JSON.parse(route.query.originalParams)
-    : route.matched[0]?.meta?.originalParams || {};
-
-  if (!from) {
-    console.error('No se encontró origen para redirección');
-    return router.push('/explorar/encuentros');
-  }
-
-  try {
-    let targetRoute;
-    
-    if (from === 'veterinario' || (route.meta.overlay && from === 'veterinario')) {
-      targetRoute = {
-        path: '/veterinarios',
-        query: { ts: Date.now() }
-      };
-    } 
-    else if (from.startsWith('veterinario-')) {
-      targetRoute = {
-        name: from,
-        params: originalParams,
-        query: { from: from, ts: Date.now() }
-      };
-    }
-    else {
-      targetRoute = {
-        name: from,
-        params: originalParams,
-        query: { from: from.split('-')[0], ts: Date.now() }
-      };
-    }
-    
-    console.log('🚀 Cerrando y navegando a:', targetRoute);
-    await router.push(targetRoute);
-  } catch (error) {
-    console.error('Error al cerrar:', error);
-    
-    if (route.meta.overlay) {
-      router.push('/veterinarios');
-    } else {
-      router.push('/explorar/encuentros');
+  const contextoStr = sessionStorage.getItem('contenido_mascota_contexto')
+  
+  if (contextoStr) {
+    try {
+      const contexto = JSON.parse(contextoStr)
+      const isRecent = (Date.now() - contexto.timestamp) < 30 * 60 * 1000
+      
+      if (isRecent && contexto.origenRuta) {
+        sessionStorage.removeItem('contenido_mascota_contexto')
+        
+        const origenRuta = contexto.origenRuta
+        const mascotaId = contexto.mascotaId
+        const ofertaId = contexto.ofertaId
+        
+        let returnUrl = ''
+        
+        if (origenRuta.startsWith('/explorar/cerca')) {
+          // ✅ Pasar parámetros para que se abra el overlay automáticamente
+          returnUrl = `/explorar/cerca?ts=${Date.now()}&abrir_mascota=${mascotaId}&oferta_id=${ofertaId || ''}`
+        } 
+        else if (origenRuta.startsWith('/explorar/encuentros')) {
+          // ✅ Pasar parámetros para que se abra el overlay automáticamente
+          returnUrl = `/explorar/encuentros?ts=${Date.now()}&abrir_mascota=${mascotaId}&oferta_id=${ofertaId || ''}`
+        }
+        else if (origenRuta.includes('/perfil/mascotas')) {
+          // ✅ Pasar parámetros para que se abra el overlay automáticamente
+          returnUrl = `/explorar/perfil/mascotas?ts=${Date.now()}&abrir_mascota=${mascotaId}`
+        }
+        else {
+          returnUrl = origenRuta
+        }
+        
+        console.log('🚀 Navegando a URL con parámetros:', returnUrl)
+        await router.push(returnUrl)
+        return
+      }
+    } catch (error) {
+      console.error('Error:', error)
     }
   }
+  
+  // SEGUNDO: Intentar usar el query param 'from' (fallback)
+  const from = route.query.from
+  
+  if (from === 'contenido_mascota') {
+    const mascotaIdValue = mascotaId.value
+    const ofertaIdValue = ofertaId.value
+    
+    if (mascotaIdValue) {
+      if (ofertaIdValue) {
+        await router.push(`/explorar/cerca?ts=${Date.now()}&oferta_id=${ofertaIdValue}`)
+      } else {
+        await router.push('/explorar/perfil/mascotas?ts=${Date.now()}')
+      }
+      return
+    }
+  }
+  
+  // TERCERO: Fallback para veterinarios
+  if (route.meta.overlay) {
+    await router.push('/veterinarios')
+    return
+  }
+  
+  // CUARTO: Último recurso
+  await router.push('/explorar/encuentros')
 }
 
 const titulosPorRuta = {
   tutores: 'Tutores de la Mascota',
   'veterinario-tutores': 'Tutores de la Mascota',
+  fichaMedica: 'Ficha Médica de la Mascota',
+  'veterinario-fichaMedica': 'Ficha Médica de la Mascota',
   historialPreventivo: 'Procedimientos Preventivos',
   'veterinario-historialPreventivo': 'Procedimientos Preventivos',
   vacunas: 'Vacunas Aplicadas',
@@ -238,8 +262,6 @@ const titulosPorRuta = {
   terapias: 'Terapias Realizadas',
   diagnosticos: 'Diagnósticos Realizados',
   paliativos: 'Cuidados Paliativos',
-  episodios: 'Episodios Médicos',
-  'veterinario-episodios': 'Episodios Médicos',
 }
 
 const tituloCabecera = computed(() => {
@@ -260,17 +282,17 @@ const isTabActive = (tab) => {
 };
 </script>
 
-<style>  
+<style scoped>  
   @keyframes moverHuellas {
-      0% {
-        background-position: 0 0;
-      }
-      100% {
-        background-position: 0 1024px;
-      }
+    0% {
+      background-position: 0 0;
     }
+    100% {
+      background-position: 0 1024px;
+    }
+  }
 
-    .animate-huellas {
-      animation: moverHuellas 120s linear infinite;
-    }
+  .animate-huellas {
+    animation: moverHuellas 120s linear infinite;
+  }
 </style>

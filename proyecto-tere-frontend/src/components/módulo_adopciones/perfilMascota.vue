@@ -26,7 +26,7 @@
     <!-- Contenedor principal -->
     <div 
       ref="swipeContainer"
-      class="flex-1 min-h-0 pb-16 relative bg-gray-50"
+      class="flex-1 min-h-0 pb-20 relative bg-gray-50"
     >
       <!-- Estado de carga -->
       <div v-if="cargando" class="flex items-center justify-center h-full">
@@ -70,6 +70,7 @@
           <div class="h-full flex items-center justify-center p-4">
             <ContenidoMascota 
               :oferta-actual="oferta"
+              :es-tarjeta-activa="index === currentIndex"
               @like="handleLike"
               @dislike="handleDislike"
               @close="handleCardClose"
@@ -144,7 +145,7 @@
     <transition name="fade">
       <div 
         v-if="mostrarFiltros" 
-        class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
         @click.self="mostrarFiltros = false"
       >
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -347,10 +348,24 @@ const cargarOfertasConFiltros = async (filtros) => {
 // Inicializar
 onMounted(async () => {
   if (isAuthenticated.value) {
-    // Obtener ubicación primero
     await obtenerUbicacionUsuario()
-    // Cargar ofertas
     await cargarOfertas()
+    
+    // ✅ Verificar si debemos abrir una mascota específica
+    const abrirMascotaId = route.query.abrir_mascota
+    const ofertaIdFromQuery = route.query.oferta_id
+    
+    if (abrirMascotaId && !cargando.value && ofertas.value.length > 0) {
+      // Buscar el índice de la mascota
+      const index = ofertas.value.findIndex(o => o.mascota?.id == abrirMascotaId || o.id_oferta == ofertaIdFromQuery)
+      
+      if (index !== -1) {
+        currentIndex.value = index
+      }
+      
+      // Limpiar query params
+      router.replace({ query: { ...route.query, abrir_mascota: undefined, oferta_id: undefined } })
+    }
   }
 })
 

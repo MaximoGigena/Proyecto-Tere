@@ -128,24 +128,45 @@ export default {
     };
 
     const getMascotaFoto = (mascota) => {
-      if (mascota.foto_principal_url) {
-        return mascota.foto_principal_url;
-      }
+      console.log('Debug - mascota.fotos:', mascota.fotos);
       
+      // Si no hay fotos, placeholder
       if (!mascota.fotos || mascota.fotos.length === 0) {
         return 'https://via.placeholder.com/100?text=Sin+Foto';
       }
       
-      const fotoPrincipal = mascota.fotos.find(foto => foto.es_principal);
-      const primeraFoto = mascota.fotos[0];
-      const fotoSeleccionada = fotoPrincipal || primeraFoto;
+      // Usar foto_principal_url si existe (más simple)
+      if (mascota.foto_principal_url) {
+        console.log('Usando foto_principal_url:', mascota.foto_principal_url);
+        return mascota.foto_principal_url;
+      }
       
-      if (fotoSeleccionada.ruta_foto) {
-        if (fotoSeleccionada.ruta_foto.startsWith('storage/')) {
-          return `/${fotoSeleccionada.ruta_foto}`;
-        } else {
-          return `/storage/${fotoSeleccionada.ruta_foto}`;
+      // Buscar foto principal manualmente
+      const fotoPrincipal = mascota.fotos.find(foto => foto.es_principal === 1 || foto.es_principal === true);
+      const foto = fotoPrincipal || mascota.fotos[0];
+      
+      console.log('Foto seleccionada:', foto);
+      
+      // Priorizar optimized_urls.thumbnail
+      if (foto.optimized_urls && foto.optimized_urls.thumbnail) {
+        return foto.optimized_urls.thumbnail;
+      }
+      
+      // Si no, usar url
+      if (foto.url) {
+        return foto.url;
+      }
+      
+      // Último recurso: construir URL desde ruta_foto
+      if (foto.ruta_foto) {
+        let ruta = foto.ruta_foto;
+        if (ruta.startsWith('storage/')) {
+          return '/' + ruta;
         }
+        if (!ruta.startsWith('/storage/') && !ruta.startsWith('http')) {
+          return '/storage/' + ruta;
+        }
+        return ruta;
       }
       
       return 'https://via.placeholder.com/100?text=Sin+Foto';

@@ -222,6 +222,51 @@ class OfertasProximidadController extends Controller
     {
         $mascota = $oferta->mascota;
         
+        // ✅ CORREGIDO: Procesar fotos con optimized_urls
+        $fotosProcesadas = [];
+        $fotoPrincipalUrl = null;
+        
+        if ($mascota->fotos && $mascota->fotos->isNotEmpty()) {
+            foreach ($mascota->fotos as $foto) {
+                // Procesar cada foto
+                $fotoData = [
+                    'id' => $foto->id,
+                    'url' => $foto->url,
+                    'es_principal' => (bool) $foto->es_principal,
+                    'ruta_foto' => $foto->ruta_foto,
+                    'optimized_urls' => $foto->optimized_urls, // ✅ CLAVE: URLs optimizadas
+                    'is_external' => $foto->is_external
+                ];
+                $fotosProcesadas[] = $fotoData;
+                
+                // Obtener URL de foto principal con prioridad a optimized_urls
+                if ($foto->es_principal && !$fotoPrincipalUrl) {
+                    // Priorizar versión optimizada medium
+                    if (isset($foto->optimized_urls['medium']) && $foto->optimized_urls['medium']) {
+                        $fotoPrincipalUrl = $foto->optimized_urls['medium'];
+                    } elseif (isset($foto->optimized_urls['small']) && $foto->optimized_urls['small']) {
+                        $fotoPrincipalUrl = $foto->optimized_urls['small'];
+                    } elseif (isset($foto->optimized_urls['thumbnail']) && $foto->optimized_urls['thumbnail']) {
+                        $fotoPrincipalUrl = $foto->optimized_urls['thumbnail'];
+                    } else {
+                        $fotoPrincipalUrl = $foto->url;
+                    }
+                }
+            }
+            
+            // Si no se encontró foto principal, usar la primera
+            if (!$fotoPrincipalUrl && !empty($fotosProcesadas)) {
+                $primeraFoto = $fotosProcesadas[0];
+                if (isset($primeraFoto['optimized_urls']['medium'])) {
+                    $fotoPrincipalUrl = $primeraFoto['optimized_urls']['medium'];
+                } elseif (isset($primeraFoto['optimized_urls']['small'])) {
+                    $fotoPrincipalUrl = $primeraFoto['optimized_urls']['small'];
+                } else {
+                    $fotoPrincipalUrl = $primeraFoto['url'];
+                }
+            }
+        }
+        
         // Determinar nivel de proximidad
         $nivelProximidad = null;
         $textoDistancia = 'Sin ubicación';
@@ -236,13 +281,6 @@ class OfertasProximidadController extends Controller
         // Formatear ubicación
         $ubicacionTexto = $this->formatearUbicacionTexto($ubicacionTutor);
         
-        // Obtener foto principal
-        $fotoPrincipalUrl = null;
-        if ($mascota->fotos && $mascota->fotos->isNotEmpty()) {
-            $fotoPrincipal = $mascota->fotos->first();
-            $fotoPrincipalUrl = $fotoPrincipal->url;
-        }
-        
         // Determinar rango etario
         $rangoEtario = $this->determinarRangoEtario($mascota);
         
@@ -253,11 +291,14 @@ class OfertasProximidadController extends Controller
                 'nombre' => $mascota->nombre ?? 'Sin nombre',
                 'especie' => $mascota->especie ?? 'Desconocido',
                 'sexo' => $mascota->sexo ?? 'Desconocido',
+                'castrado' => $mascota->castrado,
                 'edad_formateada' => $mascota->edad_formateada ?? 'Edad no especificada',
-                'foto_principal_url' => $fotoPrincipalUrl,
+                'foto_principal_url' => $fotoPrincipalUrl, // ✅ Ahora es URL optimizada
+                'fotos' => $fotosProcesadas, // ✅ Incluye todas las fotos con optimized_urls
                 'caracteristicas' => $mascota->caracteristicas ?? [],
                 'rango_etario' => $rangoEtario,
                 'ubicacion_texto' => $ubicacionTexto,
+                'ubicacion' => $ubicacionTutor, // ✅ Incluir ubicación completa
             ],
             'distancia' => $textoDistancia,
             'distancia_km' => $distanciaKm !== null ? round($distanciaKm, 1) : null,

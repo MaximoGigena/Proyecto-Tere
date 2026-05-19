@@ -10,7 +10,7 @@
         <div class="flex items-center gap-4 mb-4">
           <div class="relative">
             <img
-              :src="mascota.foto"
+              :src="mascota.foto_url || mascota.foto"
               alt="foto mascota"
               class="w-16 h-16 object-cover rounded-xl"
             />
@@ -98,78 +98,51 @@
               
               <!-- Lista de medios disponibles con iconos (solo visible si está activado) -->
               <div v-if="permisos.compartirMediosContacto" class="mt-3 space-y-3">
+                <div v-if="cargandoMedios" class="text-center py-4">
+                  <div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                  <p class="text-sm text-gray-500 mt-2">Cargando medios de contacto...</p>
+                </div>
+                
+                <div v-else-if="mediosContactoDisponibles.length === 0" class="p-4 bg-yellow-50 rounded-lg text-center">
+                  <p class="text-yellow-700 text-sm">⚠️ No tenés medios de contacto registrados.</p>
+                  <p class="text-xs text-yellow-600 mt-1">Configurá tu perfil para agregar teléfono, email o Telegram.</p>
+                </div>
+
                 <!-- WhatsApp -->
-                <div v-if="contacto.telefono" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-2" :class="mediosSeleccionados.includes(1) ? 'border-green-500 bg-green-50' : 'border-gray-200'">
+                <div 
+                  v-for="medio in mediosContactoDisponibles"
+                  :key="medio.id"
+                  class="flex items-center justify-between p-3 rounded-lg border-2 transition-all cursor-pointer"
+                  :class="[
+                    mediosSeleccionados.includes(medio.id) 
+                      ? medio.id === 1 ? 'border-green-500 bg-green-50' 
+                      : medio.id === 2 ? 'border-blue-500 bg-blue-50'
+                      : 'border-blue-400 bg-blue-50'
+                      : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                  ]"
+                  @click="toggleMedio(medio.id)"
+                >
                   <div class="flex items-center gap-3">
-                    <div class="p-2 bg-green-100 rounded-lg">
-                      <span class="text-green-600 text-xl">📱</span>
+                    <div class="p-2 rounded-lg" :class="medio.id === 1 ? 'bg-green-100' : 'bg-blue-100'">
+                      <span class="text-xl" :class="medio.id === 1 ? 'text-green-600' : 'text-blue-600'">
+                        {{ medio.icono }}
+                      </span>
                     </div>
                     <div>
-                      <p class="font-medium">WhatsApp</p>
-                      <p class="text-sm text-gray-600">{{ contacto.telefono }}</p>
+                      <p class="font-medium text-gray-800">{{ medio.tipo }}</p>
+                      <p class="text-sm text-gray-600">{{ medio.valor }}</p>
                     </div>
                   </div>
                   <div class="flex items-center">
                     <input
                       type="checkbox"
-                      v-model="mediosSeleccionados"
-                      :value="1"
-                      class="w-5 h-5 text-green-600 rounded"
+                      :checked="mediosSeleccionados.includes(medio.id)"
+                      @change="toggleMedio(medio.id)"
+                      class="w-5 h-5 rounded"
+                      :class="medio.id === 1 ? 'text-green-600' : 'text-blue-600'"
                     >
                   </div>
                 </div>
-
-                <!-- Email -->
-                <div v-if="contacto.email" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-2" :class="mediosSeleccionados.includes(2) ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
-                  <div class="flex items-center gap-3">
-                    <div class="p-2 bg-blue-100 rounded-lg">
-                      <span class="text-blue-600 text-xl">✉️</span>
-                    </div>
-                    <div>
-                      <p class="font-medium">Email</p>
-                      <p class="text-sm text-gray-600">{{ contacto.email }}</p>
-                    </div>
-                  </div>
-                  <div class="flex items-center">
-                    <input
-                      type="checkbox"
-                      v-model="mediosSeleccionados"
-                      :value="2"
-                      class="w-5 h-5 text-blue-600 rounded"
-                    >
-                  </div>
-                </div>
-
-                <!-- Telegram -->
-                <div v-if="contacto.telegram_chat_id" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-2" :class="mediosSeleccionados.includes(3) ? 'border-blue-400 bg-blue-50' : 'border-gray-200'">
-                  <div class="flex items-center gap-3">
-                    <div class="p-2 bg-blue-100 rounded-lg">
-                      <span class="text-blue-500 text-xl">📨</span>
-                    </div>
-                    <div>
-                      <p class="font-medium">Telegram</p>
-                      <p class="text-sm text-gray-600">{{ contacto.telegram_chat_id }}</p>
-                    </div>
-                  </div>
-                  <div class="flex items-center">
-                    <input
-                      type="checkbox"
-                      v-model="mediosSeleccionados"
-                      :value="3"
-                      class="w-5 h-5 text-blue-500 rounded"
-                    >
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Mensaje si no hay medios de contacto -->
-              <div v-else-if="!tieneMediosContacto" class="mt-3 p-4 bg-gray-50 rounded-lg text-center">
-                <p class="text-gray-500 text-sm">
-                  No tenés medios de contacto registrados.
-                </p>
-                <p class="text-xs text-gray-400 mt-1">
-                  Podés agregarlos en tu perfil de usuario
-                </p>
               </div>
             </label>
           </div>
@@ -208,9 +181,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
-
-const router = useRouter()
+import axios from 'axios'
 
 const props = defineProps({
   mascota: {
@@ -223,22 +194,14 @@ const props = defineProps({
 const emit = defineEmits(['close', 'confirmar'])
 
 // Estados
-const contacto = ref({
-  telefono: null,
-  email: null,
-  telegram_chat_id: null
-})
+const mediosContactoDisponibles = ref([])
 const mediosSeleccionados = ref([])
+const cargandoMedios = ref(false)
 
 // Permisos por defecto
 const permisos = reactive({
   compartirHistorialMedico: true,
   compartirMediosContacto: false
-})
-
-// Computed para verificar si hay medios de contacto
-const tieneMediosContacto = computed(() => {
-  return contacto.value.telefono || contacto.value.email || contacto.value.telegram_chat_id
 })
 
 // Computed para validar si se puede continuar
@@ -251,33 +214,49 @@ const puedeContinuar = computed(() => {
   return true
 })
 
-// Cargar datos de contacto del usuario
-async function cargarContacto() {
+// Cargar medios de contacto del usuario autenticado
+async function cargarMediosContacto() {
+  cargandoMedios.value = true
   try {
-    const usuarioId = localStorage.getItem('userId') || 1
-    
-    const response = await fetch(`/api/usuarios/${usuarioId}/contacto`, {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      console.error('No hay token de autenticación')
+      return
+    }
+
+    const response = await axios.get('/api/user/medios-contacto', {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     })
     
-    if (response.ok) {
-      const data = await response.json()
-      contacto.value = {
-        telefono: data.telefono || null,
-        email: data.email || null,
-        telegram_chat_id: data.telegram_chat_id || null
-      }
+    if (response.data.success) {
+      mediosContactoDisponibles.value = response.data.data
+      console.log('📞 Medios de contacto cargados:', mediosContactoDisponibles.value)
       
       // Seleccionar todos por defecto cuando se active
-      if (contacto.value.telefono) mediosSeleccionados.value.push(1)
-      if (contacto.value.email) mediosSeleccionados.value.push(2)
-      if (contacto.value.telegram_chat_id) mediosSeleccionados.value.push(3)
+      mediosSeleccionados.value = mediosContactoDisponibles.value.map(m => m.id)
+    } else {
+      console.error('Error en respuesta:', response.data)
     }
   } catch (error) {
-    console.error('Error cargando contacto:', error)
+    console.error('❌ Error cargando medios de contacto:', error)
+    if (error.response) {
+      console.error('Respuesta del servidor:', error.response.data)
+    }
+  } finally {
+    cargandoMedios.value = false
+  }
+}
+
+// Alternar selección de un medio
+function toggleMedio(medioId) {
+  const index = mediosSeleccionados.value.indexOf(medioId)
+  if (index === -1) {
+    mediosSeleccionados.value.push(medioId)
+  } else {
+    mediosSeleccionados.value.splice(index, 1)
   }
 }
 
@@ -287,16 +266,19 @@ function handleMediosContactoChange() {
     // Si se desactiva, limpiar selecciones
     mediosSeleccionados.value = []
   } else {
-    // Si se activa, seleccionar todos por defecto
-    mediosSeleccionados.value = []
-    if (contacto.value.telefono) mediosSeleccionados.value.push(1)
-    if (contacto.value.email) mediosSeleccionados.value.push(2)
-    if (contacto.value.telegram_chat_id) mediosSeleccionados.value.push(3)
+    // Si se activa, seleccionar todos los medios disponibles
+    mediosSeleccionados.value = mediosContactoDisponibles.value.map(m => m.id)
   }
 }
 
-// Solo continuar a la siguiente vista
+// Continuar a la confirmación final
 function continuar() {
+  // Validar que si se activaron medios, haya al menos uno seleccionado
+  if (permisos.compartirMediosContacto && mediosSeleccionados.value.length === 0) {
+    console.warn('No se seleccionaron medios de contacto')
+    return
+  }
+  
   // Preparar datos para pasar a la siguiente vista
   const datosOferta = {
     mascota: props.mascota,
@@ -310,7 +292,7 @@ function continuar() {
   
   console.log('📤 Continuando a confirmación final con datos:', datosOferta)
   
-  // Pasar los datos al padre
+  // Emitir al padre
   emit('confirmar', datosOferta)
 }
 
@@ -318,9 +300,9 @@ function cerrar() {
   emit('close')
 }
 
-// Cargar contacto al montar
+// Cargar medios de contacto al montar el componente
 onMounted(() => {
-  cargarContacto()
+  cargarMediosContacto()
 })
 </script>
 
